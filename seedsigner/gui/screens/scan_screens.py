@@ -133,7 +133,23 @@ class ScanScreen(BaseScreen):
 
                     with self.renderer.lock:
                         # Use nearest neighbor resizing for max speed
-                        frame = resize_image_to_fill(frame, self.render_width, self.render_height, sampling_method=Image.Resampling.NEAREST)
+                        skew_buffer = 20  # pixels to account for rotation
+                        
+                        # Resize to a target window slightly larger than the display
+                        frame = resize_image_to_fill(
+                            frame, 
+                            self.render_width + 2*skew_buffer, 
+                            self.render_height + 2*skew_buffer, 
+                            sampling_method=Image.Resampling.NEAREST
+                        )
+                        
+                        # Crop the frame to its final size, centering the content
+                        frame = frame.crop((
+                            skew_buffer,  # left
+                            skew_buffer,  # top
+                            self.render_width + skew_buffer,  # right
+                            self.render_height + skew_buffer  # bottom
+                        ))
 
                         if scan_text:
                             # Note: shadowed text (adding a 'stroke' outline) can
@@ -284,5 +300,5 @@ class ScanScreen(BaseScreen):
                 
                 if self.hw_inputs.check_for_low(HardwareButtonsConstants.KEY_RIGHT) or self.hw_inputs.check_for_low(HardwareButtonsConstants.KEY_LEFT):
                     self.camera.stop_video_stream_mode()
-                    return False
+                    break
 

@@ -124,7 +124,6 @@ class SettingsConstants:
         LOCALE__ENGLISH: "English",
         LOCALE__SPANISH: "Español",
         LOCALE__FRENCH: "Français",
-        LOCALE__ITALIAN: "Italiano",
         LOCALE__DUTCH: "Nederlands",
 
         # --------- Beta languages ------------------------------------------------------
@@ -150,6 +149,7 @@ class SettingsConstants:
         # LOCALE__HEBREW: "עברית (Hebrew)",
         # LOCALE__HINDI: "हिन्दी (Hindi)",
         LOCALE__CROATIAN: "Hrvatski",
+        LOCALE__ITALIAN: "Italiano",
         LOCALE__INDONESIAN: "Indonesia",
         LOCALE__JAVANESE: "Jawa (Javanese)",
         # LOCALE__LAO: "ລາວ (Lao)",
@@ -227,11 +227,13 @@ class SettingsConstants:
     CAMERA_ROTATION__90 = 90
     CAMERA_ROTATION__180 = 180
     CAMERA_ROTATION__270 = 270
+    CAMERA_ROTATION__FRACTAL = 9
     ALL_CAMERA_ROTATIONS = [
         (CAMERA_ROTATION__0, _mft("0°")),
         (CAMERA_ROTATION__90, _mft("90°")),
         (CAMERA_ROTATION__180, _mft("180°")),
         (CAMERA_ROTATION__270, _mft("270°")),
+        (CAMERA_ROTATION__FRACTAL, _mft("FractalEncrypt")),
     ]
 
     # QR code constants
@@ -350,7 +352,7 @@ class SettingsConstants:
     DISPLAY_CONFIGURATION__ILI9486__480x320 = "ili9486_480x320"  # natively portrait dimensions; we apply a 90° rotation
     ALL_DISPLAY_CONFIGURATIONS = [
         (DISPLAY_CONFIGURATION__ST7789__240x240, "st7789 240x240"),
-        (DISPLAY_CONFIGURATION__ST7789__320x240, "st7789 320x240"),
+        (DISPLAY_CONFIGURATION__ST7789__320x240, "FractalEncrypt Display 320x240"),
         (DISPLAY_CONFIGURATION__ILI9341__320x240, "ili9341 320x240 (beta)"),
         # (DISPLAY_CONFIGURATION__ILI9486__320x480, "ili9486 480x320"),  # TODO: Enable when ili9486 driver performance is improved
     ]
