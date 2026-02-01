@@ -1,0 +1,24 @@
+Metadata-Version: 2.1
+Name: urtypes
+Version: 1.0.1
+Summary: Python implementation of the Blockchain Commons UR Types specification
+License: MIT
+Author: Jeff S
+Author-email: jeffreesun@protonmail.com
+Requires-Python: >=3.10,<4.0
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Project-URL: Bug Tracker, https://github.com/selfcustody/urtypes/issues
+Project-URL: repository, https://github.com/selfcustody/urtypes
+Description-Content-Type: text/markdown
+
+[![codecov](https://codecov.io/gh/selfcustody/urtypes/branch/main/graph/badge.svg?token=LMJZ29IHSB)](https://codecov.io/gh/selfcustody/urtypes)
+
+# urtypes
+
+Python implementation of the [Blockchain Commons UR Types specification](https://github.com/BlockchainCommons/Research/blob/master/papers/bcr-2020-006-urtypes.md).
+

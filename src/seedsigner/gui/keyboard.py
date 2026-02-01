@@ -39,6 +39,13 @@ class Keyboard:
         "size": 2,
     }
 
+    KEY_OK = {
+        "code": "OK",
+        "letter": "OK",
+        "font": REGULAR_KEY_FONT,
+        "size": 2,
+    }
+
     KEY_SPACE = {
         "code": "SPACE",
         "letter": SeedSignerIconConstants.SPACE,
@@ -90,6 +97,7 @@ class Keyboard:
     ADDITIONAL_KEYS = {
         KEY_SPACE["code"]: KEY_SPACE,
         KEY_BACKSPACE["code"]: KEY_BACKSPACE,
+        KEY_OK["code"]: KEY_OK,
         KEY_CURSOR_LEFT["code"]: KEY_CURSOR_LEFT,
         KEY_CURSOR_RIGHT["code"]: KEY_CURSOR_RIGHT,
         KEY_PREVIOUS_PAGE["code"]: KEY_PREVIOUS_PAGE,

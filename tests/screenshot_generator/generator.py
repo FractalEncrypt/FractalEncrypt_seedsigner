@@ -5,6 +5,7 @@ import pytest
 import os
 import random
 import sys
+import types
 import time
 from unittest.mock import Mock, patch, MagicMock
 from PIL import ImageFont
@@ -22,6 +23,23 @@ sys.modules['RPi'] = MagicMock()
 sys.modules['RPi.GPIO'] = MagicMock()
 sys.modules['seedsigner.hardware.camera.Camera'] = MagicMock()
 sys.modules['seedsigner.hardware.microsd'] = MagicMock()
+
+# Stub pyzbar to avoid native DLL loading during screenshot generation.
+_pyzbar_module = types.ModuleType("pyzbar")
+_pyzbar_pyzbar_module = types.ModuleType("pyzbar.pyzbar")
+
+def _noop_decode(*args, **kwargs):
+    return []
+
+class _ZBarSymbol:
+    QRCODE = None
+
+_pyzbar_pyzbar_module.decode = _noop_decode
+_pyzbar_pyzbar_module.ZBarSymbol = _ZBarSymbol
+_pyzbar_module.pyzbar = _pyzbar_pyzbar_module
+
+sys.modules['pyzbar'] = _pyzbar_module
+sys.modules['pyzbar.pyzbar'] = _pyzbar_pyzbar_module
 
 from seedsigner.controller import Controller
 from seedsigner.gui.components import GUIConstants
@@ -318,6 +336,26 @@ def generate_screenshots(locale):
             "Seed Views": [
                 ScreenshotConfig(seed_views.SeedsMenuView),
                 ScreenshotConfig(seed_views.LoadSeedView),
+                ScreenshotConfig(seed_views.Codex32EntryView, screenshot_name="Codex32EntryView"),
+                ScreenshotConfig(seed_views.Codex32ShareInvalidView, screenshot_name="Codex32ShareInvalidView"),
+                ScreenshotConfig(seed_views.Codex32DiscardShareConfirmView, screenshot_name="Codex32DiscardShareConfirmView"),
+                ScreenshotConfig(
+                    seed_views.Codex32ShareSuccessView,
+                    dict(entered_shares=2, total_shares=3, share_num=2),
+                    screenshot_name="Codex32ShareSuccessView",
+                ),
+                ScreenshotConfig(seed_views.Codex32MasterShareSuccessView, screenshot_name="Codex32MasterShareSuccessView"),
+                ScreenshotConfig(seed_views.Codex32MasterSecretWarningView, screenshot_name="Codex32MasterSecretWarningView"),
+                ScreenshotConfig(
+                    seed_views.Codex32MasterSecretDisplayView,
+                    dict(page_index=0),
+                    screenshot_name="Codex32MasterSecretDisplayView_1",
+                ),
+                ScreenshotConfig(
+                    seed_views.Codex32MasterSecretDisplayView,
+                    dict(page_index=1),
+                    screenshot_name="Codex32MasterSecretDisplayView_2",
+                ),
                 ScreenshotConfig(seed_views.SeedMnemonicEntryView),
                 ScreenshotConfig(seed_views.SeedMnemonicInvalidView),
                 ScreenshotConfig(seed_views.SeedFinalizeView),
@@ -491,7 +529,7 @@ def generate_screenshots(locale):
 
     # Parse the main `l10n/messages.pot` for overall stats
     messages_source_path = os.path.join(pathlib.Path(__file__).parent.resolve().parent.resolve().parent.resolve(), "l10n", "messages.pot")
-    with open(messages_source_path, 'r') as messages_source_file:
+    with open(messages_source_path, 'r', encoding="utf-8") as messages_source_file:
         num_source_messages = messages_source_file.read().count("msgid \"") - 1
 
     locale_tuple_list = [locale_tuple for locale_tuple in SettingsConstants.get_detected_languages() if locale_tuple[0] == locale]
@@ -508,7 +546,7 @@ def generate_screenshots(locale):
     if locale != SettingsConstants.LOCALE__ENGLISH:
         try:
             translated_messages_path = os.path.join(pathlib.Path(__file__).parent.resolve().parent.resolve().parent.resolve(), "src", "seedsigner", "resources", "seedsigner-translations", "l10n", locale, "LC_MESSAGES", "messages.po") 
-            with open(translated_messages_path, 'r') as translation_file:
+            with open(translated_messages_path, 'r', encoding="utf-8") as translation_file:
                 locale_translations = translation_file.read()
                 num_locale_translations = locale_translations.count("msgid \"") - locale_translations.count("""msgstr ""\n\n""") - 1
 
@@ -534,20 +572,20 @@ def generate_screenshots(locale):
 
         locale_readme += "</td></tr></table>"
 
-    with open(os.path.join(screenshot_root, locale, "README.md"), 'w') as readme_file:
+    with open(os.path.join(screenshot_root, locale, "README.md"), 'w', encoding="utf-8") as readme_file:
         readme_file.write(locale_readme)
 
     print(f"Done with locale: {locale}.")
 
     # Write the main README; ensure it writes all locales, not just the one that may
     # have been specified for this run.
-    with open(os.path.join("tests", "screenshot_generator", "template.md"), 'r') as readme_template:
+    with open(os.path.join("tests", "screenshot_generator", "template.md"), 'r', encoding="utf-8") as readme_template:
         main_readme = readme_template.read()
 
     for locale, display_name in SettingsConstants.get_detected_languages():
         main_readme += f"* [{display_name}]({locale}/README.md)\n"
 
-    with open(os.path.join(screenshot_root, "README.md"), 'w') as readme_file:
+    with open(os.path.join(screenshot_root, "README.md"), 'w', encoding="utf-8") as readme_file:
         readme_file.write(main_readme)
 
     print(f"Screenshots rendered: {screenshot_renderer.render_count}")

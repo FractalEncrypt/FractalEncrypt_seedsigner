@@ -21,6 +21,8 @@ from seedsigner.views.view import NotYetImplementedView, OptionDisabledView, Vie
 
 logger = logging.getLogger(__name__)
 
+CODEX32_MASTER_SECRET_TEST_VECTOR = "MS12NAMES6XQGUZTTXKEQNJSJZV4JV3NZ5K3KWGSPHUH6EVW"
+
 
 
 class SeedsMenuView(View):
@@ -162,6 +164,7 @@ class LoadSeedView(View):
     SEED_QR = ButtonOption("Scan a SeedQR", SeedSignerIconConstants.QRCODE)
     TYPE_12WORD = ButtonOption("Enter 12-word seed", FontAwesomeIconConstants.KEYBOARD)
     TYPE_24WORD = ButtonOption("Enter 24-word seed", FontAwesomeIconConstants.KEYBOARD)
+    TYPE_CODEX32 = ButtonOption("Enter Codex32 Seed", FontAwesomeIconConstants.KEYBOARD)
     TYPE_ELECTRUM = ButtonOption("Enter Electrum seed", FontAwesomeIconConstants.KEYBOARD)
     CREATE = ButtonOption("Create a seed", SeedSignerIconConstants.PLUS)
 
@@ -170,6 +173,7 @@ class LoadSeedView(View):
             self.SEED_QR,
             self.TYPE_12WORD,
             self.TYPE_24WORD,
+            self.TYPE_CODEX32,
         ]
 
         if self.settings.get_value(SettingsConstants.SETTING__ELECTRUM_SEEDS) == SettingsConstants.OPTION__ENABLED:
@@ -198,6 +202,9 @@ class LoadSeedView(View):
         elif button_data[selected_menu_num] == self.TYPE_24WORD:
             self.controller.storage.init_pending_mnemonic(num_words=24)
             return Destination(SeedMnemonicEntryView)
+
+        elif button_data[selected_menu_num] == self.TYPE_CODEX32:
+            return Destination(Codex32EntryView)
 
         elif button_data[selected_menu_num] == self.TYPE_ELECTRUM:
             return Destination(SeedElectrumMnemonicStartView)
@@ -264,6 +271,228 @@ class SeedMnemonicEntryView(View):
                 return Destination(SeedMnemonicInvalidView)
 
             return Destination(SeedFinalizeView)
+
+
+class Codex32EntryView(View):
+    def __init__(self, share_num: int = 1, prefill: str = "MS1", start_page: int | None = None):
+        super().__init__()
+        self.share_num = share_num
+        self.prefill = prefill
+        self.start_page = start_page
+
+    def run(self):
+        ret = self.run_screen(
+            seed_screens.Codex32EntryScreen,
+            share_num=self.share_num,
+            prefill=self.prefill,
+            start_page=self.start_page,
+        )
+
+        if ret == RET_CODE__BACK_BUTTON:
+            return Destination(BackStackView)
+
+        return Destination(NotYetImplementedView, view_args={"text": _("Codex32 validation coming next.")})
+
+
+class Codex32ShareInvalidView(View):
+    EDIT = ButtonOption("Review & edit")
+    DISCARD = ButtonOption("Discard", button_label_color="red")
+
+    def __init__(self, share_num: int = 1, prefill: str = "MS1"):
+        super().__init__()
+        self.share_num = share_num
+        self.prefill = prefill
+
+    def run(self):
+        button_data = [self.EDIT, self.DISCARD]
+        selected_menu_num = self.run_screen(
+            DireWarningScreen,
+            title=_("Invalid Codex32 Share!"),
+            status_icon_name=SeedSignerIconConstants.ERROR,
+            status_headline=None,
+            text=_("Checksum failure; not a valid Codex32 share."),
+            show_back_button=False,
+            button_data=button_data,
+        )
+
+        if button_data[selected_menu_num] == self.EDIT:
+            return Destination(
+                Codex32EntryView,
+                view_args={
+                    "share_num": self.share_num,
+                    "prefill": self.prefill,
+                    "start_page": 0,
+                },
+            )
+
+        elif button_data[selected_menu_num] == self.DISCARD:
+            return Destination(MainMenuView)
+
+
+class Codex32DiscardShareConfirmView(View):
+    EDIT = ButtonOption("Review & edit")
+    DISCARD = ButtonOption("Discard", button_label_color="red")
+
+    def __init__(self, share_num: int = 1, prefill: str = "MS1"):
+        super().__init__()
+        self.share_num = share_num
+        self.prefill = prefill
+
+    def run(self):
+        button_data = [self.EDIT, self.DISCARD]
+        selected_menu_num = self.run_screen(
+            WarningScreen,
+            title=_("Discard Share?"),
+            status_headline=None,
+            text=_("Your current share entry will be erased."),
+            show_back_button=False,
+            button_data=button_data,
+        )
+
+        if button_data[selected_menu_num] == self.EDIT:
+            return Destination(
+                Codex32EntryView,
+                view_args={
+                    "share_num": self.share_num,
+                    "prefill": self.prefill,
+                    "start_page": 0,
+                },
+            )
+
+        elif button_data[selected_menu_num] == self.DISCARD:
+            return Destination(MainMenuView)
+
+
+class Codex32ShareSuccessView(View):
+    NEXT = ButtonOption("Enter next share")
+    DISCARD = ButtonOption("Discard", button_label_color="red")
+
+    def __init__(
+        self,
+        entered_shares: int = 1,
+        total_shares: int = 2,
+        share_num: int = 1,
+        prefill: str = "MS1",
+    ):
+        super().__init__()
+        self.entered_shares = entered_shares
+        self.total_shares = total_shares
+        self.share_num = share_num
+        self.prefill = prefill
+
+    def run(self):
+        button_data = [self.NEXT, self.DISCARD]
+        selected_menu_num = self.run_screen(
+            seed_screens.Codex32ShareSuccessScreen,
+            entered_shares=self.entered_shares,
+            total_shares=self.total_shares,
+            button_data=button_data,
+        )
+
+        if button_data[selected_menu_num] == self.NEXT:
+            return Destination(
+                Codex32EntryView,
+                view_args={
+                    "share_num": self.share_num + 1,
+                    "prefill": self.prefill,
+                },
+            )
+
+        elif button_data[selected_menu_num] == self.DISCARD:
+            return Destination(
+                Codex32DiscardShareConfirmView,
+                view_args={
+                    "share_num": self.share_num,
+                    "prefill": self.prefill,
+                },
+            )
+
+
+class Codex32MasterShareSuccessView(View):
+    DISPLAY = ButtonOption("Display mnemonic")
+    LOAD = ButtonOption("Load seed")
+
+    def __init__(self, share_data: str = CODEX32_MASTER_SECRET_TEST_VECTOR):
+        super().__init__()
+        self.share_data = share_data
+
+    def run(self):
+        button_data = [self.DISPLAY, self.LOAD]
+        selected_menu_num = self.run_screen(
+            seed_screens.Codex32MasterShareSuccessScreen,
+            button_data=button_data,
+        )
+
+        if button_data[selected_menu_num] == self.DISPLAY:
+            return Destination(
+                Codex32MasterSecretWarningView,
+                view_args={"share_data": self.share_data},
+            )
+
+        elif button_data[selected_menu_num] == self.LOAD:
+            return Destination(SeedOptionsView, view_args={"seed_num": 0})
+
+
+class Codex32MasterSecretWarningView(View):
+    def __init__(self, share_data: str = CODEX32_MASTER_SECRET_TEST_VECTOR):
+        super().__init__()
+        self.share_data = share_data
+
+    def run(self):
+        destination = Destination(
+            Codex32MasterSecretDisplayView,
+            view_args={"share_data": self.share_data, "page_index": 0},
+            skip_current_view=True,
+        )
+
+        selected_menu_num = self.run_screen(
+            DireWarningScreen,
+            status_headline=_("This will display your private key!"),
+            text=_("Never photograph or scan it into a device that connects to the internet."),
+        )
+
+        if selected_menu_num == RET_CODE__BACK_BUTTON:
+            return Destination(BackStackView)
+
+        return destination
+
+
+class Codex32MasterSecretDisplayView(View):
+    CONTINUE = ButtonOption("Continue to Boxes 25-48")
+    FINALIZE = ButtonOption("Finalize Seed")
+
+    def __init__(self, share_data: str = CODEX32_MASTER_SECRET_TEST_VECTOR, page_index: int = 0):
+        super().__init__()
+        self.share_data = share_data
+        self.page_index = page_index
+
+    def run(self):
+        if self.page_index == 0:
+            button_data = [self.CONTINUE]
+            boxes_label = _("Boxes 1-24")
+        else:
+            button_data = [self.FINALIZE]
+            boxes_label = _("Boxes 25-48")
+
+        selected_menu_num = self.run_screen(
+            seed_screens.Codex32MasterSecretDisplayScreen,
+            share_data=self.share_data,
+            start_index=self.page_index * 24,
+            chunk_size=24,
+            boxes_label=boxes_label,
+            button_data=button_data,
+        )
+
+        if selected_menu_num == RET_CODE__BACK_BUTTON:
+            return Destination(BackStackView)
+
+        if button_data[selected_menu_num] == self.CONTINUE:
+            return Destination(
+                Codex32MasterSecretDisplayView,
+                view_args={"share_data": self.share_data, "page_index": 1},
+            )
+
+        return Destination(SeedOptionsView, view_args={"seed_num": 0})
 
 
 
