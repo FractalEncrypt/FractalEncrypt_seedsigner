@@ -93,6 +93,11 @@ class Seed:
         return unicodedata.normalize("NFC", self._passphrase)
 
 
+    @property
+    def passphrase_supported(self) -> bool:
+        return True
+
+
     def set_passphrase(self, passphrase: str, regenerate_seed: bool = True):
         if passphrase:
             self._passphrase = unicodedata.normalize("NFKD", passphrase)
@@ -168,6 +173,35 @@ class Seed:
     def __eq__(self, other):
         if isinstance(other, Seed):
             return self.seed_bytes == other.seed_bytes
+        return False
+
+
+
+class Codex32Seed(Seed):
+    def __init__(self, seed_bytes: bytes) -> None:
+        if len(seed_bytes) != 16:
+            raise InvalidSeedException(
+                f"Expected 16 bytes for a Codex32 master seed, got {len(seed_bytes)}"
+            )
+        self._wordlist_language_code = SettingsConstants.WORDLIST_LANGUAGE__ENGLISH
+        self._mnemonic = unicodedata.normalize("NFKD", bip39.mnemonic_from_bytes(seed_bytes)).split()
+        self._passphrase = ""
+        self.seed_bytes = seed_bytes
+
+
+    def _generate_seed(self):
+        # Seed bytes are already provided by Codex32; do not apply PBKDF2.
+        return
+
+
+    def set_passphrase(self, passphrase: str, regenerate_seed: bool = True):
+        if passphrase:
+            raise InvalidSeedException("Codex32 seeds do not support passphrases")
+        self._passphrase = ""
+
+
+    @property
+    def passphrase_supported(self) -> bool:
         return False
 
 

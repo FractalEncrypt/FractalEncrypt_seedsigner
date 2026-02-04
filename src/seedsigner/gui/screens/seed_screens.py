@@ -822,6 +822,13 @@ class Codex32EntryScreen(BaseTopNavScreen):
                     elif input in [HardwareButtonsConstants.KEY_RIGHT, HardwareButtonsConstants.KEY_LEFT]:
                         continue
 
+                if input == HardwareButtonsConstants.KEY_RIGHT and self.right_arrow.is_selected:
+                    self._flash_button(self.right_arrow)
+                    self._set_page(self.active_page + 1)
+                    self._render_boxes()
+                    self.renderer.show_image()
+                    continue
+
                 if input == HardwareButtonsConstants.KEY1:
                     self._flash_button(self.left_arrow)
                     self._set_page(self.active_page - 1)

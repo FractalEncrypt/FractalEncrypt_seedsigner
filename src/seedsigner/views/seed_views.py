@@ -13,7 +13,8 @@ from seedsigner.gui.screens import (RET_CODE__BACK_BUTTON, ButtonListScreen,
 from seedsigner.gui.screens.screen import ButtonOption, ButtonOptionWithoutTranslation
 from seedsigner.models.encode_qr import CompactSeedQrEncoder, GenericStaticQrEncoder, SeedQrEncoder, SpecterLegacyXPubQrEncoder, StaticXpubQrEncoder, UrXpubQrEncoder
 from seedsigner.models.qr_type import QRType
-from seedsigner.models.seed import Seed
+from seedsigner.models.seed import Seed, Codex32Seed
+from seedsigner.models import codex32 as codex32_model
 from seedsigner.models.settings import Settings, SettingsConstants
 from seedsigner.models.settings_definition import SettingsDefinition
 from seedsigner.models.threads import BaseThread, ThreadsafeCounter
@@ -290,18 +291,58 @@ class Codex32EntryView(View):
 
         if ret == RET_CODE__BACK_BUTTON:
             return Destination(BackStackView)
+        try:
+            codex = codex32_model.validate_codex32_s_share(ret)
+        except codex32_model.Codex32InputError as exc:
+            return Destination(
+                Codex32ShareInvalidView,
+                view_args={
+                    "share_num": self.share_num,
+                    "prefill": self.prefill,
+                    "error_type": exc.error_type,
+                    "error_detail": str(exc),
+                },
+            )
 
-        return Destination(NotYetImplementedView, view_args={"text": _("Codex32 validation coming next.")})
+        seed = Codex32Seed(codex.data)
+        self.controller.storage.set_pending_seed(seed)
+        share_display = codex32_model.normalize_codex32_display(ret)
+        return Destination(
+            Codex32MasterShareSuccessView,
+            view_args={"share_data": share_display},
+        )
 
 
 class Codex32ShareInvalidView(View):
     EDIT = ButtonOption("Review & edit")
     DISCARD = ButtonOption("Discard", button_label_color="red")
 
-    def __init__(self, share_num: int = 1, prefill: str = "MS1"):
+    def __init__(
+        self,
+        share_num: int = 1,
+        prefill: str = "MS1",
+        error_type: str = codex32_model.ERROR_CHECKSUM,
+        error_detail: str | None = None,
+    ):
         super().__init__()
         self.share_num = share_num
         self.prefill = prefill
+        self.error_type = error_type
+        self.error_detail = error_detail
+
+
+    def _get_error_text(self) -> str:
+        if self.error_type == codex32_model.ERROR_HEADER:
+            return _("Invalid header; check MS1, threshold, identifier, and share index.")
+        if self.error_type == codex32_model.ERROR_DATA:
+            return _("Invalid data payload; check that all boxes are filled correctly.")
+        if self.error_type == codex32_model.ERROR_LENGTH:
+            return _("Invalid length; Codex32 S shares must be 48 characters.")
+        if self.error_type == codex32_model.ERROR_CHECKSUM:
+            return _("Checksum failure; not a valid Codex32 share.")
+        if self.error_detail:
+            return self.error_detail
+        return _("Invalid Codex32 share.")
 
     def run(self):
         button_data = [self.EDIT, self.DISCARD]
@@ -310,7 +351,7 @@ class Codex32ShareInvalidView(View):
             title=_("Invalid Codex32 Share!"),
             status_icon_name=SeedSignerIconConstants.ERROR,
             status_headline=None,
-            text=_("Checksum failure; not a valid Codex32 share."),
+            text=self._get_error_text(),
             show_back_button=False,
             button_data=button_data,
         )
@@ -430,7 +471,7 @@ class Codex32MasterShareSuccessView(View):
             )
 
         elif button_data[selected_menu_num] == self.LOAD:
-            return Destination(SeedOptionsView, view_args={"seed_num": 0})
+            return Destination(SeedFinalizeView)
 
 
 class Codex32MasterSecretWarningView(View):
@@ -492,7 +533,7 @@ class Codex32MasterSecretDisplayView(View):
                 view_args={"share_data": self.share_data, "page_index": 1},
             )
 
-        return Destination(SeedOptionsView, view_args={"seed_num": 0})
+        return Destination(SeedFinalizeView)
 
 
 
@@ -552,7 +593,7 @@ class SeedFinalizeView(View):
     def run(self):
         button_data = [self.FINALIZE]
         self.PASSPHRASE.button_label = self.seed.passphrase_label
-        if self.settings.get_value(SettingsConstants.SETTING__PASSPHRASE) != SettingsConstants.OPTION__DISABLED:
+        if self.seed.passphrase_supported and self.settings.get_value(SettingsConstants.SETTING__PASSPHRASE) != SettingsConstants.OPTION__DISABLED:
             button_data.append(self.PASSPHRASE)
 
         selected_menu_num = self.run_screen(
@@ -1506,10 +1547,10 @@ class SeedWordsBackupTestView(View):
             while self.cur_index in self.confirmed_list:
                 self.cur_index = int(random.random() * len(self.mnemonic_list))
 
-        real_word = ButtonOptionWithoutTranslation(self.mnemonic_list[self.cur_index])
-        fake_word1 = ButtonOptionWithoutTranslation(bip39.WORDLIST[int(random.random() * 2047)])
-        fake_word2 = ButtonOptionWithoutTranslation(bip39.WORDLIST[int(random.random() * 2047)])
-        fake_word3 = ButtonOptionWithoutTranslation(bip39.WORDLIST[int(random.random() * 2047)])
+        real_word = ButtonOption(self.mnemonic_list[self.cur_index])
+        fake_word1 = ButtonOption(bip39.WORDLIST[int(random.random() * 2047)])
+        fake_word2 = ButtonOption(bip39.WORDLIST[int(random.random() * 2047)])
+        fake_word3 = ButtonOption(bip39.WORDLIST[int(random.random() * 2047)])
 
         button_data = [real_word, fake_word1, fake_word2, fake_word3]
         random.shuffle(button_data)
