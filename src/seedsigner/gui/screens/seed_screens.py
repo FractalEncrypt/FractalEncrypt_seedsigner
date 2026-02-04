@@ -283,12 +283,7 @@ class SeedMnemonicEntryScreen(BaseTopNavScreen):
 
                 ret_val = self.keyboard.update_from_input(input)
 
-                if ret_val in Keyboard.EXIT_DIRECTIONS:
-                    self.is_input_in_top_nav = True
-                    self.top_nav.left_button.is_selected = True
-                    self.top_nav.left_button.render()
-
-                elif ret_val in Keyboard.ADDITIONAL_KEYS:
+                if ret_val in Keyboard.ADDITIONAL_KEYS:
                     if input == HardwareButtonsConstants.KEY_PRESS and ret_val == Keyboard.KEY_BACKSPACE["code"]:
                         self.letters = self.letters[:-2]
                         self.letters.append(" ")
@@ -555,9 +550,10 @@ class Codex32EntryScreen(BaseTopNavScreen):
     share_num: int = 1
     total_len: int = 48
     prefill: str = "MS1"
+    share_data: str | None = None
     window_size: int = 4
-    warning_message: str = _("Fill earlier boxes")
     start_page: int | None = None
+    warning_message: str = _("Fill earlier boxes")
 
     def __post_init__(self):
         self.title = _("Share {}").format(self.share_num)
@@ -565,11 +561,18 @@ class Codex32EntryScreen(BaseTopNavScreen):
 
         self.allowed_chars = CODEX32_CHARSET
         self.values = ["" for _ in range(self.total_len)]
-        for index, ch in enumerate(self.prefill.upper()):
+        initial_text = self.share_data or self.prefill
+        for index, ch in enumerate(initial_text.upper()):
             if index < self.total_len:
                 self.values[index] = ch
 
-        self.cursor_index = min(len(self.prefill), self.total_len)
+        if self.share_data:
+            try:
+                self.cursor_index = self.values.index("")
+            except ValueError:
+                self.cursor_index = self.total_len - 1
+        else:
+            self.cursor_index = min(len(self.prefill), self.total_len)
         self.active_page = self.cursor_index // self.window_size
         self.max_page = math.ceil(self.total_len / self.window_size) - 1
 
@@ -631,13 +634,21 @@ class Codex32EntryScreen(BaseTopNavScreen):
                 self.canvas_height - GUIConstants.EDGE_PADDING,
             ),
             additional_keys=[Keyboard.KEY_BACKSPACE, Keyboard.KEY_OK],
-            auto_wrap=[Keyboard.WRAP_LEFT, Keyboard.WRAP_RIGHT],
+            auto_wrap=[
+                Keyboard.WRAP_TOP,
+                Keyboard.WRAP_BOTTOM,
+                Keyboard.WRAP_LEFT,
+                Keyboard.WRAP_RIGHT,
+            ],
             render_now=False,
         )
         self.keyboard.set_selected_key(selected_letter=self.allowed_chars[0])
 
         self.warning_flash_count = 0
         self.warning_y = self.boxes_y + self.box_height + int(GUIConstants.COMPONENT_PADDING / 2)
+
+        self.focus_area = "boxes" if self.share_data else "keyboard"
+        self.top_nav_return_target = None
 
         self._update_top_nav_title()
 
@@ -703,6 +714,7 @@ class Codex32EntryScreen(BaseTopNavScreen):
             (0, 0, self.canvas_width, self.top_nav.height),
             fill=GUIConstants.BACKGROUND_COLOR,
         )
+        self.top_nav.is_selected = self.is_input_in_top_nav
         self.top_nav.render()
         clear_bottom = self.keyboard_top - GUIConstants.COMPONENT_PADDING
         self.image_draw.rectangle(
@@ -721,8 +733,9 @@ class Codex32EntryScreen(BaseTopNavScreen):
             ).render()
             self.warning_flash_count = 0
 
+        self.left_arrow.is_selected = self.focus_area == "left_arrow"
         self.left_arrow.render()
-        self.right_arrow.is_selected = self._is_page_complete() and self.active_page < self.max_page
+        self.right_arrow.is_selected = self.focus_area == "right_arrow"
         self.right_arrow.render()
 
         page_start = self.active_page * self.window_size
@@ -735,7 +748,11 @@ class Codex32EntryScreen(BaseTopNavScreen):
                 break
             x = self.boxes_left_x + offset * (self.box_width + self.box_gap)
             rect = (x, self.boxes_y, x + self.box_width, self.boxes_y + self.box_height)
-            outline_color = GUIConstants.ACCENT_COLOR if offset == active_box else GUIConstants.LABEL_FONT_COLOR
+            outline_color = (
+                GUIConstants.ACCENT_COLOR
+                if self.focus_area == "boxes" and offset == active_box
+                else GUIConstants.LABEL_FONT_COLOR
+            )
             self.image_draw.rounded_rectangle(
                 rect,
                 outline=outline_color,
@@ -798,6 +815,28 @@ class Codex32EntryScreen(BaseTopNavScreen):
         button.is_selected = False
 
 
+    def _go_prev_page(self) -> None:
+        if self.active_page <= 0:
+            return
+        self._flash_button(self.left_arrow)
+        self._set_page(self.active_page - 1)
+        self.focus_area = "keyboard"
+        self.top_nav_return_target = None
+        self._render_boxes()
+
+
+    def _go_next_page(self) -> None:
+        if self.active_page >= self.max_page:
+            return
+        if not self._is_page_complete():
+            self._flash_warning()
+        self._flash_button(self.right_arrow)
+        self._set_page(self.active_page + 1)
+        self.focus_area = "keyboard"
+        self.top_nav_return_target = None
+        self._render_boxes()
+
+
     def _run(self):
         while True:
             input = self.hw_inputs.wait_for(HardwareButtonsConstants.ALL_KEYS)
@@ -808,40 +847,172 @@ class Codex32EntryScreen(BaseTopNavScreen):
                         return RET_CODE__BACK_BUTTON
 
                     elif input == HardwareButtonsConstants.KEY_UP:
-                        input = Keyboard.ENTER_BOTTOM
+                        if self.top_nav_return_target:
+                            target_x, target_y = self.top_nav_return_target
+                            self.top_nav_return_target = None
+                            self.is_input_in_top_nav = False
+                            self.top_nav.is_selected = False
+                            self.top_nav.left_button.is_selected = False
+                            self.top_nav.left_button.render()
+                            self.focus_area = "keyboard"
+                            self.keyboard.set_selected_key_indices(target_x, target_y)
+                            self._render_boxes()
+                            self.keyboard.render_keys()
+                            self.renderer.show_image()
+                            continue
                         self.is_input_in_top_nav = False
+                        self.top_nav.is_selected = False
                         self.top_nav.left_button.is_selected = False
                         self.top_nav.left_button.render()
+                        self.focus_area = "boxes"
+                        self._render_boxes()
+                        self.renderer.show_image()
+                        continue
 
                     elif input == HardwareButtonsConstants.KEY_DOWN:
-                        input = Keyboard.ENTER_TOP
                         self.is_input_in_top_nav = False
+                        self.top_nav.is_selected = False
                         self.top_nav.left_button.is_selected = False
                         self.top_nav.left_button.render()
+                        self.focus_area = "boxes"
+                        self._render_boxes()
+                        self.renderer.show_image()
+                        continue
 
                     elif input in [HardwareButtonsConstants.KEY_RIGHT, HardwareButtonsConstants.KEY_LEFT]:
                         continue
 
-                if input == HardwareButtonsConstants.KEY_RIGHT and self.right_arrow.is_selected:
-                    self._flash_button(self.right_arrow)
-                    self._set_page(self.active_page + 1)
-                    self._render_boxes()
-                    self.renderer.show_image()
-                    continue
+                if self.focus_area in ["left_arrow", "right_arrow"]:
+                    if input == HardwareButtonsConstants.KEY_UP:
+                        self.is_input_in_top_nav = True
+                        self.focus_area = "top_nav"
+                        self.top_nav.is_selected = True
+                        self.top_nav.left_button.is_selected = True
+                        self.top_nav.left_button.render()
+                        self._render_boxes()
+                        self.renderer.show_image()
+                        continue
+
+                    if input == HardwareButtonsConstants.KEY_DOWN:
+                        self.focus_area = "keyboard"
+                        self.top_nav_return_target = None
+                        self.keyboard.update_from_input(Keyboard.ENTER_TOP)
+                        self._render_boxes()
+                        self.renderer.show_image()
+                        continue
+
+                    page_start = self.active_page * self.window_size
+                    page_end = min(page_start + self.window_size, self.total_len)
+
+                    if input == HardwareButtonsConstants.KEY_LEFT:
+                        if self.focus_area == "right_arrow":
+                            self.cursor_index = page_end - 1
+                            self.focus_area = "boxes"
+                            self._render_boxes()
+                            self.renderer.show_image()
+                            continue
+                        if self.focus_area == "left_arrow":
+                            self._go_prev_page()
+                            self.renderer.show_image()
+                            continue
+                        continue
+
+                    if input == HardwareButtonsConstants.KEY_RIGHT:
+                        if self.focus_area == "left_arrow":
+                            self.cursor_index = page_start
+                            self.focus_area = "boxes"
+                            self._render_boxes()
+                            self.renderer.show_image()
+                        else:
+                            self._go_next_page()
+                            self.renderer.show_image()
+                        continue
+
+                    if input in [
+                        HardwareButtonsConstants.KEY_PRESS,
+                        HardwareButtonsConstants.KEY1,
+                        HardwareButtonsConstants.KEY2,
+                        HardwareButtonsConstants.KEY3,
+                    ]:
+                        if self.focus_area == "left_arrow":
+                            self._go_prev_page()
+                        else:
+                            self._go_next_page()
+                        self.renderer.show_image()
+                        continue
+
+                if self.focus_area == "boxes":
+                    page_start = self.active_page * self.window_size
+                    page_end = min(page_start + self.window_size, self.total_len)
+
+                    if input == HardwareButtonsConstants.KEY_LEFT:
+                        if self.cursor_index > page_start:
+                            self.cursor_index -= 1
+                        elif self.active_page > 0:
+                            self.focus_area = "left_arrow"
+                        self._render_boxes()
+                        self.renderer.show_image()
+                        continue
+
+                    if input == HardwareButtonsConstants.KEY_RIGHT:
+                        if self.cursor_index < page_end - 1:
+                            self.cursor_index += 1
+                        elif self.active_page < self.max_page:
+                            self.focus_area = "right_arrow"
+                        self._render_boxes()
+                        self.renderer.show_image()
+                        continue
+
+                    if input == HardwareButtonsConstants.KEY_UP:
+                        self.is_input_in_top_nav = True
+                        self.focus_area = "top_nav"
+                        self.top_nav.is_selected = True
+                        self.top_nav.left_button.is_selected = True
+                        self.top_nav.left_button.render()
+                        self._render_boxes()
+                        self.renderer.show_image()
+                        continue
+
+                    if input == HardwareButtonsConstants.KEY_DOWN:
+                        self.focus_area = "keyboard"
+                        self.top_nav_return_target = None
+                        self.keyboard.update_from_input(Keyboard.ENTER_TOP)
+                        self._render_boxes()
+                        self.renderer.show_image()
+                        continue
+
+                if self.focus_area == "keyboard" and input == HardwareButtonsConstants.KEY_UP:
+                    selected_key = self.keyboard.get_selected_key()
+                    if selected_key.index_y == 0:
+                        selected_key.is_selected = False
+                        selected_key.render_key()
+                        bottom_row = len(self.keyboard.keys) - 1
+                        if selected_key.index_x <= 3:
+                            self.focus_area = "left_arrow"
+                            self.top_nav_return_target = (0, bottom_row)
+                        elif selected_key.index_x == 4:
+                            page_start = self.active_page * self.window_size
+                            middle_offset = max(0, (self.window_size - 1) // 2)
+                            self.cursor_index = min(page_start + middle_offset, self.total_len - 1)
+                            self.focus_area = "boxes"
+                            self.top_nav_return_target = (4, bottom_row)
+                        else:
+                            self.focus_area = "right_arrow"
+                            self.top_nav_return_target = (5, bottom_row)
+                        self._render_boxes()
+                        self.renderer.show_image()
+                        continue
+
+                if self.focus_area == "keyboard" and input == HardwareButtonsConstants.KEY2:
+                    input = HardwareButtonsConstants.KEY_PRESS
 
                 if input == HardwareButtonsConstants.KEY1:
-                    self._flash_button(self.left_arrow)
-                    self._set_page(self.active_page - 1)
-                    self._render_boxes()
+                    self._go_prev_page()
                     self.renderer.show_image()
                     continue
 
                 if input == HardwareButtonsConstants.KEY3:
-                    if not self._is_page_complete() and self.active_page < self.max_page:
-                        self._flash_warning()
-                    self._flash_button(self.right_arrow)
-                    self._set_page(self.active_page + 1)
-                    self._render_boxes()
+                    self._go_next_page()
                     self.renderer.show_image()
                     continue
 
@@ -852,12 +1023,17 @@ class Codex32EntryScreen(BaseTopNavScreen):
 
                 ret_val = self.keyboard.update_from_input(input)
 
-                if ret_val in Keyboard.EXIT_DIRECTIONS:
-                    self.is_input_in_top_nav = True
-                    self.top_nav.left_button.is_selected = True
-                    self.top_nav.left_button.render()
+                if ret_val == Keyboard.EXIT_TOP:
+                    self.focus_area = "boxes"
+                    self._render_boxes()
+                    self.renderer.show_image()
+                    continue
+                if ret_val == Keyboard.EXIT_BOTTOM:
+                    self.keyboard.update_from_input(Keyboard.ENTER_BOTTOM)
+                    self.renderer.show_image()
+                    continue
 
-                elif ret_val in Keyboard.ADDITIONAL_KEYS and input == HardwareButtonsConstants.KEY_PRESS:
+                if ret_val in Keyboard.ADDITIONAL_KEYS and input == HardwareButtonsConstants.KEY_PRESS:
                     if ret_val == Keyboard.KEY_BACKSPACE["code"]:
                         page_start = self.active_page * self.window_size
                         if self.cursor_index > page_start:
@@ -885,6 +1061,15 @@ class Codex32EntryScreen(BaseTopNavScreen):
                         is_last_box = self.cursor_index == self.total_len - 1
                         if not is_page_end or is_last_box:
                             self.cursor_index += 1
+                        if is_page_end and not is_last_box:
+                            selected_key = self.keyboard.get_selected_key()
+                            selected_key.is_selected = False
+                            selected_key.render_key()
+                            self.focus_area = "right_arrow"
+                        if is_last_box and all(self.values):
+                            self.focus_area = "keyboard"
+                            self.keyboard.set_selected_key(Keyboard.KEY_OK["code"])
+                            self.keyboard.render_keys()
                         self._render_boxes()
 
                 self.renderer.show_image()

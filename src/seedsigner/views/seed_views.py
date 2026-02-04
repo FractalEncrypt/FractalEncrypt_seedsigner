@@ -275,11 +275,12 @@ class SeedMnemonicEntryView(View):
 
 
 class Codex32EntryView(View):
-    def __init__(self, share_num: int = 1, prefill: str = "MS1", start_page: int | None = None):
+    def __init__(self, share_num: int = 1, prefill: str = "MS1", start_page: int | None = None, share_data: str | None = None):
         super().__init__()
         self.share_num = share_num
         self.prefill = prefill
         self.start_page = start_page
+        self.share_data = share_data
 
     def run(self):
         ret = self.run_screen(
@@ -287,6 +288,7 @@ class Codex32EntryView(View):
             share_num=self.share_num,
             prefill=self.prefill,
             start_page=self.start_page,
+            share_data=self.share_data,
         )
 
         if ret == RET_CODE__BACK_BUTTON:
@@ -299,6 +301,7 @@ class Codex32EntryView(View):
                 view_args={
                     "share_num": self.share_num,
                     "prefill": self.prefill,
+                    "share_data": ret,
                     "error_type": exc.error_type,
                     "error_detail": str(exc),
                 },
@@ -321,12 +324,14 @@ class Codex32ShareInvalidView(View):
         self,
         share_num: int = 1,
         prefill: str = "MS1",
+        share_data: str | None = None,
         error_type: str = codex32_model.ERROR_CHECKSUM,
         error_detail: str | None = None,
     ):
         super().__init__()
         self.share_num = share_num
         self.prefill = prefill
+        self.share_data = share_data
         self.error_type = error_type
         self.error_detail = error_detail
 
@@ -362,7 +367,7 @@ class Codex32ShareInvalidView(View):
                 view_args={
                     "share_num": self.share_num,
                     "prefill": self.prefill,
-                    "start_page": 0,
+                    "share_data": self.share_data,
                 },
             )
 
@@ -450,7 +455,7 @@ class Codex32ShareSuccessView(View):
 
 
 class Codex32MasterShareSuccessView(View):
-    DISPLAY = ButtonOption("Display mnemonic")
+    DISPLAY = ButtonOption("Show Codex32 Key")
     LOAD = ButtonOption("Load seed")
 
     def __init__(self, share_data: str = CODEX32_MASTER_SECRET_TEST_VECTOR):
