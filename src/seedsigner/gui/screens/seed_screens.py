@@ -740,8 +740,10 @@ class Codex32EntryScreen(BaseTopNavScreen):
 
         page_start = self.active_page * self.window_size
         active_box = None
-        if self.cursor_index < self.total_len:
+        if self.cursor_index <= self.total_len - 1:
             active_box = self.cursor_index - page_start
+        elif self.cursor_index >= self.total_len:
+            active_box = self.total_len - 1 - page_start
         for offset in range(self.window_size):
             index = page_start + offset
             if index >= self.total_len:
@@ -750,7 +752,7 @@ class Codex32EntryScreen(BaseTopNavScreen):
             rect = (x, self.boxes_y, x + self.box_width, self.boxes_y + self.box_height)
             outline_color = (
                 GUIConstants.ACCENT_COLOR
-                if self.focus_area == "boxes" and offset == active_box
+                if offset == active_box
                 else GUIConstants.LABEL_FONT_COLOR
             )
             self.image_draw.rounded_rectangle(
@@ -813,6 +815,29 @@ class Codex32EntryScreen(BaseTopNavScreen):
         button.render()
         self.renderer.show_image()
         button.is_selected = False
+
+
+    def _select_keyboard_key(self, key_code: str) -> None:
+        target_key = None
+        for row in self.keyboard.keys:
+            for key in row:
+                if key.code == key_code:
+                    target_key = key
+                    break
+            if target_key:
+                break
+
+        if not target_key:
+            raise Exception(f"Keyboard key '{key_code}' not found")
+
+        current_key = self.keyboard.get_selected_key()
+        current_key.is_selected = False
+        current_key.render_key()
+
+        self.keyboard.selected_key["x"] = target_key.index_x
+        self.keyboard.selected_key["y"] = target_key.index_y
+        target_key.is_selected = True
+        target_key.render_key()
 
 
     def _go_prev_page(self) -> None:
@@ -1068,7 +1093,7 @@ class Codex32EntryScreen(BaseTopNavScreen):
                             self.focus_area = "right_arrow"
                         if is_last_box and all(self.values):
                             self.focus_area = "keyboard"
-                            self.keyboard.set_selected_key(Keyboard.KEY_OK["code"])
+                            self._select_keyboard_key(Keyboard.KEY_OK["code"])
                             self.keyboard.render_keys()
                         self._render_boxes()
 

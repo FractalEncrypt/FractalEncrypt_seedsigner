@@ -275,12 +275,20 @@ class SeedMnemonicEntryView(View):
 
 
 class Codex32EntryView(View):
-    def __init__(self, share_num: int = 1, prefill: str = "MS1", start_page: int | None = None, share_data: str | None = None):
+    def __init__(
+        self,
+        share_num: int = 1,
+        prefill: str = "MS1",
+        start_page: int | None = None,
+        share_data: str | None = None,
+        share_collection: codex32_model.Codex32ShareCollection | None = None,
+    ):
         super().__init__()
         self.share_num = share_num
         self.prefill = prefill
         self.start_page = start_page
         self.share_data = share_data
+        self.share_collection = share_collection
 
     def run(self):
         ret = self.run_screen(
@@ -294,7 +302,7 @@ class Codex32EntryView(View):
         if ret == RET_CODE__BACK_BUTTON:
             return Destination(BackStackView)
         try:
-            codex = codex32_model.validate_codex32_s_share(ret)
+            codex = codex32_model.parse_codex32_share(ret)
         except codex32_model.Codex32InputError as exc:
             return Destination(
                 Codex32ShareInvalidView,
@@ -304,21 +312,95 @@ class Codex32EntryView(View):
                     "share_data": ret,
                     "error_type": exc.error_type,
                     "error_detail": str(exc),
+                    "share_collection": self.share_collection,
                 },
             )
 
-        seed = Codex32Seed(codex.data)
-        self.controller.storage.set_pending_seed(seed)
-        share_display = codex32_model.normalize_codex32_display(ret)
+        if codex.share_idx.lower() == "s" and self.share_collection is None:
+            try:
+                codex = codex32_model.validate_codex32_s_share(ret)
+            except codex32_model.Codex32InputError as exc:
+                return Destination(
+                    Codex32ShareInvalidView,
+                    view_args={
+                        "share_num": self.share_num,
+                        "prefill": self.prefill,
+                        "share_data": ret,
+                        "error_type": exc.error_type,
+                        "error_detail": str(exc),
+                        "share_collection": self.share_collection,
+                    },
+                )
+
+            seed = Codex32Seed(codex.data)
+            self.controller.storage.set_pending_seed(seed)
+            share_display = codex32_model.normalize_codex32_display(ret)
+            return Destination(
+                Codex32MasterShareSuccessView,
+                view_args={"share_data": share_display},
+            )
+
+        try:
+            if self.share_collection is None:
+                self.share_collection = codex32_model.Codex32ShareCollection.from_first_share(codex)
+            else:
+                self.share_collection.add_share(codex)
+        except codex32_model.Codex32InputError as exc:
+            return Destination(
+                Codex32ShareInvalidView,
+                view_args={
+                    "share_num": self.share_num,
+                    "prefill": self.prefill,
+                    "share_data": ret,
+                    "error_type": exc.error_type,
+                    "error_detail": str(exc),
+                    "share_collection": self.share_collection,
+                },
+            )
+
+        if self.share_collection.ready:
+            try:
+                secret = codex32_model.recover_secret_share(self.share_collection.shares)
+                secret = codex32_model.validate_codex32_s_share(secret.s)
+                seed = Codex32Seed(secret.data)
+            except codex32_model.Codex32InputError as exc:
+                if self.share_collection.shares:
+                    self.share_collection.shares.pop()
+                return Destination(
+                    Codex32ShareInvalidView,
+                    view_args={
+                        "share_num": self.share_num,
+                        "prefill": self.share_collection.prefix(),
+                        "share_data": ret,
+                        "error_type": exc.error_type,
+                        "error_detail": str(exc),
+                        "share_collection": self.share_collection,
+                    },
+                )
+
+            self.controller.storage.set_pending_seed(seed)
+            share_display = codex32_model.normalize_codex32_display(secret.s)
+            return Destination(
+                Codex32MasterShareSuccessView,
+                view_args={"share_data": share_display},
+            )
+
         return Destination(
-            Codex32MasterShareSuccessView,
-            view_args={"share_data": share_display},
+            Codex32ShareSuccessView,
+            view_args={
+                "entered_shares": len(self.share_collection.shares),
+                "total_shares": self.share_collection.threshold,
+                "share_num": self.share_num,
+                "prefill": self.share_collection.prefix(),
+                "share_collection": self.share_collection,
+            },
         )
 
 
 class Codex32ShareInvalidView(View):
     EDIT = ButtonOption("Review & edit")
-    DISCARD = ButtonOption("Discard", button_label_color="red")
+    DISCARD_INVALID = ButtonOption("Discard invalid share")
+    DISCARD_ALL = ButtonOption("Discard all shares", button_label_color="red")
 
     def __init__(
         self,
@@ -327,6 +409,7 @@ class Codex32ShareInvalidView(View):
         share_data: str | None = None,
         error_type: str = codex32_model.ERROR_CHECKSUM,
         error_detail: str | None = None,
+        share_collection: codex32_model.Codex32ShareCollection | None = None,
     ):
         super().__init__()
         self.share_num = share_num
@@ -334,6 +417,7 @@ class Codex32ShareInvalidView(View):
         self.share_data = share_data
         self.error_type = error_type
         self.error_detail = error_detail
+        self.share_collection = share_collection
 
 
     def _get_error_text(self) -> str:
@@ -350,7 +434,7 @@ class Codex32ShareInvalidView(View):
         return _("Invalid Codex32 share.")
 
     def run(self):
-        button_data = [self.EDIT, self.DISCARD]
+        button_data = [self.EDIT, self.DISCARD_INVALID, self.DISCARD_ALL]
         selected_menu_num = self.run_screen(
             DireWarningScreen,
             title=_("Invalid Codex32 Share!"),
@@ -368,45 +452,44 @@ class Codex32ShareInvalidView(View):
                     "share_num": self.share_num,
                     "prefill": self.prefill,
                     "share_data": self.share_data,
+                    "share_collection": self.share_collection,
                 },
             )
 
-        elif button_data[selected_menu_num] == self.DISCARD:
-            return Destination(MainMenuView)
-
-
-class Codex32DiscardShareConfirmView(View):
-    EDIT = ButtonOption("Review & edit")
-    DISCARD = ButtonOption("Discard", button_label_color="red")
-
-    def __init__(self, share_num: int = 1, prefill: str = "MS1"):
-        super().__init__()
-        self.share_num = share_num
-        self.prefill = prefill
-
-    def run(self):
-        button_data = [self.EDIT, self.DISCARD]
-        selected_menu_num = self.run_screen(
-            WarningScreen,
-            title=_("Discard Share?"),
-            status_headline=None,
-            text=_("Your current share entry will be erased."),
-            show_back_button=False,
-            button_data=button_data,
-        )
-
-        if button_data[selected_menu_num] == self.EDIT:
+        elif button_data[selected_menu_num] == self.DISCARD_INVALID:
             return Destination(
                 Codex32EntryView,
                 view_args={
                     "share_num": self.share_num,
                     "prefill": self.prefill,
                     "start_page": 0,
+                    "share_collection": self.share_collection,
                 },
             )
 
-        elif button_data[selected_menu_num] == self.DISCARD:
-            return Destination(MainMenuView)
+        elif button_data[selected_menu_num] == self.DISCARD_ALL:
+            return Destination(Codex32DiscardAllSharesConfirmView)
+
+
+class Codex32DiscardAllSharesConfirmView(View):
+    CONTINUE = ButtonOption("Continue", button_label_color="red")
+    CANCEL = ButtonOption("Cancel")
+
+    def run(self):
+        button_data = [self.CONTINUE, self.CANCEL]
+        selected_menu_num = self.run_screen(
+            WarningScreen,
+            title=_("Discard All Shares?"),
+            status_headline=None,
+            text=_("Are you sure you want to discard your valid shares too?"),
+            show_back_button=False,
+            button_data=button_data,
+        )
+
+        if button_data[selected_menu_num] == self.CONTINUE:
+            return Destination(MainMenuView, clear_history=True)
+
+        return Destination(BackStackView)
 
 
 class Codex32ShareSuccessView(View):
@@ -419,12 +502,14 @@ class Codex32ShareSuccessView(View):
         total_shares: int = 2,
         share_num: int = 1,
         prefill: str = "MS1",
+        share_collection: codex32_model.Codex32ShareCollection | None = None,
     ):
         super().__init__()
         self.entered_shares = entered_shares
         self.total_shares = total_shares
         self.share_num = share_num
         self.prefill = prefill
+        self.share_collection = share_collection
 
     def run(self):
         button_data = [self.NEXT, self.DISCARD]
@@ -441,16 +526,13 @@ class Codex32ShareSuccessView(View):
                 view_args={
                     "share_num": self.share_num + 1,
                     "prefill": self.prefill,
+                    "share_collection": self.share_collection,
                 },
             )
 
         elif button_data[selected_menu_num] == self.DISCARD:
             return Destination(
-                Codex32DiscardShareConfirmView,
-                view_args={
-                    "share_num": self.share_num,
-                    "prefill": self.prefill,
-                },
+                Codex32DiscardAllSharesConfirmView,
             )
 
 

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
+
 from .codex32_min import Codex32String, CodexError
 from embit import bip39
 
@@ -116,3 +118,50 @@ def recover_secret_share(shares: list[Codex32String]) -> Codex32String:
         return Codex32String.interpolate_at(shares, target="s")
     except CodexError as exc:
         raise Codex32InputError(str(exc), _classify_codex_error(exc)) from exc
+
+
+def _parse_threshold(value: str) -> int:
+    try:
+        threshold = int(value)
+    except ValueError as exc:
+        raise Codex32InputError("Invalid threshold value in share header.", ERROR_HEADER) from exc
+    if threshold < 2:
+        raise Codex32InputError("Threshold must be >= 2 for split shares.", ERROR_HEADER)
+    return threshold
+
+
+@dataclass
+class Codex32ShareCollection:
+    threshold: int
+    ident: str
+    case: str
+    shares: list[Codex32String] = field(default_factory=list)
+
+    @classmethod
+    def from_first_share(cls, share: Codex32String) -> "Codex32ShareCollection":
+        threshold = _parse_threshold(share.k)
+        return cls(threshold=threshold, ident=share.ident, case=share.case, shares=[share])
+
+    @property
+    def share_indices(self) -> set[str]:
+        return {share.share_idx.lower() for share in self.shares}
+
+    @property
+    def ready(self) -> bool:
+        return len(self.shares) >= self.threshold
+
+    def prefix(self) -> str:
+        prefix = f"ms1{self.threshold}{self.ident}"
+        if self.case == "upper":
+            return prefix.upper()
+        return prefix
+
+    def validate_share(self, share: Codex32String) -> None:
+        if share.k != str(self.threshold) or share.ident != self.ident:
+            raise Codex32InputError("Share header mismatch (k/identifier).", ERROR_HEADER)
+        if share.share_idx.lower() in self.share_indices:
+            raise Codex32InputError("Duplicate share index entered.", ERROR_HEADER)
+
+    def add_share(self, share: Codex32String) -> None:
+        self.validate_share(share)
+        self.shares.append(share)
