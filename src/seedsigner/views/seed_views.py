@@ -22,10 +22,6 @@ from seedsigner.views.view import NotYetImplementedView, OptionDisabledView, Vie
 
 logger = logging.getLogger(__name__)
 
-CODEX32_MASTER_SECRET_TEST_VECTOR = "MS12NAMES6XQGUZTTXKEQNJSJZV4JV3NZ5K3KWGSPHUH6EVW"
-
-
-
 class SeedsMenuView(View):
     LOAD = ButtonOption("Load a seed")
 
@@ -540,7 +536,7 @@ class Codex32MasterShareSuccessView(View):
     DISPLAY = ButtonOption("Show Codex32 Key")
     LOAD = ButtonOption("Load seed")
 
-    def __init__(self, share_data: str = CODEX32_MASTER_SECRET_TEST_VECTOR):
+    def __init__(self, share_data: str):
         super().__init__()
         self.share_data = share_data
 
@@ -562,7 +558,7 @@ class Codex32MasterShareSuccessView(View):
 
 
 class Codex32MasterSecretWarningView(View):
-    def __init__(self, share_data: str = CODEX32_MASTER_SECRET_TEST_VECTOR):
+    def __init__(self, share_data: str):
         super().__init__()
         self.share_data = share_data
 
@@ -589,7 +585,7 @@ class Codex32MasterSecretDisplayView(View):
     CONTINUE = ButtonOption("Continue to Boxes 25-48")
     FINALIZE = ButtonOption("Finalize Seed")
 
-    def __init__(self, share_data: str = CODEX32_MASTER_SECRET_TEST_VECTOR, page_index: int = 0):
+    def __init__(self, share_data: str, page_index: int = 0):
         super().__init__()
         self.share_data = share_data
         self.page_index = page_index

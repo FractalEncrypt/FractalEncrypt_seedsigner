@@ -845,7 +845,11 @@ class Codex32EntryScreen(BaseTopNavScreen):
             return
         self._flash_button(self.left_arrow)
         self._set_page(self.active_page - 1)
-        self.focus_area = "keyboard"
+        self.focus_area = (
+            "boxes"
+            if self.focus_area in ["boxes", "left_arrow", "right_arrow"]
+            else "keyboard"
+        )
         self.top_nav_return_target = None
         self._render_boxes()
 
@@ -857,7 +861,11 @@ class Codex32EntryScreen(BaseTopNavScreen):
             self._flash_warning()
         self._flash_button(self.right_arrow)
         self._set_page(self.active_page + 1)
-        self.focus_area = "keyboard"
+        self.focus_area = (
+            "boxes"
+            if self.focus_area in ["boxes", "left_arrow", "right_arrow"]
+            else "keyboard"
+        )
         self.top_nav_return_target = None
         self._render_boxes()
 
