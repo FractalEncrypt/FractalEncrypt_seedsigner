@@ -293,6 +293,7 @@ class Codex32EntryView(View):
             prefill=self.prefill,
             start_page=self.start_page,
             share_data=self.share_data,
+            share_collection=self.share_collection,
         )
 
         if ret == RET_CODE__BACK_BUTTON:

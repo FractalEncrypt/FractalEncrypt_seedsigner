@@ -13,6 +13,7 @@ from seedsigner.gui.components import (Button, FontAwesomeIconConstants, Fonts, 
     IconTextLine, SeedSignerIconConstants, TextArea, TopNav, GUIConstants, reflow_text_into_pages)
 from seedsigner.gui.keyboard import Keyboard, TextEntryDisplay
 from seedsigner.gui.renderer import Renderer
+from seedsigner.models import codex32 as codex32_model
 from seedsigner.models.threads import BaseThread, ThreadsafeCounter
 
 from .screen import RET_CODE__BACK_BUTTON, BaseScreen, BaseTopNavScreen, ButtonListScreen, ButtonOption, KeyboardScreen, LargeIconStatusScreen, WarningEdgesMixin
@@ -21,6 +22,7 @@ logger = logging.getLogger(__name__)
 
 
 CODEX32_CHARSET = "ACDEFGHJKLMNPQRSTUVWXYZ023456789"
+CODEX32_SHARE_INDEX_POSITION = 8
 
 
 
@@ -551,9 +553,14 @@ class Codex32EntryScreen(BaseTopNavScreen):
     total_len: int = 48
     prefill: str = "MS1"
     share_data: str | None = None
+    share_collection: codex32_model.Codex32ShareCollection | None = None
     window_size: int = 4
     start_page: int | None = None
-    warning_message: str = _("Fill earlier boxes")
+    warning_message: str = ""
+    warning_message_default: str = ""
+    locked_prefix_len: int = 0
+    review_mode: bool = False
+    duplicate_warning_index: str | None = None
 
     def __post_init__(self):
         self.title = _("Share {}").format(self.share_num)
@@ -561,9 +568,16 @@ class Codex32EntryScreen(BaseTopNavScreen):
 
         self.allowed_chars = CODEX32_CHARSET
         self.values = ["" for _ in range(self.total_len)]
+        if self.share_collection:
+            self.locked_prefix_len = len(self.prefill)
+        else:
+            self.locked_prefix_len = min(len(self.prefill), len("MS1"))
         initial_text = self.share_data or self.prefill
         for index, ch in enumerate(initial_text.upper()):
             if index < self.total_len:
+                self.values[index] = ch
+        if self.locked_prefix_len:
+            for index, ch in enumerate(self.prefill.upper()[: self.locked_prefix_len]):
                 self.values[index] = ch
 
         if self.share_data:
@@ -578,6 +592,8 @@ class Codex32EntryScreen(BaseTopNavScreen):
 
         if self.start_page is not None:
             self._set_page(self.start_page)
+
+        self.review_mode = self.share_data is not None
 
         self.box_num_font = Fonts.get_font(GUIConstants.FIXED_WIDTH_EMPHASIS_FONT_NAME, GUIConstants.get_body_font_size())
         self.box_char_font = Fonts.get_font(GUIConstants.FIXED_WIDTH_EMPHASIS_FONT_NAME, GUIConstants.get_button_font_size() + 6)
@@ -697,14 +713,15 @@ class Codex32EntryScreen(BaseTopNavScreen):
         return all(self.values[idx] for idx in range(page_start, page_end))
 
 
-    def _has_incomplete_prior_pages(self) -> bool:
-        for page_index in range(self.active_page):
-            if not self._is_page_complete(page_index):
-                return True
-        return False
+    def _first_empty_index(self) -> int:
+        for index, value in enumerate(self.values):
+            if not value:
+                return index
+        return self.total_len
 
 
-    def _flash_warning(self):
+    def _flash_warning(self, message: str | None = None):
+        self.warning_message = message or self.warning_message_default
         self.warning_flash_count = 1
 
 
@@ -716,7 +733,7 @@ class Codex32EntryScreen(BaseTopNavScreen):
         )
         self.top_nav.is_selected = self.is_input_in_top_nav
         self.top_nav.render()
-        clear_bottom = self.keyboard_top - GUIConstants.COMPONENT_PADDING
+        clear_bottom = self.keyboard_top
         self.image_draw.rectangle(
             (0, self.top_nav.height, self.canvas_width, clear_bottom),
             fill=GUIConstants.BACKGROUND_COLOR,
@@ -732,6 +749,8 @@ class Codex32EntryScreen(BaseTopNavScreen):
                 is_text_centered=True,
             ).render()
             self.warning_flash_count = 0
+            if self.warning_message != self.warning_message_default:
+                self.warning_message = self.warning_message_default
 
         self.left_arrow.is_selected = self.focus_area == "left_arrow"
         self.left_arrow.render()
@@ -845,11 +864,10 @@ class Codex32EntryScreen(BaseTopNavScreen):
             return
         self._flash_button(self.left_arrow)
         self._set_page(self.active_page - 1)
-        self.focus_area = (
-            "boxes"
-            if self.focus_area in ["boxes", "left_arrow", "right_arrow"]
-            else "keyboard"
-        )
+        if self.review_mode and self.focus_area in ["boxes", "left_arrow", "right_arrow"]:
+            self.focus_area = "boxes"
+        else:
+            self.focus_area = "keyboard"
         self.top_nav_return_target = None
         self._render_boxes()
 
@@ -858,14 +876,13 @@ class Codex32EntryScreen(BaseTopNavScreen):
         if self.active_page >= self.max_page:
             return
         if not self._is_page_complete():
-            self._flash_warning()
+            return
         self._flash_button(self.right_arrow)
         self._set_page(self.active_page + 1)
-        self.focus_area = (
-            "boxes"
-            if self.focus_area in ["boxes", "left_arrow", "right_arrow"]
-            else "keyboard"
-        )
+        if self.review_mode and self.focus_area in ["boxes", "left_arrow", "right_arrow"]:
+            self.focus_area = "boxes"
+        else:
+            self.focus_area = "keyboard"
         self.top_nav_return_target = None
         self._render_boxes()
 
@@ -977,6 +994,9 @@ class Codex32EntryScreen(BaseTopNavScreen):
                 if self.focus_area == "boxes":
                     page_start = self.active_page * self.window_size
                     page_end = min(page_start + self.window_size, self.total_len)
+                    first_empty = self._first_empty_index()
+                    if self.cursor_index > first_empty:
+                        self.cursor_index = first_empty
 
                     if input == HardwareButtonsConstants.KEY_LEFT:
                         if self.cursor_index > page_start:
@@ -988,9 +1008,13 @@ class Codex32EntryScreen(BaseTopNavScreen):
                         continue
 
                     if input == HardwareButtonsConstants.KEY_RIGHT:
+                        if self.cursor_index >= first_empty:
+                            self._render_boxes()
+                            self.renderer.show_image()
+                            continue
                         if self.cursor_index < page_end - 1:
                             self.cursor_index += 1
-                        elif self.active_page < self.max_page:
+                        elif self.active_page < self.max_page and self._is_page_complete():
                             self.focus_area = "right_arrow"
                         self._render_boxes()
                         self.renderer.show_image()
@@ -1068,6 +1092,10 @@ class Codex32EntryScreen(BaseTopNavScreen):
 
                 if ret_val in Keyboard.ADDITIONAL_KEYS and input == HardwareButtonsConstants.KEY_PRESS:
                     if ret_val == Keyboard.KEY_BACKSPACE["code"]:
+                        if self.cursor_index < self.locked_prefix_len:
+                            self._flash_warning(_("Header locked"))
+                            self._render_boxes()
+                            continue
                         page_start = self.active_page * self.window_size
                         if self.cursor_index > page_start:
                             if self.cursor_index >= self.total_len:
@@ -1076,9 +1104,18 @@ class Codex32EntryScreen(BaseTopNavScreen):
                                 pass
                             else:
                                 self.cursor_index -= 1
+                            if self.cursor_index < self.locked_prefix_len:
+                                self.cursor_index = self.locked_prefix_len
+                                self._flash_warning(_("Header locked"))
+                                self._render_boxes()
+                                continue
                             self.values[self.cursor_index] = ""
                             self._render_boxes()
                         elif self.cursor_index == page_start and self.values[self.cursor_index]:
+                            if self.cursor_index < self.locked_prefix_len:
+                                self._flash_warning(_("Header locked"))
+                                self._render_boxes()
+                                continue
                             self.values[self.cursor_index] = ""
                             self._render_boxes()
                     elif ret_val == Keyboard.KEY_OK["code"]:
@@ -1087,9 +1124,25 @@ class Codex32EntryScreen(BaseTopNavScreen):
 
                 elif input == HardwareButtonsConstants.KEY_PRESS and ret_val in self.allowed_chars:
                     if self.cursor_index < self.total_len:
-                        if self._has_incomplete_prior_pages():
-                            self._flash_warning()
+                        if self.cursor_index < self.locked_prefix_len:
+                            self._flash_warning(_("Header locked"))
+                            self._render_boxes()
+                            continue
+                        first_empty = self._first_empty_index()
+                        if self.cursor_index > first_empty:
+                            self.cursor_index = first_empty
+                            self._render_boxes()
+                            continue
                         self.values[self.cursor_index] = ret_val.upper()
+                        if self.share_collection and self.cursor_index == CODEX32_SHARE_INDEX_POSITION:
+                            share_idx = self.values[self.cursor_index].lower()
+                            if share_idx in self.share_collection.share_indices:
+                                if self.duplicate_warning_index != share_idx:
+                                    warning_text = _("{} share already entered").format(share_idx.upper())
+                                    self._flash_warning(warning_text)
+                                self.duplicate_warning_index = share_idx
+                            elif self.duplicate_warning_index:
+                                self.duplicate_warning_index = None
                         is_page_end = (self.cursor_index % self.window_size) == (self.window_size - 1)
                         is_last_box = self.cursor_index == self.total_len - 1
                         if not is_page_end or is_last_box:
