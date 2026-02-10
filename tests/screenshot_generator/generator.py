@@ -24,22 +24,25 @@ sys.modules['RPi.GPIO'] = MagicMock()
 sys.modules['seedsigner.hardware.camera.Camera'] = MagicMock()
 sys.modules['seedsigner.hardware.microsd'] = MagicMock()
 
-# Stub pyzbar to avoid native DLL loading during screenshot generation.
-_pyzbar_module = types.ModuleType("pyzbar")
-_pyzbar_pyzbar_module = types.ModuleType("pyzbar.pyzbar")
+# Stub pyzbar to avoid native DLL loading during screenshot generation if not available.
+try:
+    import pyzbar.pyzbar
+except (ImportError, OSError):
+    _pyzbar_module = types.ModuleType("pyzbar")
+    _pyzbar_pyzbar_module = types.ModuleType("pyzbar.pyzbar")
 
-def _noop_decode(*args, **kwargs):
-    return []
+    def _noop_decode(*args, **kwargs):
+        return []
 
-class _ZBarSymbol:
-    QRCODE = None
+    class _ZBarSymbol:
+        QRCODE = None
 
-_pyzbar_pyzbar_module.decode = _noop_decode
-_pyzbar_pyzbar_module.ZBarSymbol = _ZBarSymbol
-_pyzbar_module.pyzbar = _pyzbar_pyzbar_module
+    _pyzbar_pyzbar_module.decode = _noop_decode
+    _pyzbar_pyzbar_module.ZBarSymbol = _ZBarSymbol
+    _pyzbar_module.pyzbar = _pyzbar_pyzbar_module
 
-sys.modules['pyzbar'] = _pyzbar_module
-sys.modules['pyzbar.pyzbar'] = _pyzbar_pyzbar_module
+    sys.modules['pyzbar'] = _pyzbar_module
+    sys.modules['pyzbar.pyzbar'] = _pyzbar_pyzbar_module
 
 from seedsigner.controller import Controller
 from seedsigner.gui.components import GUIConstants
@@ -338,22 +341,22 @@ def generate_screenshots(locale):
                 ScreenshotConfig(seed_views.LoadSeedView),
                 ScreenshotConfig(seed_views.Codex32EntryView, screenshot_name="Codex32EntryView"),
                 ScreenshotConfig(seed_views.Codex32ShareInvalidView, screenshot_name="Codex32ShareInvalidView"),
-                ScreenshotConfig(seed_views.Codex32DiscardShareConfirmView, screenshot_name="Codex32DiscardShareConfirmView"),
+                ScreenshotConfig(seed_views.Codex32DiscardAllSharesConfirmView, screenshot_name="Codex32DiscardAllSharesConfirmView"),
                 ScreenshotConfig(
                     seed_views.Codex32ShareSuccessView,
                     dict(entered_shares=2, total_shares=3, share_num=2),
                     screenshot_name="Codex32ShareSuccessView",
                 ),
-                ScreenshotConfig(seed_views.Codex32MasterShareSuccessView, screenshot_name="Codex32MasterShareSuccessView"),
-                ScreenshotConfig(seed_views.Codex32MasterSecretWarningView, screenshot_name="Codex32MasterSecretWarningView"),
+                ScreenshotConfig(seed_views.Codex32MasterShareSuccessView, dict(share_data="MS1-2-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX"), screenshot_name="Codex32MasterShareSuccessView"),
+                ScreenshotConfig(seed_views.Codex32MasterSecretWarningView, dict(share_data="MS1-2-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX"), screenshot_name="Codex32MasterSecretWarningView"),
                 ScreenshotConfig(
                     seed_views.Codex32MasterSecretDisplayView,
-                    dict(page_index=0),
+                    dict(page_index=0, share_data="MS1-2-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX"),
                     screenshot_name="Codex32MasterSecretDisplayView_1",
                 ),
                 ScreenshotConfig(
                     seed_views.Codex32MasterSecretDisplayView,
-                    dict(page_index=1),
+                    dict(page_index=1, share_data="MS1-2-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX"),
                     screenshot_name="Codex32MasterSecretDisplayView_2",
                 ),
                 ScreenshotConfig(seed_views.SeedMnemonicEntryView),
@@ -579,7 +582,7 @@ def generate_screenshots(locale):
 
     # Write the main README; ensure it writes all locales, not just the one that may
     # have been specified for this run.
-    with open(os.path.join("tests", "screenshot_generator", "template.md"), 'r', encoding="utf-8") as readme_template:
+    with open(os.path.join(os.path.dirname(__file__), "template.md"), 'r', encoding="utf-8") as readme_template:
         main_readme = readme_template.read()
 
     for locale, display_name in SettingsConstants.get_detected_languages():
