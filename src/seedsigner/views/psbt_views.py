@@ -1,6 +1,6 @@
 from gettext import gettext as _
 
-from seedsigner.models.psbt_parser import PSBTParser
+from seedsigner.models.psbt_parser import MissingInputUtxoError, PSBTParser
 from seedsigner.models.settings import SettingsConstants
 from seedsigner.gui.components import FontAwesomeIconConstants, SeedSignerIconConstants
 from seedsigner.gui.screens.screen import (RET_CODE__BACK_BUTTON, ButtonListScreen, ButtonOption, WarningScreen, DireWarningScreen, QRDisplayScreen)
@@ -87,6 +87,7 @@ class PSBTOverviewView(View):
         super().__init__()
 
         self.loading_screen = None
+        self.missing_utxo_input_indexes = []
 
         if not self.controller.psbt_parser or self.controller.psbt_parser.seed != self.controller.psbt_seed:
             # The PSBTParser takes a while to read the PSBT. Run the loading screen while
@@ -101,6 +102,10 @@ class PSBTOverviewView(View):
                     seed=self.controller.psbt_seed,
                     network=self.settings.get_value(SettingsConstants.SETTING__NETWORK)
                 )
+            except MissingInputUtxoError as e:
+                self.loading_screen.stop()
+                self.missing_utxo_input_indexes = e.missing_input_indexes
+                self.controller.psbt_parser = None
             except Exception as e:
                 self.loading_screen.stop()
                 raise e
@@ -108,6 +113,13 @@ class PSBTOverviewView(View):
 
     def run(self):
         from seedsigner.gui.screens.psbt_screens import PSBTOverviewScreen
+
+        if self.missing_utxo_input_indexes:
+            return Destination(
+                PSBTMissingInputUtxoWarningView,
+                view_args={"missing_input_indexes": self.missing_utxo_input_indexes},
+            )
+
         psbt_parser = self.controller.psbt_parser
 
         change_data = psbt_parser.change_data
@@ -161,6 +173,28 @@ class PSBTOverviewView(View):
 
         else:
             return Destination(PSBTMathView)
+
+
+
+class PSBTMissingInputUtxoWarningView(View):
+    def __init__(self, missing_input_indexes: list[int]):
+        super().__init__()
+        self.missing_input_indexes = missing_input_indexes
+
+
+    def run(self):
+        missing_inputs = ", ".join(str(i + 1) for i in self.missing_input_indexes)
+
+        self.run_screen(
+            DireWarningScreen,
+            title=_("Incomplete Transaction"),
+            status_headline=_("Missing Input Data"),
+            text=_("PSBT input(s) {} are missing UTXO data. Re-export from your coordinator with full previous transaction data.").format(missing_inputs),
+            button_data=[ButtonOption("Discard transaction")],
+            show_back_button=False,
+        )
+
+        return Destination(MainMenuView, clear_history=True)
 
 
 
@@ -541,16 +575,15 @@ class PSBTFinalizeView(View):
             # Sign PSBT
             sig_cnt = PSBTParser.sig_count(psbt)
             psbt.sign_with(psbt_parser.root)
-            trimmed_psbt = PSBTParser.trim(psbt)
 
-            if sig_cnt == PSBTParser.sig_count(trimmed_psbt):
+            if sig_cnt == PSBTParser.sig_count(psbt):
                 # Signing failed / didn't do anything
                 # TODO: Reserved for Nick. Are there different failure scenarios that we can detect?
                 # Would be nice to alter the message on the next screen w/more detail.
                 return Destination(PSBTSigningErrorView)
             
             else:
-                self.controller.psbt = trimmed_psbt
+                self.controller.psbt = psbt
                 return Destination(PSBTSignedQRDisplayView)
 
 

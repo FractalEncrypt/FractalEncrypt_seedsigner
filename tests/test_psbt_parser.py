@@ -6,7 +6,7 @@ from embit import bip32
 from embit.psbt import PSBT
 from embit.descriptor import Descriptor
 
-from seedsigner.models.psbt_parser import PSBTParser
+from seedsigner.models.psbt_parser import MissingInputUtxoError, PSBTParser
 from seedsigner.models.seed import Seed
 from seedsigner.models.settings_definition import SettingsConstants
 
@@ -205,7 +205,7 @@ class TestPSBTParser:
                 for pub, (leaf_hashes, derivation) in inp.taproot_bip32_derivations.items():
                     from binascii import hexlify
                     fingerprint_hex = hexlify(derivation.fingerprint).decode()
-                    
+
                     # Check if this public key derives from the current seed
                     derived_key = parser.root.derive(derivation.derivation)
                     if derived_key.key.sec() == pub.sec():
@@ -214,6 +214,29 @@ class TestPSBTParser:
                     else:
                         # This pubkey doesn't derive from current seed, should remain 00000000
                         assert fingerprint_hex == "00000000"
+
+
+    def test_get_inputs_missing_utxo(self):
+        psbt = PSBT.parse(a2b_base64(PSBTTestData.SINGLE_SIG_NATIVE_SEGWIT_1_INPUT))
+
+        assert PSBTParser.get_inputs_missing_utxo(psbt) == []
+
+        for inp in psbt.inputs:
+            inp.witness_utxo = None
+            inp.non_witness_utxo = None
+
+        assert PSBTParser.get_inputs_missing_utxo(psbt) == [0]
+
+
+    def test_parse_raises_missing_input_utxo_error(self):
+        psbt = PSBT.parse(a2b_base64(PSBTTestData.SINGLE_SIG_NATIVE_SEGWIT_1_INPUT))
+        psbt.inputs[0].witness_utxo = None
+        psbt.inputs[0].non_witness_utxo = None
+
+        with pytest.raises(MissingInputUtxoError) as exc_info:
+            PSBTParser(p=psbt, seed=self.seed, network=SettingsConstants.REGTEST)
+
+        assert exc_info.value.missing_input_indexes == [0]
 
 
     def test_trim_and_sig_count(self):
@@ -237,6 +260,15 @@ class TestPSBTParser:
 
                 psbt.sign_with(bip32.HDKey.from_seed(PSBTTestData.multisig_key_3.seed_bytes))
                 assert PSBTParser.sig_count(psbt) == 3
+
+
+    def test_trim_removes_input_utxo_metadata(self):
+        psbt = PSBT.parse(a2b_base64(PSBTTestData.SINGLE_SIG_NATIVE_SEGWIT_1_INPUT))
+        trimmed_psbt = PSBTParser.trim(psbt)
+
+        for inp in trimmed_psbt.inputs:
+            assert inp.witness_utxo is None
+            assert inp.non_witness_utxo is None
 
 
     def test_verify_multisig_output(self):

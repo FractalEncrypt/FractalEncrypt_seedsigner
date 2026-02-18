@@ -1,9 +1,14 @@
+from binascii import a2b_base64
+from embit.psbt import PSBT
+
 from base import FlowTest, FlowStep
 
 from seedsigner.controller import Controller
 from seedsigner.views.view import MainMenuView
 from seedsigner.views import scan_views, seed_views, psbt_views
 from seedsigner.models.settings import SettingsConstants
+
+from psbt_testing_util import PSBTTestData
 
 
 class TestPSBTFlows(FlowTest):
@@ -55,6 +60,22 @@ class TestPSBTFlows(FlowTest):
             FlowStep(psbt_views.PSBTFinalizeView, button_data_selection=psbt_views.PSBTFinalizeView.APPROVE_PSBT),
             FlowStep(psbt_views.PSBTSignedQRDisplayView),
             FlowStep(MainMenuView)
+        ])
+
+
+    def test_missing_input_utxo_routes_to_warning(self):
+        psbt = PSBT.parse(a2b_base64(PSBTTestData.SINGLE_SIG_NATIVE_SEGWIT_1_INPUT))
+        for inp in psbt.inputs:
+            inp.witness_utxo = None
+            inp.non_witness_utxo = None
+
+        self.controller.psbt = psbt
+        self.controller.psbt_seed = PSBTTestData.seed
+
+        self.run_sequence([
+            FlowStep(psbt_views.PSBTOverviewView, is_redirect=True),
+            FlowStep(psbt_views.PSBTMissingInputUtxoWarningView, screen_return_value=0),
+            FlowStep(MainMenuView),
         ])
 
 

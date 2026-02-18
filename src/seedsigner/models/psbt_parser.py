@@ -18,6 +18,13 @@ class OPCODES:
     OP_PUSHDATA1 = 76
 
 
+class MissingInputUtxoError(RuntimeError):
+    def __init__(self, missing_input_indexes: List[int]):
+        self.missing_input_indexes = missing_input_indexes
+        super().__init__(
+            f"Missing UTXO data for PSBT input(s): {', '.join(str(i) for i in missing_input_indexes)}"
+        )
+
 
 class PSBTParser():
     def __init__(self, p: PSBT, seed: Seed, network: str = SettingsConstants.MAINNET):
@@ -69,6 +76,16 @@ class PSBTParser():
         self.root = bip32.HDKey.from_seed(self.seed.seed_bytes, version=NETWORKS[SettingsConstants.map_network_to_embit(self.network)]["xprv"])
 
 
+    @staticmethod
+    def get_inputs_missing_utxo(psbt_obj: PSBT) -> List[int]:
+        missing_input_indexes = []
+        for i, inp in enumerate(psbt_obj.inputs):
+            if inp.witness_utxo is None and inp.non_witness_utxo is None:
+                missing_input_indexes.append(i)
+
+        return missing_input_indexes
+
+
     def parse(self):
         if self.psbt is None:
             logger.info(f"self.psbt is None!!")
@@ -77,6 +94,10 @@ class PSBTParser():
         if not self.seed:
             logger.info("self.seed is None!")
             return False
+
+        missing_input_indexes = PSBTParser.get_inputs_missing_utxo(self.psbt)
+        if missing_input_indexes:
+            raise MissingInputUtxoError(missing_input_indexes)
 
         self._set_root()
 
