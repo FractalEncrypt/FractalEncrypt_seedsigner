@@ -285,7 +285,12 @@ class SeedMnemonicEntryScreen(BaseTopNavScreen):
 
                 ret_val = self.keyboard.update_from_input(input)
 
-                if ret_val in Keyboard.ADDITIONAL_KEYS:
+                if ret_val in Keyboard.EXIT_DIRECTIONS:
+                    self.is_input_in_top_nav = True
+                    self.top_nav.left_button.is_selected = True
+                    self.top_nav.left_button.render()
+
+                elif ret_val in Keyboard.ADDITIONAL_KEYS:
                     if input == HardwareButtonsConstants.KEY_PRESS and ret_val == Keyboard.KEY_BACKSPACE["code"]:
                         self.letters = self.letters[:-2]
                         self.letters.append(" ")
@@ -430,7 +435,7 @@ class Codex32ShareSuccessScreen(LargeIconStatusScreen):
 class Codex32MasterShareSuccessScreen(LargeIconStatusScreen):
     def __post_init__(self):
         self.title = _("Success!")
-        self.status_headline = _("Master Share Valid")
+        self.status_headline = _("Master Seed Valid")
         self.text = _("Codex32 secret recovered.")
         self.is_bottom_list = True
         super().__post_init__()
