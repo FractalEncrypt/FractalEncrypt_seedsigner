@@ -1,5 +1,6 @@
 import pytest
-from seedsigner.models.seed import InvalidSeedException, Seed, ElectrumSeed
+from seedsigner.models.seed import Codex32Seed, InvalidSeedException, Seed, ElectrumSeed
+from seedsigner.models.seed_storage import SeedStorage
 
 from seedsigner.models.settings import SettingsConstants
 
@@ -83,3 +84,34 @@ def test_electrum_seed_rejects_most_bip39_mnemonics():
 	mnemonic = "only gain spot output unknown craft simple cram absorb suggest ridge famous".split()
 	Seed(mnemonic)
 	ElectrumSeed(mnemonic)
+
+
+def test_codex32_seed_metadata_optional():
+	seed_bytes = bytes.fromhex("00112233445566778899aabbccddeeff")
+	codex32_share = "MS10ABCDSQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ"
+
+	seed = Codex32Seed(seed_bytes=seed_bytes, codex32_master_share=codex32_share)
+	assert seed.codex32_master_share == codex32_share
+
+	seed_without_share = Codex32Seed(seed_bytes=seed_bytes)
+	assert seed_without_share.codex32_master_share is None
+
+
+def test_seed_storage_preserves_richer_codex32_metadata_on_duplicate():
+	seed_bytes = bytes.fromhex("00112233445566778899aabbccddeeff")
+	storage = SeedStorage()
+
+	storage.set_pending_seed(Codex32Seed(seed_bytes=seed_bytes))
+	first_index = storage.finalize_pending_seed()
+
+	storage.set_pending_seed(
+		Codex32Seed(
+			seed_bytes=seed_bytes,
+			codex32_master_share="MS10ABCDSQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ",
+		)
+	)
+	second_index = storage.finalize_pending_seed()
+
+	assert first_index == second_index
+	assert isinstance(storage.seeds[first_index], Codex32Seed)
+	assert storage.seeds[first_index].codex32_master_share == "MS10ABCDSQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ"

@@ -178,7 +178,7 @@ class Seed:
 
 
 class Codex32Seed(Seed):
-    def __init__(self, seed_bytes: bytes) -> None:
+    def __init__(self, seed_bytes: bytes, codex32_master_share: str | None = None) -> None:
         if len(seed_bytes) != 16:
             raise InvalidSeedException(
                 f"Expected 16 bytes for a Codex32 master seed, got {len(seed_bytes)}"
@@ -187,6 +187,7 @@ class Codex32Seed(Seed):
         self._mnemonic = unicodedata.normalize("NFKD", bip39.mnemonic_from_bytes(seed_bytes)).split()
         self._passphrase = ""
         self.seed_bytes = seed_bytes
+        self._codex32_master_share = codex32_master_share
 
 
     def _generate_seed(self):
@@ -203,6 +204,11 @@ class Codex32Seed(Seed):
     @property
     def passphrase_supported(self) -> bool:
         return False
+
+
+    @property
+    def codex32_master_share(self) -> str | None:
+        return self._codex32_master_share
 
 
 

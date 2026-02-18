@@ -8,7 +8,7 @@ from base import FlowTestInvalidButtonDataSelectionException
 
 from seedsigner.gui.screens.screen import RET_CODE__BACK_BUTTON, ButtonOption
 from seedsigner.models.settings import Settings, SettingsConstants
-from seedsigner.models.seed import ElectrumSeed, Seed
+from seedsigner.models.seed import Codex32Seed, ElectrumSeed, Seed
 from seedsigner.views.view import MainMenuView, OptionDisabledView, View, NetworkMismatchErrorView
 from seedsigner.views import seed_views, scan_views, settings_views
 
@@ -417,6 +417,66 @@ class TestSeedFlows(FlowTest):
                 FlowStep(seed_views.SeedsMenuView, is_redirect=True),  # When no seeds are loaded it auto-redirects to LoadSeedView
                 FlowStep(seed_views.LoadSeedView),
             ]
+        )
+
+
+    def test_codex32_backup_shows_only_codex32_actions(self):
+        seed = Codex32Seed(
+            seed_bytes=bytes.fromhex("00112233445566778899aabbccddeeff"),
+            codex32_master_share="MS10ABCDSQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ",
+        )
+        self.controller.storage.set_pending_seed(seed)
+        self.controller.storage.finalize_pending_seed()
+
+        with pytest.raises(FlowTestInvalidButtonDataSelectionException):
+            self.run_sequence(
+                initial_destination_view_args=dict(seed_num=0),
+                sequence=[
+                    FlowStep(seed_views.SeedOptionsView, button_data_selection=seed_views.SeedOptionsView.BACKUP),
+                    FlowStep(seed_views.SeedBackupView, button_data_selection=seed_views.SeedBackupView.VIEW_WORDS),
+                ],
+            )
+
+        with pytest.raises(FlowTestInvalidButtonDataSelectionException):
+            self.run_sequence(
+                initial_destination_view_args=dict(seed_num=0),
+                sequence=[
+                    FlowStep(seed_views.SeedOptionsView, button_data_selection=seed_views.SeedOptionsView.BACKUP),
+                    FlowStep(seed_views.SeedBackupView, button_data_selection=seed_views.SeedBackupView.EXPORT_SEEDQR),
+                ],
+            )
+
+
+    def test_codex32_backup_routes_to_secret_display_warning(self):
+        seed = Codex32Seed(
+            seed_bytes=bytes.fromhex("00112233445566778899aabbccddeeff"),
+            codex32_master_share="MS10ABCDSQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ",
+        )
+        self.controller.storage.set_pending_seed(seed)
+        self.controller.storage.finalize_pending_seed()
+
+        self.run_sequence(
+            initial_destination_view_args=dict(seed_num=0),
+            sequence=[
+                FlowStep(seed_views.SeedOptionsView, button_data_selection=seed_views.SeedOptionsView.BACKUP),
+                FlowStep(seed_views.SeedBackupView, button_data_selection=seed_views.SeedBackupView.VIEW_CODEX32_SECRET),
+                FlowStep(seed_views.Codex32MasterSecretWarningView),
+            ],
+        )
+
+
+    def test_codex32_backup_missing_metadata_routes_to_unavailable_error(self):
+        seed = Codex32Seed(seed_bytes=bytes.fromhex("00112233445566778899aabbccddeeff"))
+        self.controller.storage.set_pending_seed(seed)
+        self.controller.storage.finalize_pending_seed()
+
+        self.run_sequence(
+            initial_destination_view_args=dict(seed_num=0),
+            sequence=[
+                FlowStep(seed_views.SeedOptionsView, button_data_selection=seed_views.SeedOptionsView.BACKUP),
+                FlowStep(seed_views.SeedBackupView, button_data_selection=seed_views.SeedBackupView.VIEW_CODEX32_SECRET_UNAVAILABLE),
+                FlowStep(seed_views.Codex32BackupUnavailableView),
+            ],
         )
 
 

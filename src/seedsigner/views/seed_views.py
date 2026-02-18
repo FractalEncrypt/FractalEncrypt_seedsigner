@@ -329,9 +329,9 @@ class Codex32EntryView(View):
                     },
                 )
 
-            seed = Codex32Seed(codex.data)
-            self.controller.storage.set_pending_seed(seed)
             share_display = codex32_model.normalize_codex32_display(ret)
+            seed = Codex32Seed(codex.data, codex32_master_share=share_display)
+            self.controller.storage.set_pending_seed(seed)
             return Destination(
                 Codex32MasterShareSuccessView,
                 view_args={"share_data": share_display},
@@ -359,7 +359,8 @@ class Codex32EntryView(View):
             try:
                 secret = codex32_model.recover_secret_share(self.share_collection.shares)
                 secret = codex32_model.validate_codex32_s_share(secret.s)
-                seed = Codex32Seed(secret.data)
+                share_display = codex32_model.normalize_codex32_display(secret.s)
+                seed = Codex32Seed(secret.data, codex32_master_share=share_display)
             except codex32_model.Codex32InputError as exc:
                 if self.share_collection.shares:
                     self.share_collection.shares.pop()
@@ -376,7 +377,6 @@ class Codex32EntryView(View):
                 )
 
             self.controller.storage.set_pending_seed(seed)
-            share_display = codex32_model.normalize_codex32_display(secret.s)
             return Destination(
                 Codex32MasterShareSuccessView,
                 view_args={"share_data": share_display},
@@ -618,6 +618,21 @@ class Codex32MasterSecretDisplayView(View):
             )
 
         return Destination(SeedFinalizeView)
+
+
+class Codex32BackupUnavailableView(View):
+    def run(self):
+        self.run_screen(
+            DireWarningScreen,
+            title=_("Backup Unavailable"),
+            status_icon_name=SeedSignerIconConstants.ERROR,
+            status_headline=_("Codex32 Secret Unavailable"),
+            text=_("This Codex32 seed does not include backup metadata. Re-import the Codex32 secret to back it up."),
+            button_data=[ButtonOption("Back")],
+            show_back_button=False,
+        )
+
+        return Destination(BackStackView)
 
 
 
@@ -979,6 +994,8 @@ class SeedOptionsView(View):
 
 
 class SeedBackupView(View):
+    VIEW_CODEX32_SECRET = ButtonOption("View Codex32 Secret")
+    VIEW_CODEX32_SECRET_UNAVAILABLE = ButtonOption("View Codex32 Secret (Unavailable)")
     VIEW_WORDS = ButtonOption("View seed words")
     EXPORT_SEEDQR = ButtonOption("Export as SeedQR")
 
@@ -989,10 +1006,14 @@ class SeedBackupView(View):
     
 
     def run(self):
-        button_data = [self.VIEW_WORDS]
-
-        if self.seed.seedqr_supported:
-            button_data.append(self.EXPORT_SEEDQR)
+        if isinstance(self.seed, Codex32Seed):
+            button_data = [self.VIEW_CODEX32_SECRET]
+            if self.seed.codex32_master_share is None:
+                button_data = [self.VIEW_CODEX32_SECRET_UNAVAILABLE]
+        else:
+            button_data = [self.VIEW_WORDS]
+            if self.seed.seedqr_supported:
+                button_data.append(self.EXPORT_SEEDQR)
 
         selected_menu_num = self.run_screen(
             ButtonListScreen,
@@ -1003,6 +1024,15 @@ class SeedBackupView(View):
 
         if selected_menu_num == RET_CODE__BACK_BUTTON:
             return Destination(BackStackView)
+
+        elif button_data[selected_menu_num] == self.VIEW_CODEX32_SECRET:
+            return Destination(
+                Codex32MasterSecretWarningView,
+                view_args={"share_data": self.seed.codex32_master_share},
+            )
+
+        elif button_data[selected_menu_num] == self.VIEW_CODEX32_SECRET_UNAVAILABLE:
+            return Destination(Codex32BackupUnavailableView)
 
         elif button_data[selected_menu_num] == self.VIEW_WORDS:
             return Destination(SeedWordsWarningView, view_args={"seed_num": self.seed_num})
