@@ -22,6 +22,10 @@ class ScanView(View):
     """
     instructions_text = _mft("Scan a QR code")
     invalid_qr_type_message = _mft("QRCode not recognized or not yet supported.")
+    codex32_non_s_error_title = "Error"
+    codex32_non_s_error_headline = "Non-S Share Not Supported"
+    codex32_non_s_error_text = "This QR is a Codex32 split share. SeedSigner MVP can only scan S-shares. Use Codex32 multi-share recovery to combine shares and recover the S-share."
+    codex32_non_s_error_button = "Back"
 
 
     def __init__(self):
@@ -68,6 +72,35 @@ class ScanView(View):
                     button_text="Back",
                     next_destination=Destination(BackStackView, skip_current_view=True),
                 ))
+
+            if self.decoder.is_codex32:
+                from seedsigner.models import codex32 as codex32_model
+                from seedsigner.models.seed import Codex32Seed
+                from .seed_views import Codex32MasterShareSuccessView
+
+                codex32_share = self.decoder.get_codex32_share()
+                codex = codex32_model.parse_codex32_share(codex32_share)
+
+                if codex.share_idx.lower() != "s":
+                    return Destination(
+                        ErrorView,
+                        view_args=dict(
+                            title=self.codex32_non_s_error_title,
+                            status_headline=self.codex32_non_s_error_headline,
+                            text=self.codex32_non_s_error_text,
+                            button_text=self.codex32_non_s_error_button,
+                            next_destination=Destination(BackStackView, skip_current_view=True),
+                        ),
+                    )
+
+                codex = codex32_model.validate_codex32_s_share(codex32_share)
+                self.controller.storage.set_pending_seed(
+                    Codex32Seed(seed_bytes=codex.data, codex32_master_share=codex32_share)
+                )
+                return Destination(
+                    Codex32MasterShareSuccessView,
+                    view_args={"share_data": codex32_share},
+                )
 
             if self.decoder.is_seed:
                 seed_mnemonic = self.decoder.get_seed_phrase()

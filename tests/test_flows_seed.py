@@ -501,6 +501,60 @@ class TestSeedFlows(FlowTest):
         )
 
 
+    def test_codex32_backup_menu_includes_export_as_codex32qr(self):
+        codex32_share = "MS12NAMES6XQGUZTTXKEQNJSJZV4JV3NZ5K3KWGSPHUH6EVW"
+        seed = Codex32Seed(
+            seed_bytes=bytes.fromhex("ffeeddccbbaa99887766554433221100"),
+            codex32_master_share=codex32_share,
+        )
+        self.controller.storage.set_pending_seed(seed)
+        self.controller.storage.finalize_pending_seed()
+
+        self.run_sequence(
+            initial_destination_view_args=dict(seed_num=0),
+            sequence=[
+                FlowStep(seed_views.SeedOptionsView, button_data_selection=seed_views.SeedOptionsView.BACKUP),
+                FlowStep(seed_views.SeedBackupView, button_data_selection=seed_views.SeedBackupView.EXPORT_CODEX32QR),
+                FlowStep(seed_views.SeedTranscribeSeedQRWarningView),
+            ],
+        )
+
+
+    def test_codex32_export_transcribe_confirm_roundtrip(self):
+        codex32_share = "MS12NAMES6XQGUZTTXKEQNJSJZV4JV3NZ5K3KWGSPHUH6EVW"
+        wrong_but_valid_share = "MS12NAMEA320ZYXWVUTSRQPNMLKJHGFEDCAXRPP870HKKQRM"
+        seed = Codex32Seed(
+            seed_bytes=bytes.fromhex("ffeeddccbbaa99887766554433221100"),
+            codex32_master_share=codex32_share,
+        )
+        self.controller.storage.set_pending_seed(seed)
+        self.controller.storage.finalize_pending_seed()
+
+        def load_wrong_codex32_share_into_decoder(view: View):
+            view.decoder.add_data(wrong_but_valid_share)
+
+        def load_right_codex32_share_into_decoder(view: View):
+            view.decoder.add_data(codex32_share)
+
+        self.run_sequence([
+            FlowStep(MainMenuView, button_data_selection=MainMenuView.SEEDS),
+            FlowStep(seed_views.SeedsMenuView, screen_return_value=0),
+            FlowStep(seed_views.SeedOptionsView, button_data_selection=seed_views.SeedOptionsView.BACKUP),
+            FlowStep(seed_views.SeedBackupView, button_data_selection=seed_views.SeedBackupView.EXPORT_CODEX32QR),
+            FlowStep(seed_views.SeedTranscribeSeedQRWarningView),
+            FlowStep(seed_views.SeedTranscribeSeedQRWholeQRView),
+            FlowStep(seed_views.SeedTranscribeSeedQRZoomedInView),
+            FlowStep(seed_views.SeedTranscribeSeedQRConfirmQRPromptView, button_data_selection=seed_views.SeedTranscribeSeedQRConfirmQRPromptView.SCAN_CODEX32QR),
+            FlowStep(seed_views.SeedTranscribeSeedQRConfirmScanView, before_run=load_wrong_codex32_share_into_decoder),
+            FlowStep(seed_views.SeedTranscribeSeedQRConfirmWrongSeedView),
+            FlowStep(seed_views.SeedTranscribeSeedQRZoomedInView),
+            FlowStep(seed_views.SeedTranscribeSeedQRConfirmQRPromptView, button_data_selection=seed_views.SeedTranscribeSeedQRConfirmQRPromptView.SCAN_CODEX32QR),
+            FlowStep(seed_views.SeedTranscribeSeedQRConfirmScanView, before_run=load_right_codex32_share_into_decoder),
+            FlowStep(seed_views.SeedTranscribeSeedQRConfirmSuccessView),
+            FlowStep(seed_views.SeedOptionsView),
+        ])
+
+
     @patch("seedsigner.gui.screens.seed_screens.SeedTranscribeSeedQRZoomedInScreen", autospec=True)
     def test_transcribe_seedqr_and_verify(self, mock_zoomed_in_screen: Callable):
         """

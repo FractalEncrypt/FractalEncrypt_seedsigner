@@ -1009,6 +1009,7 @@ class SeedOptionsView(View):
 class SeedBackupView(View):
     VIEW_CODEX32_SECRET = ButtonOption("View Codex32 Secret")
     VIEW_CODEX32_SECRET_UNAVAILABLE = ButtonOption("View Codex32 Secret (Unavailable)")
+    EXPORT_CODEX32QR = ButtonOption("Export as Codex32QR")
     VIEW_WORDS = ButtonOption("View seed words")
     EXPORT_SEEDQR = ButtonOption("Export as SeedQR")
 
@@ -1023,6 +1024,8 @@ class SeedBackupView(View):
             button_data = [self.VIEW_CODEX32_SECRET]
             if self.seed.codex32_master_share is None:
                 button_data = [self.VIEW_CODEX32_SECRET_UNAVAILABLE]
+            else:
+                button_data.append(self.EXPORT_CODEX32QR)
         else:
             button_data = [self.VIEW_WORDS]
             if self.seed.seedqr_supported:
@@ -1052,6 +1055,17 @@ class SeedBackupView(View):
 
         elif button_data[selected_menu_num] == self.EXPORT_SEEDQR:
             return Destination(SeedTranscribeSeedQRFormatView, view_args={"seed_num": self.seed_num})
+
+        elif button_data[selected_menu_num] == self.EXPORT_CODEX32QR:
+            return Destination(
+                SeedTranscribeSeedQRWarningView,
+                view_args={
+                    "seed_num": self.seed_num,
+                    "seedqr_format": QRType.SEED__CODEX32,
+                    "num_modules": codex32_model.CODEX32_QR_MODULE_TARGET,
+                    "qr_data": codex32_model.normalize_codex32_display(self.seed.codex32_master_share),
+                },
+            )
 
 
 
@@ -1862,11 +1876,12 @@ class SeedTranscribeSeedQRFormatView(View):
 
 
 class SeedTranscribeSeedQRWarningView(View):
-    def __init__(self, seed_num: int, seedqr_format: str = QRType.SEED__SEEDQR, num_modules: int = 29):
+    def __init__(self, seed_num: int, seedqr_format: str = QRType.SEED__SEEDQR, num_modules: int = 29, qr_data: str | None = None):
         super().__init__()
         self.seed_num = seed_num
         self.seedqr_format = seedqr_format
         self.num_modules = num_modules
+        self.qr_data = qr_data
     
 
     def run(self):
@@ -1876,6 +1891,7 @@ class SeedTranscribeSeedQRWarningView(View):
                 "seed_num": self.seed_num,
                 "seedqr_format": self.seedqr_format,
                 "num_modules": self.num_modules,
+                "qr_data": self.qr_data,
             },
             skip_current_view=True,  # Prevent going BACK to WarningViews
         )
@@ -1900,23 +1916,26 @@ class SeedTranscribeSeedQRWarningView(View):
 
 
 class SeedTranscribeSeedQRWholeQRView(View):
-    def __init__(self, seed_num: int, seedqr_format: str, num_modules: int):
+    def __init__(self, seed_num: int, seedqr_format: str, num_modules: int, qr_data: str | None = None):
         super().__init__()
         self.seed_num = seed_num
         self.seedqr_format = seedqr_format
         self.num_modules = num_modules
+        self.qr_data = qr_data
         self.seed = self.controller.get_seed(seed_num)
     
 
     def run(self):
-        encoder_args = dict(mnemonic=self.seed.mnemonic_list,
-                            wordlist_language_code=self.settings.get_value(SettingsConstants.SETTING__WORDLIST_LANGUAGE))
-        if self.seedqr_format == QRType.SEED__SEEDQR:
-            e = SeedQrEncoder(**encoder_args)
-        elif self.seedqr_format == QRType.SEED__COMPACTSEEDQR:
-            e = CompactSeedQrEncoder(**encoder_args)
-
-        data = e.next_part()
+        if self.qr_data is not None:
+            data = self.qr_data
+        else:
+            encoder_args = dict(mnemonic=self.seed.mnemonic_list,
+                                wordlist_language_code=self.settings.get_value(SettingsConstants.SETTING__WORDLIST_LANGUAGE))
+            if self.seedqr_format == QRType.SEED__SEEDQR:
+                e = SeedQrEncoder(**encoder_args)
+            elif self.seedqr_format == QRType.SEED__COMPACTSEEDQR:
+                e = CompactSeedQrEncoder(**encoder_args)
+            data = e.next_part()
 
         ret = self.run_screen(
             seed_screens.SeedTranscribeSeedQRWholeQRScreen,
@@ -1932,7 +1951,9 @@ class SeedTranscribeSeedQRWholeQRView(View):
                 SeedTranscribeSeedQRZoomedInView,
                 view_args={
                     "seed_num": self.seed_num,
-                    "seedqr_format": self.seedqr_format
+                    "seedqr_format": self.seedqr_format,
+                    "num_modules": self.num_modules,
+                    "qr_data": self.qr_data,
                 }
             )
 
@@ -1943,10 +1964,12 @@ class SeedTranscribeSeedQRZoomedInView(View):
     intial_zone_x, initial_zone_y: Used by the screenshot generator to shift the view
     to a more interesting part of the QR code template.
     """
-    def __init__(self, seed_num: int, seedqr_format: str, initial_zone_x: int = 0, initial_zone_y: int = 0):
+    def __init__(self, seed_num: int, seedqr_format: str, initial_zone_x: int = 0, initial_zone_y: int = 0, num_modules: int | None = None, qr_data: str | None = None):
         super().__init__()
         self.seed_num = seed_num
         self.seedqr_format = seedqr_format
+        self.num_modules = num_modules
+        self.qr_data = qr_data
         self.seed = self.controller.get_seed(seed_num)
         self.initial_zone_x = initial_zone_x
         self.initial_zone_y = initial_zone_y
@@ -1954,25 +1977,29 @@ class SeedTranscribeSeedQRZoomedInView(View):
 
 
     def run(self):
-        encoder_args = dict(mnemonic=self.seed.mnemonic_list,
-                            wordlist_language_code=self.settings.get_value(SettingsConstants.SETTING__WORDLIST_LANGUAGE))
-        if self.seedqr_format == QRType.SEED__SEEDQR:
-            e = SeedQrEncoder(**encoder_args)
-        elif self.seedqr_format == QRType.SEED__COMPACTSEEDQR:
-            e = CompactSeedQrEncoder(**encoder_args)
-
-        data = e.next_part()
-
-        if len(self.seed.mnemonic_list) == 24:
-            if self.seedqr_format == QRType.SEED__COMPACTSEEDQR:
-                num_modules = 25
-            else:
-                num_modules = 29
+        if self.qr_data is not None:
+            data = self.qr_data
+            num_modules = self.num_modules or codex32_model.CODEX32_QR_MODULE_TARGET
         else:
-            if self.seedqr_format == QRType.SEED__COMPACTSEEDQR:
-                num_modules = 21
+            encoder_args = dict(mnemonic=self.seed.mnemonic_list,
+                                wordlist_language_code=self.settings.get_value(SettingsConstants.SETTING__WORDLIST_LANGUAGE))
+            if self.seedqr_format == QRType.SEED__SEEDQR:
+                e = SeedQrEncoder(**encoder_args)
+            elif self.seedqr_format == QRType.SEED__COMPACTSEEDQR:
+                e = CompactSeedQrEncoder(**encoder_args)
+
+            data = e.next_part()
+
+            if len(self.seed.mnemonic_list) == 24:
+                if self.seedqr_format == QRType.SEED__COMPACTSEEDQR:
+                    num_modules = 25
+                else:
+                    num_modules = 29
             else:
-                num_modules = 25
+                if self.seedqr_format == QRType.SEED__COMPACTSEEDQR:
+                    num_modules = 21
+                else:
+                    num_modules = 25
 
         self.run_screen(
             seed_screens.SeedTranscribeSeedQRZoomedInScreen,
@@ -1982,34 +2009,56 @@ class SeedTranscribeSeedQRZoomedInView(View):
             initial_zone_y=self.initial_zone_y,
         )
 
-        return Destination(SeedTranscribeSeedQRConfirmQRPromptView, view_args={"seed_num": self.seed_num})
+        return Destination(
+            SeedTranscribeSeedQRConfirmQRPromptView,
+            view_args={
+                "seed_num": self.seed_num,
+                "seedqr_format": self.seedqr_format,
+                "expected_qr_data": self.qr_data,
+            },
+        )
 
 
 
 class SeedTranscribeSeedQRConfirmQRPromptView(View):
     SCAN = ButtonOption("Confirm SeedQR", SeedSignerIconConstants.QRCODE)
+    SCAN_CODEX32QR = ButtonOption("Confirm Codex32QR", SeedSignerIconConstants.QRCODE)
     DONE = ButtonOption("Done")
 
-    def __init__(self, seed_num: int):
+    def __init__(self, seed_num: int, seedqr_format: str = QRType.SEED__SEEDQR, expected_qr_data: str | None = None):
         super().__init__()
         self.seed_num = seed_num
+        self.seedqr_format = seedqr_format
+        self.expected_qr_data = expected_qr_data
         self.seed = self.controller.get_seed(seed_num)
     
 
     def run(self):
-        button_data = [self.SCAN, self.DONE]
+        scan_button = self.SCAN
+        title = _("Confirm SeedQR?")
+        if self.seedqr_format == QRType.SEED__CODEX32:
+            scan_button = self.SCAN_CODEX32QR
+            title = _("Confirm Codex32QR?")
+        button_data = [scan_button, self.DONE]
 
         selected_menu_option = self.run_screen(
             seed_screens.SeedTranscribeSeedQRConfirmQRPromptScreen,
-            title=_("Confirm SeedQR?"),
+            title=title,
             button_data=button_data,
         )
 
         if selected_menu_option == RET_CODE__BACK_BUTTON:
             return Destination(BackStackView)
 
-        elif button_data[selected_menu_option] == self.SCAN:
-            return Destination(SeedTranscribeSeedQRConfirmScanView, view_args={"seed_num": self.seed_num})
+        elif button_data[selected_menu_option] == scan_button:
+            return Destination(
+                SeedTranscribeSeedQRConfirmScanView,
+                view_args={
+                    "seed_num": self.seed_num,
+                    "seedqr_format": self.seedqr_format,
+                    "expected_qr_data": self.expected_qr_data,
+                },
+            )
 
         elif button_data[selected_menu_option] == self.DONE:
             return Destination(SeedOptionsView, view_args={"seed_num": self.seed_num}, clear_history=True)
@@ -2017,10 +2066,12 @@ class SeedTranscribeSeedQRConfirmQRPromptView(View):
 
 
 class SeedTranscribeSeedQRConfirmScanView(View):
-    def __init__(self, seed_num: int):
+    def __init__(self, seed_num: int, seedqr_format: str = QRType.SEED__SEEDQR, expected_qr_data: str | None = None):
         from seedsigner.models.decode_qr import DecodeQR
         super().__init__()
         self.seed_num = seed_num
+        self.seedqr_format = seedqr_format
+        self.expected_qr_data = expected_qr_data
         self.seed = self.controller.get_seed(seed_num)
         wordlist_language_code = self.settings.get_value(SettingsConstants.SETTING__WORDLIST_LANGUAGE)
         self.decoder = DecodeQR(wordlist_language_code=wordlist_language_code)
@@ -2033,7 +2084,7 @@ class SeedTranscribeSeedQRConfirmScanView(View):
         scanning_done=self.run_screen(
             ScanScreen,
             decoder=self.decoder,
-            instructions_text=_("Scan your SeedQR")
+            instructions_text=_("Scan your Codex32QR") if self.seedqr_format == QRType.SEED__CODEX32 else _("Scan your SeedQR")
         )
 
         # If the scanning was canceled because the back button was pressed, return to BackStackView (SeedTranscribeSeedQRConfirmQRPromptView).
@@ -2041,7 +2092,14 @@ class SeedTranscribeSeedQRConfirmScanView(View):
            return Destination(BackStackView, skip_current_view=False)
 
         if self.decoder.is_complete:
-            if self.decoder.is_seed:
+            if self.seedqr_format == QRType.SEED__CODEX32:
+                if self.decoder.is_codex32:
+                    scanned_share = self.decoder.get_codex32_share()
+                    expected_share = codex32_model.normalize_codex32_display(self.expected_qr_data)
+                    if scanned_share != expected_share:
+                        return Destination(SeedTranscribeSeedQRConfirmWrongSeedView, skip_current_view=True)
+                    return Destination(SeedTranscribeSeedQRConfirmSuccessView, view_args={"seed_num": self.seed_num})
+            elif self.decoder.is_seed:
                 seed_mnemonic = self.decoder.get_seed_phrase()
                 # Found a valid mnemonic seed! But does it match?
                 if seed_mnemonic != self.seed.mnemonic_list:

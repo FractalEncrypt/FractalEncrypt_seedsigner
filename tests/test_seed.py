@@ -1,6 +1,7 @@
 import pytest
 from seedsigner.models.seed import Codex32Seed, InvalidSeedException, Seed, ElectrumSeed
 from seedsigner.models.seed_storage import SeedStorage
+from seedsigner.models import codex32 as codex32_model
 
 from seedsigner.models.settings import SettingsConstants
 
@@ -115,3 +116,16 @@ def test_seed_storage_preserves_richer_codex32_metadata_on_duplicate():
 	assert first_index == second_index
 	assert isinstance(storage.seeds[first_index], Codex32Seed)
 	assert storage.seeds[first_index].codex32_master_share == "MS10ABCDSQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ"
+
+
+def test_codex32_qr_profile_constants():
+	assert codex32_model.CODEX32_QR_CANONICAL_PREFIX == "MS1"
+	assert codex32_model.CODEX32_QR_CANONICAL_LENGTH == 48
+	assert codex32_model.CODEX32_QR_MODULE_TARGET == 29
+	assert codex32_model.CODEX32_QR_EC_LEVEL == "L"
+
+
+def test_codex32_qr_normalization_is_canonical_uppercase():
+	raw_share = "ms10-abcdsqqq qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq"
+	expected = raw_share.replace("-", "").replace(" ", "").upper()
+	assert codex32_model.normalize_codex32_display(raw_share) == expected

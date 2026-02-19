@@ -1,4 +1,5 @@
 from seedsigner.models.decode_qr import DecodeQR, DecodeQRStatus
+from seedsigner.models.codex32 import parse_codex32_share
 from seedsigner.models.psbt_parser import PSBTParser
 from seedsigner.models.qr_type import QRType
 from seedsigner.models.seed import Seed
@@ -407,6 +408,69 @@ def test_seed_qr():
     
     assert d.qr_type == QRType.SEED__SEEDQR
     assert d.get_seed_phrase() == "obscure bone gas open exotic abuse virus bunker shuffle nasty ship dash".split()
+
+
+def test_codex32qr_decode_returns_canonical_s_share():
+    raw_share = "ms12-names6xqguzttxkeqnjsjzv4jv3nz5k3kwgsphuh6evw"
+    canonical_share = "MS12NAMES6XQGUZTTXKEQNJSJZV4JV3NZ5K3KWGSPHUH6EVW"
+
+    d = DecodeQR()
+    status = d.add_data(raw_share)
+
+    assert status == DecodeQRStatus.COMPLETE
+    assert d.qr_type == QRType.SEED__CODEX32
+    assert d.is_seed is True
+    assert d.is_codex32 is True
+    assert d.get_codex32_share() == canonical_share
+
+
+def test_codex32qr_decode_accepts_non_s_share_for_routing():
+    non_s_share = "ms12namea320zyxwvutsrqpnmlkjhgfedcaxrpp870hkkqrm"
+
+    d = DecodeQR()
+    status = d.add_data(non_s_share)
+
+    assert status == DecodeQRStatus.COMPLETE
+    assert d.qr_type == QRType.SEED__CODEX32
+    parsed = parse_codex32_share(d.get_codex32_share())
+    assert parsed.share_idx.lower() != "s"
+
+
+def test_codex32qr_decode_invalid_checksum_returns_invalid():
+    valid_share = "MS12NAMES6XQGUZTTXKEQNJSJZV4JV3NZ5K3KWGSPHUH6EVW"
+    invalid_share = valid_share[:-1] + "Q"
+
+    d = DecodeQR()
+    status = d.add_data(invalid_share)
+
+    assert status == DecodeQRStatus.INVALID
+    assert d.is_complete is False
+
+
+def test_codex32qr_detection_precedence_regressions():
+    base64_psbt = "cHNidP8BAHICAAAAAQDo5ey+2HIrNUkExsFhsImv1OK1cYA9x/bRjYQD+0UaAQAAAAD9////Apg6AAAAAAAAF6kUVuVZEcdpQ2zgABa9dRUNYHD4VuaHgSYAAAAAAAAWABQaLE4t0JbDRg4pNnmcf+cAWIcyawAAAAAAAQEfqGEAAAAAAAAWABRyuw9od6yuS0yiZljV0X12wG9e5CIGA/ZlEZvQubb6PmcnK+vlnd8aftYnrQ8wHYSxsD8tDp61GIshjoFUAACAAQAAgAAAAIAAAAAAAAAAAAAAAA=="
+    lang = SettingsConstants.WORDLIST_LANGUAGE__ENGLISH
+
+    assert DecodeQR.detect_segment_type(base64_psbt) == QRType.PSBT__BASE64
+    assert DecodeQR.detect_segment_type("121802020768124106400009195602431595117715840445") == QRType.SEED__SEEDQR
+    assert DecodeQR.detect_segment_type("height demise useless trap grow lion found off key clown transfer enroll", wordlist_language_code=lang) == QRType.SEED__MNEMONIC
+    assert DecodeQR.detect_segment_type("bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu") == QRType.BITCOIN_ADDRESS
+
+
+def test_codex32_like_invalid_payload_does_not_fallback_to_address():
+    invalid_codex32_like = "MS12NAMEI320ZYXWVUTSRQPNMLKJHGFEDCAXRPP870HKKQRM"
+
+    d = DecodeQR()
+    status = d.add_data(invalid_codex32_like)
+
+    assert status == DecodeQRStatus.INVALID
+    assert d.qr_type == QRType.INVALID
+    assert d.is_invalid is True
+
+
+def test_detect_segment_type_defaults_wordlist_language_to_english():
+    mnemonic = "height demise useless trap grow lion found off key clown transfer enroll"
+    assert DecodeQR.detect_segment_type(mnemonic) == QRType.SEED__MNEMONIC
 
 
 

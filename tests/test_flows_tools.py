@@ -3,7 +3,7 @@ from base import FlowTest, FlowStep
 
 from seedsigner.controller import Controller
 from seedsigner.gui.screens.screen import RET_CODE__BACK_BUTTON, ButtonOption
-from seedsigner.models.seed import Seed
+from seedsigner.models.seed import Codex32Seed, Seed
 from seedsigner.models.settings_definition import SettingsConstants, SettingsDefinition
 from seedsigner.views.view import ErrorView, MainMenuView
 from seedsigner.views import scan_views, seed_views, tools_views
@@ -117,6 +117,50 @@ class TestToolsFlows(FlowTest):
             FlowStep(tools_views.ToolsMenuView, button_data_selection=tools_views.ToolsMenuView.ADDRESS_EXPLORER),
             FlowStep(tools_views.ToolsAddressExplorerSelectSourceView, button_data_selection=tools_views.ToolsAddressExplorerSelectSourceView.SCAN_SEED),
             FlowStep(scan_views.ScanSeedQRView, before_run=load_wrong_data_into_decoder),  # simulate scanning the wrong QR type
+            FlowStep(ErrorView),
+        ])
+
+
+    def test__address_explorer__scan_codex32_s_share__sideflow(self):
+        raw_s_share = "ms12-names6xqguzttxkeqnjsjzv4jv3nz5k3kwgsphuh6evw"
+        canonical_s_share = "MS12NAMES6XQGUZTTXKEQNJSJZV4JV3NZ5K3KWGSPHUH6EVW"
+
+        def load_codex32_share_into_decoder(view: scan_views.ScanView):
+            view.decoder.add_data(raw_s_share)
+
+        def assert_pending_codex32_seed(view: seed_views.Codex32MasterShareSuccessView):
+            pending_seed = self.controller.storage.get_pending_seed()
+            assert isinstance(pending_seed, Codex32Seed)
+            assert pending_seed.codex32_master_share == canonical_s_share
+            assert view.share_data == canonical_s_share
+
+        self.run_sequence([
+            FlowStep(MainMenuView, button_data_selection=MainMenuView.TOOLS),
+            FlowStep(tools_views.ToolsMenuView, button_data_selection=tools_views.ToolsMenuView.ADDRESS_EXPLORER),
+            FlowStep(tools_views.ToolsAddressExplorerSelectSourceView, button_data_selection=tools_views.ToolsAddressExplorerSelectSourceView.SCAN_SEED),
+            FlowStep(scan_views.ScanSeedQRView, before_run=load_codex32_share_into_decoder),
+            FlowStep(
+                seed_views.Codex32MasterShareSuccessView,
+                before_run=assert_pending_codex32_seed,
+                button_data_selection=seed_views.Codex32MasterShareSuccessView.LOAD,
+            ),
+            FlowStep(seed_views.SeedFinalizeView, button_data_selection=seed_views.SeedFinalizeView.FINALIZE),
+            FlowStep(seed_views.SeedOptionsView, is_redirect=True),
+            FlowStep(seed_views.SeedExportXpubScriptTypeView),
+        ])
+
+
+    def test__address_explorer__scan_codex32_non_s_share__routes_to_error(self):
+        non_s_share = "ms12namea320zyxwvutsrqpnmlkjhgfedcaxrpp870hkkqrm"
+
+        def load_non_s_share_into_decoder(view: scan_views.ScanView):
+            view.decoder.add_data(non_s_share)
+
+        self.run_sequence([
+            FlowStep(MainMenuView, button_data_selection=MainMenuView.TOOLS),
+            FlowStep(tools_views.ToolsMenuView, button_data_selection=tools_views.ToolsMenuView.ADDRESS_EXPLORER),
+            FlowStep(tools_views.ToolsAddressExplorerSelectSourceView, button_data_selection=tools_views.ToolsAddressExplorerSelectSourceView.SCAN_SEED),
+            FlowStep(scan_views.ScanSeedQRView, before_run=load_non_s_share_into_decoder),
             FlowStep(ErrorView),
         ])
 

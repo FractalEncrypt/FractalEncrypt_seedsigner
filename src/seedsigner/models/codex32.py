@@ -13,6 +13,11 @@ ERROR_CHECKSUM = "checksum"
 ERROR_LENGTH = "length"
 ERROR_UNKNOWN = "unknown"
 
+CODEX32_QR_CANONICAL_PREFIX = "MS1"
+CODEX32_QR_CANONICAL_LENGTH = 48
+CODEX32_QR_MODULE_TARGET = 29
+CODEX32_QR_EC_LEVEL = "L"
+
 
 class Codex32InputError(ValueError):
     """Raised when Codex32 input fails validation."""
