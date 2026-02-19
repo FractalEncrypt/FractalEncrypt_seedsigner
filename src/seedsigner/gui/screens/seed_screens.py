@@ -22,6 +22,8 @@ logger = logging.getLogger(__name__)
 
 
 CODEX32_CHARSET = "ACDEFGHJKLMNPQRSTUVWXYZ023456789"
+CODEX32_THRESHOLD_POSITION = 3
+CODEX32_THRESHOLD_ALLOWED_CHARS = "023456789"
 CODEX32_SHARE_INDEX_POSITION = 8
 
 
@@ -1131,6 +1133,13 @@ class Codex32EntryScreen(BaseTopNavScreen):
                     if self.cursor_index < self.total_len:
                         if self.cursor_index < self.locked_prefix_len:
                             self._flash_warning(_("Header locked"))
+                            self._render_boxes()
+                            continue
+                        if (
+                            self.cursor_index == CODEX32_THRESHOLD_POSITION
+                            and ret_val.upper() not in CODEX32_THRESHOLD_ALLOWED_CHARS
+                        ):
+                            self._flash_warning(_("Box 4 must be a number"))
                             self._render_boxes()
                             continue
                         first_empty = self._first_empty_index()

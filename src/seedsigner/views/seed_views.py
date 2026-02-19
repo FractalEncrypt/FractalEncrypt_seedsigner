@@ -559,14 +559,15 @@ class Codex32MasterShareSuccessView(View):
 
 
 class Codex32MasterSecretWarningView(View):
-    def __init__(self, share_data: str):
+    def __init__(self, share_data: str, seed_num: int | None = None):
         super().__init__()
         self.share_data = share_data
+        self.seed_num = seed_num
 
     def run(self):
         destination = Destination(
             Codex32MasterSecretDisplayView,
-            view_args={"share_data": self.share_data, "page_index": 0},
+            view_args={"share_data": self.share_data, "page_index": 0, "seed_num": self.seed_num},
             skip_current_view=True,
         )
 
@@ -585,18 +586,20 @@ class Codex32MasterSecretWarningView(View):
 class Codex32MasterSecretDisplayView(View):
     CONTINUE = ButtonOption("Continue to Boxes 25-48")
     FINALIZE = ButtonOption("Finalize Seed")
+    DONE = ButtonOption("Done")
 
-    def __init__(self, share_data: str, page_index: int = 0):
+    def __init__(self, share_data: str, page_index: int = 0, seed_num: int | None = None):
         super().__init__()
         self.share_data = share_data
         self.page_index = page_index
+        self.seed_num = seed_num
 
     def run(self):
         if self.page_index == 0:
             button_data = [self.CONTINUE]
             boxes_label = _("Boxes 1-24")
         else:
-            button_data = [self.FINALIZE]
+            button_data = [self.FINALIZE if self.seed_num is None else self.DONE]
             boxes_label = _("Boxes 25-48")
 
         selected_menu_num = self.run_screen(
@@ -614,10 +617,13 @@ class Codex32MasterSecretDisplayView(View):
         if button_data[selected_menu_num] == self.CONTINUE:
             return Destination(
                 Codex32MasterSecretDisplayView,
-                view_args={"share_data": self.share_data, "page_index": 1},
+                view_args={"share_data": self.share_data, "page_index": 1, "seed_num": self.seed_num},
             )
 
-        return Destination(SeedFinalizeView)
+        if self.seed_num is None:
+            return Destination(SeedFinalizeView)
+
+        return Destination(SeedOptionsView, view_args={"seed_num": self.seed_num}, clear_history=True)
 
 
 class Codex32BackupUnavailableView(View):
@@ -674,7 +680,11 @@ class SeedFinalizeView(View):
         super().__init__()
         self.seed = self.controller.storage.get_pending_seed()
 
-        if self.seed.get_fingerprint == "":
+        if self.seed is None:
+            self.fingerprint = ""
+            return
+
+        if self.seed.passphrase == "":
             # Expected normal user flow
             self.fingerprint = self.seed.get_fingerprint(network=self.settings.get_value(SettingsConstants.SETTING__NETWORK))
 
@@ -690,6 +700,9 @@ class SeedFinalizeView(View):
 
 
     def run(self):
+        if self.seed is None:
+            return Destination(MainMenuView)
+
         button_data = [self.FINALIZE]
         self.PASSPHRASE.button_label = self.seed.passphrase_label
         if self.seed.passphrase_supported and self.settings.get_value(SettingsConstants.SETTING__PASSPHRASE) != SettingsConstants.OPTION__DISABLED:
@@ -1028,7 +1041,7 @@ class SeedBackupView(View):
         elif button_data[selected_menu_num] == self.VIEW_CODEX32_SECRET:
             return Destination(
                 Codex32MasterSecretWarningView,
-                view_args={"share_data": self.seed.codex32_master_share},
+                view_args={"share_data": self.seed.codex32_master_share, "seed_num": self.seed_num},
             )
 
         elif button_data[selected_menu_num] == self.VIEW_CODEX32_SECRET_UNAVAILABLE:

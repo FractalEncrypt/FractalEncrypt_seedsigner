@@ -480,6 +480,27 @@ class TestSeedFlows(FlowTest):
         )
 
 
+    def test_codex32_backup_secret_display_done_returns_to_seed_options(self):
+        seed = Codex32Seed(
+            seed_bytes=bytes.fromhex("00112233445566778899aabbccddeeff"),
+            codex32_master_share="MS10ABCDSQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ",
+        )
+        self.controller.storage.set_pending_seed(seed)
+        self.controller.storage.finalize_pending_seed()
+
+        self.run_sequence(
+            initial_destination_view_args=dict(seed_num=0),
+            sequence=[
+                FlowStep(seed_views.SeedOptionsView, button_data_selection=seed_views.SeedOptionsView.BACKUP),
+                FlowStep(seed_views.SeedBackupView, button_data_selection=seed_views.SeedBackupView.VIEW_CODEX32_SECRET),
+                FlowStep(seed_views.Codex32MasterSecretWarningView, screen_return_value=0),
+                FlowStep(seed_views.Codex32MasterSecretDisplayView, screen_return_value=0),
+                FlowStep(seed_views.Codex32MasterSecretDisplayView, screen_return_value=0),
+                FlowStep(seed_views.SeedOptionsView),
+            ],
+        )
+
+
     @patch("seedsigner.gui.screens.seed_screens.SeedTranscribeSeedQRZoomedInScreen", autospec=True)
     def test_transcribe_seedqr_and_verify(self, mock_zoomed_in_screen: Callable):
         """

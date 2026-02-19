@@ -86,6 +86,22 @@ class PSBTParser():
         return missing_input_indexes
 
 
+    @staticmethod
+    def get_inputs_signed_by_fingerprint(psbt_obj: PSBT, fingerprint_hex: str) -> List[int]:
+        signed_input_indexes = []
+        for i, inp in enumerate(psbt_obj.inputs):
+            for pubkey in inp.partial_sigs.keys():
+                derivation_path_obj = inp.bip32_derivations.get(pubkey)
+                if not derivation_path_obj:
+                    continue
+
+                if hexlify(derivation_path_obj.fingerprint).decode() == fingerprint_hex:
+                    signed_input_indexes.append(i)
+                    break
+
+        return signed_input_indexes
+
+
     def parse(self):
         if self.psbt is None:
             logger.info(f"self.psbt is None!!")

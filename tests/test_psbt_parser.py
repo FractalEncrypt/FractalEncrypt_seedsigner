@@ -239,6 +239,17 @@ class TestPSBTParser:
         assert exc_info.value.missing_input_indexes == [0]
 
 
+    def test_get_inputs_signed_by_fingerprint(self):
+        psbt = PSBT.parse(a2b_base64(PSBTTestData.MULTISIG_NATIVE_SEGWIT_1_INPUT))
+        psbt.sign_with(bip32.HDKey.from_seed(PSBTTestData.multisig_key_2.seed_bytes))
+
+        multisig_key_2_fingerprint = PSBTTestData.multisig_key_2.get_fingerprint(SettingsConstants.REGTEST)
+        multisig_key_3_fingerprint = PSBTTestData.multisig_key_3.get_fingerprint(SettingsConstants.REGTEST)
+
+        assert PSBTParser.get_inputs_signed_by_fingerprint(psbt, multisig_key_2_fingerprint) == [0]
+        assert PSBTParser.get_inputs_signed_by_fingerprint(psbt, multisig_key_3_fingerprint) == []
+
+
     def test_trim_and_sig_count(self):
         """
         PSBTParser should correctly trim a psbt of all unnecessary data and count the number of

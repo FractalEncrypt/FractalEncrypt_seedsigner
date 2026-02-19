@@ -112,6 +112,18 @@ class TestPSBTFlows(FlowTest):
         self.run_sequence(sequence)
 
 
+    def test_scan_psbt_first_then_enter_codex32_seed(self):
+        def load_psbt_into_decoder(view: scan_views.ScanView):
+            view.decoder.add_data(PSBTTestData.SINGLE_SIG_NATIVE_SEGWIT_1_INPUT)
+
+        self.run_sequence([
+            FlowStep(MainMenuView, button_data_selection=MainMenuView.SCAN),
+            FlowStep(scan_views.ScanView, before_run=load_psbt_into_decoder),
+            FlowStep(psbt_views.PSBTSelectSeedView, button_data_selection=psbt_views.PSBTSelectSeedView.TYPE_CODEX32),
+            FlowStep(seed_views.Codex32EntryView),
+        ])
+
+
     def test_scan_multisig_psbt_seed_already_signed_flow(self):
         
         def load_psbt_into_decoder(view: scan_views.ScanView):
