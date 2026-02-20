@@ -244,9 +244,7 @@ Multisig cosigner export:
 
 QR examples:
 
-| Share A QR | Share C QR |
-|---|---|
-| ![L0VE Share A](../QRs/Split%20Shares/love_share_a.png) | ![L0VE Share C](../QRs/Split%20Shares/love_share_c.png) |
+No QR PNG assets are embedded in this repository copy of the spec.
 
 ---
 
@@ -270,9 +268,7 @@ Multisig cosigner export:
 
 QR examples:
 
-| Share A QR | Share C QR |
-|---|---|
-| ![WSFP Share A](../QRs/Split%20Shares/wsfp_share_a.png) | ![WSFP Share C](../QRs/Split%20Shares/wsfp_share_c.png) |
+No QR PNG assets are embedded in this repository copy of the spec.
 
 ---
 
@@ -298,13 +294,7 @@ Single-sig export:
 
 QR examples:
 
-| Share A QR | Share C QR |
-|---|---|
-| ![F0UR Share A](../QRs/Split%20Shares/f0ur_share_a.png) | ![F0UR Share C](../QRs/Split%20Shares/f0ur_share_c.png) |
-
-| Share D QR | Share E QR |
-|---|---|
-| ![F0UR Share D](../QRs/Split%20Shares/f0ur_share_d.png) | ![F0UR Share E](../QRs/Split%20Shares/f0ur_share_e.png) |
+No QR PNG assets are embedded in this repository copy of the spec.
 
 ---
 
@@ -326,18 +316,15 @@ Multisig cosigner export:
 
 QR example:
 
-![Single-share S vector QR](../QRs/S%20Shares/codex32_s_share_1.png)
+No QR PNG assets are embedded in this repository copy of the spec.
 
 ---
 
 ## 11) Additional QR assets in this repository
 
-In addition to split-share QR images above (and the single-share S example already shown), the following S-share PNGs are available in this repository for scan testing:
+This repository copy of the specification does not currently include the QR PNG asset files.
 
-- `../QRs/S Shares/codex32_s_share_2.png`
-- `../QRs/S Shares/codex32_s_share_3.png`
-
-These assets are black/white and generated for practical device testing of the `Codex32QR/v1-48` textual profile.
+If/when image assets are added to this repo, this section should list the exact local paths and embed examples to avoid broken references.
 
 ---
 

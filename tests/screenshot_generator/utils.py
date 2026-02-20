@@ -1,6 +1,7 @@
 import os
 from contextlib import contextmanager
 from dataclasses import dataclass
+from typing import Callable
 from PIL import Image, ImageDraw
 
 from seedsigner.gui.renderer import Renderer
@@ -103,6 +104,8 @@ class ScreenshotConfig:
     view_kwargs: dict = None
     screenshot_name: str = None
     toast_thread: BaseToastOverlayManagerThread = None
+    run_before: Callable[[], None] = None
+    run_after: Callable[[], None] = None
     mock_context_manager: callable = default_mock_context_manager
 
 
@@ -111,3 +114,13 @@ class ScreenshotConfig:
             self.view_kwargs = {}
         if not self.screenshot_name:
             self.screenshot_name = self.View_cls.__name__
+
+
+    def run_callback_before(self):
+        if self.run_before:
+            self.run_before()
+
+
+    def run_callback_after(self):
+        if self.run_after:
+            self.run_after()

@@ -21,7 +21,25 @@ sys.modules['seedsigner.hardware.displays.ili9341'] = MagicMock()
 sys.modules['seedsigner.views.screensaver.ScreensaverScreen'] = MagicMock()
 sys.modules['RPi'] = MagicMock()
 sys.modules['RPi.GPIO'] = MagicMock()
-sys.modules['seedsigner.hardware.camera.Camera'] = MagicMock()
+
+_camera_module = types.ModuleType("seedsigner.hardware.camera")
+
+
+class _MockCameraConnectionError(Exception):
+    pass
+
+
+class _MockCamera:
+    _instance = MagicMock()
+
+    @classmethod
+    def get_instance(cls):
+        return cls._instance
+
+
+_camera_module.Camera = _MockCamera
+_camera_module.CameraConnectionError = _MockCameraConnectionError
+sys.modules['seedsigner.hardware.camera'] = _camera_module
 sys.modules['seedsigner.hardware.microsd'] = MagicMock()
 
 # Stub pyzbar to avoid native DLL loading during screenshot generation if not available.
@@ -341,6 +359,16 @@ def generate_screenshots(locale):
                 ScreenshotConfig(seed_views.LoadSeedView),
                 ScreenshotConfig(seed_views.Codex32EntryView, screenshot_name="Codex32EntryView"),
                 ScreenshotConfig(seed_views.Codex32ShareInvalidView, screenshot_name="Codex32ShareInvalidView"),
+                ScreenshotConfig(
+                    seed_views.Codex32ShareConflictConfirmView,
+                    dict(
+                        share_num=2,
+                        prefill="MS12NAME",
+                        share_data="MS12NAMEC6XQGUZTTXKEQNJSJZV4JV3NZ5K3KWGSPHUH6EVW",
+                        share_collection=None,
+                    ),
+                    screenshot_name="Codex32ShareConflictConfirmView",
+                ),
                 ScreenshotConfig(seed_views.Codex32DiscardAllSharesConfirmView, screenshot_name="Codex32DiscardAllSharesConfirmView"),
                 ScreenshotConfig(
                     seed_views.Codex32ShareSuccessView,
@@ -358,6 +386,20 @@ def generate_screenshots(locale):
                     seed_views.Codex32MasterSecretDisplayView,
                     dict(page_index=1, share_data="MS1-2-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX"),
                     screenshot_name="Codex32MasterSecretDisplayView_2",
+                ),
+                ScreenshotConfig(seed_views.Codex32BackupUnavailableView, screenshot_name="Codex32BackupUnavailableView"),
+                ScreenshotConfig(
+                    seed_views.Codex32BackupShareSelectView,
+                    dict(
+                        seed_num=0,
+                        share_map={
+                            "s": "MS12WSFPSASMA35NSTR6MR88JRAWNQRT62ELZ3NSQ592PAXE",
+                            "a": "MS12WSFPARFG0AFNHER0NAE08R0FNA0EFN83WMZT0A5AP6ZK",
+                            "c": "MS12WSFPC8NFE0ANF0R80EAN0REHNFA0GFRYUQYKDKJJPYV5",
+                        },
+                        source_map={"s": "derived", "a": "entered", "c": "entered"},
+                    ),
+                    screenshot_name="Codex32BackupShareSelectView",
                 ),
                 ScreenshotConfig(seed_views.SeedMnemonicEntryView),
                 ScreenshotConfig(seed_views.SeedMnemonicInvalidView),
@@ -462,6 +504,11 @@ def generate_screenshots(locale):
                 ScreenshotConfig(tools_views.ToolsAddressExplorerAddressTypeView),
                 ScreenshotConfig(tools_views.ToolsAddressExplorerAddressListView),
                 # ScreenshotConfig(tools_views.ToolsAddressExplorerAddressView),
+            ],
+            "Scan Views": [
+                ScreenshotConfig(scan_views.ScanView),
+                ScreenshotConfig(scan_views.ScanSeedQRView),
+                ScreenshotConfig(scan_views.ScanCodex32ShareView, dict(share_num=2), screenshot_name="ScanCodex32ShareView"),
             ],
             "Settings Views": settings_views_list + [
                 ScreenshotConfig(settings_views.IOTestView),
