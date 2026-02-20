@@ -22,13 +22,14 @@ class ScanView(View):
     """
     instructions_text = _mft("Scan a QR code")
     invalid_qr_type_message = _mft("QRCode not recognized or not yet supported.")
-    codex32_non_s_error_title = "Error"
-    codex32_non_s_error_headline = "Non-S Share Not Supported"
-    codex32_non_s_error_text = "This QR is a Codex32 split share. SeedSigner MVP can only scan S-shares. Use Codex32 multi-share recovery to combine shares and recover the S-share."
-    codex32_non_s_error_button = "Back"
 
 
-    def __init__(self):
+    def __init__(
+        self,
+        codex32_collect_mode: bool = False,
+        codex32_share_num: int = 1,
+        codex32_share_collection=None,
+    ):
         from seedsigner.models.decode_qr import DecodeQR
 
         super().__init__()
@@ -36,6 +37,9 @@ class ScanView(View):
         # checks and so we can inject data into it in the test suite's `before_run()`.
         self.wordlist_language_code = self.settings.get_value(SettingsConstants.SETTING__WORDLIST_LANGUAGE)
         self.decoder: DecodeQR = DecodeQR(wordlist_language_code=self.wordlist_language_code)
+        self.codex32_collect_mode = codex32_collect_mode
+        self.codex32_share_num = codex32_share_num
+        self.codex32_share_collection = codex32_share_collection
 
 
     @property
@@ -76,26 +80,46 @@ class ScanView(View):
             if self.decoder.is_codex32:
                 from seedsigner.models import codex32 as codex32_model
                 from seedsigner.models.seed import Codex32Seed
-                from .seed_views import Codex32MasterShareSuccessView
+                from .seed_views import Codex32EntryView, Codex32MasterShareSuccessView
 
                 codex32_share = self.decoder.get_codex32_share()
+
+                if self.codex32_collect_mode:
+                    prefill = "MS1"
+                    if self.codex32_share_collection is not None:
+                        prefill = self.codex32_share_collection.prefix()
+                    return Destination(
+                        Codex32EntryView,
+                        view_args={
+                            "share_num": self.codex32_share_num,
+                            "prefill": prefill,
+                            "share_data": codex32_share,
+                            "share_collection": self.codex32_share_collection,
+                            "auto_submit_share_data": True,
+                        },
+                    )
+
                 codex = codex32_model.parse_codex32_share(codex32_share)
 
                 if codex.share_idx.lower() != "s":
                     return Destination(
-                        ErrorView,
-                        view_args=dict(
-                            title=self.codex32_non_s_error_title,
-                            status_headline=self.codex32_non_s_error_headline,
-                            text=self.codex32_non_s_error_text,
-                            button_text=self.codex32_non_s_error_button,
-                            next_destination=Destination(BackStackView, skip_current_view=True),
-                        ),
+                        Codex32EntryView,
+                        view_args={
+                            "share_num": 1,
+                            "prefill": codex32_model.CODEX32_QR_CANONICAL_PREFIX,
+                            "share_data": codex32_share,
+                            "auto_submit_share_data": True,
+                        },
                     )
 
                 codex = codex32_model.validate_codex32_s_share(codex32_share)
                 self.controller.storage.set_pending_seed(
-                    Codex32Seed(seed_bytes=codex.data, codex32_master_share=codex32_share)
+                    Codex32Seed(
+                        seed_bytes=codex.data,
+                        codex32_master_share=codex32_share,
+                        codex32_export_shares={"s": codex32_share},
+                        codex32_share_sources={"s": "entered"},
+                    )
                 )
                 return Destination(
                     Codex32MasterShareSuccessView,
@@ -220,6 +244,22 @@ class ScanSeedQRView(ScanView):
     @property
     def is_valid_qr_type(self):
         return self.decoder.is_seed
+
+
+class ScanCodex32ShareView(ScanView):
+    instructions_text = _mft("Scan Codex32 share")
+    invalid_qr_type_message = _mft("Expected a Codex32 share")
+
+    def __init__(self, share_num: int = 1, share_collection=None):
+        super().__init__(
+            codex32_collect_mode=True,
+            codex32_share_num=share_num,
+            codex32_share_collection=share_collection,
+        )
+
+    @property
+    def is_valid_qr_type(self):
+        return self.decoder.is_codex32
 
 
 

@@ -178,7 +178,13 @@ class Seed:
 
 
 class Codex32Seed(Seed):
-    def __init__(self, seed_bytes: bytes, codex32_master_share: str | None = None) -> None:
+    def __init__(
+        self,
+        seed_bytes: bytes,
+        codex32_master_share: str | None = None,
+        codex32_export_shares: dict[str, str] | None = None,
+        codex32_share_sources: dict[str, str] | None = None,
+    ) -> None:
         if len(seed_bytes) != 16:
             raise InvalidSeedException(
                 f"Expected 16 bytes for a Codex32 master seed, got {len(seed_bytes)}"
@@ -188,6 +194,8 @@ class Codex32Seed(Seed):
         self._passphrase = ""
         self.seed_bytes = seed_bytes
         self._codex32_master_share = codex32_master_share
+        self._codex32_export_shares = dict(codex32_export_shares) if codex32_export_shares else None
+        self._codex32_share_sources = dict(codex32_share_sources) if codex32_share_sources else None
 
 
     def _generate_seed(self):
@@ -209,6 +217,20 @@ class Codex32Seed(Seed):
     @property
     def codex32_master_share(self) -> str | None:
         return self._codex32_master_share
+
+
+    @property
+    def codex32_export_shares(self) -> dict[str, str] | None:
+        if self._codex32_export_shares is None:
+            return None
+        return dict(self._codex32_export_shares)
+
+
+    @property
+    def codex32_share_sources(self) -> dict[str, str] | None:
+        if self._codex32_share_sources is None:
+            return None
+        return dict(self._codex32_share_sources)
 
 
 

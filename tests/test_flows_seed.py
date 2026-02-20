@@ -7,6 +7,8 @@ from base import BaseTest, FlowTest, FlowStep
 from base import FlowTestInvalidButtonDataSelectionException
 
 from seedsigner.gui.screens.screen import RET_CODE__BACK_BUTTON, ButtonOption
+from seedsigner.models import codex32 as codex32_model
+from seedsigner.models import codex32_min
 from seedsigner.models.settings import Settings, SettingsConstants
 from seedsigner.models.seed import Codex32Seed, ElectrumSeed, Seed
 from seedsigner.views.view import MainMenuView, OptionDisabledView, View, NetworkMismatchErrorView
@@ -17,8 +19,99 @@ def load_seed_into_decoder(view: scan_views.ScanView):
     view.decoder.add_data("0000" * 11 + "0003")
 
 
+def _build_codex32_split_fixture():
+    share_a = codex32_model.parse_codex32_share("MS12NAMEA320ZYXWVUTSRQPNMLKJHGFEDCAXRPP870HKKQRM")
+    secret_share = codex32_model.parse_codex32_share("MS12NAMES6XQGUZTTXKEQNJSJZV4JV3NZ5K3KWGSPHUH6EVW")
+    share_c = codex32_model.Codex32String.interpolate_at([share_a, secret_share], target="c")
+    return share_a, secret_share, share_c
+
+
+def _build_conflicting_share_same_index(share: codex32_model.Codex32String):
+    data_values = share.data_part_values
+    data_values[6] = (data_values[6] + 1) % 32
+    mutated = codex32_min.ms32_encode(data_values)
+    if share.case == "upper":
+        mutated = mutated.upper()
+    return codex32_model.parse_codex32_share(mutated)
+
+
 
 class TestSeedFlows(FlowTest):
+
+    def test_load_seed_menu_routes_to_scan_codex32_share_view(self):
+        self.run_sequence([
+            FlowStep(MainMenuView, button_data_selection=MainMenuView.SEEDS),
+            FlowStep(seed_views.SeedsMenuView, is_redirect=True),
+            FlowStep(seed_views.LoadSeedView, button_data_selection=seed_views.LoadSeedView.SCAN_CODEX32),
+            FlowStep(scan_views.ScanCodex32ShareView),
+        ])
+
+
+    def test_codex32_collection_scan_then_scan_reaches_master_share_success(self):
+        share_a, secret_share, share_c = _build_codex32_split_fixture()
+
+        def load_share_a(view: scan_views.ScanView):
+            view.decoder.add_data(share_a.s)
+
+        def load_share_c(view: scan_views.ScanView):
+            view.decoder.add_data(share_c.s)
+
+        self.run_sequence([
+            FlowStep(MainMenuView, button_data_selection=MainMenuView.SEEDS),
+            FlowStep(seed_views.SeedsMenuView, is_redirect=True),
+            FlowStep(seed_views.LoadSeedView, button_data_selection=seed_views.LoadSeedView.SCAN_CODEX32),
+            FlowStep(scan_views.ScanCodex32ShareView, before_run=load_share_a),
+            FlowStep(seed_views.Codex32EntryView, is_redirect=True),
+            FlowStep(seed_views.Codex32ShareSuccessView, button_data_selection=seed_views.Codex32ShareSuccessView.SCAN),
+            FlowStep(scan_views.ScanCodex32ShareView, before_run=load_share_c),
+            FlowStep(seed_views.Codex32EntryView, is_redirect=True),
+            FlowStep(seed_views.Codex32MasterShareSuccessView),
+        ])
+
+        assert isinstance(self.controller.storage.pending_seed, Codex32Seed)
+        assert self.controller.storage.pending_seed.codex32_master_share == secret_share.s
+
+
+    def test_codex32_collection_conflict_confirm_replace_updates_share(self):
+        share_a, _, _ = _build_codex32_split_fixture()
+        conflicting_share = _build_conflicting_share_same_index(share_a)
+
+        def assert_share_replaced(view: seed_views.Codex32ShareSuccessView):
+            assert view.share_collection.get_share("a").s == conflicting_share.s
+
+        self.run_sequence([
+            FlowStep(MainMenuView, button_data_selection=MainMenuView.SEEDS),
+            FlowStep(seed_views.SeedsMenuView, is_redirect=True),
+            FlowStep(seed_views.LoadSeedView, button_data_selection=seed_views.LoadSeedView.TYPE_CODEX32),
+            FlowStep(seed_views.Codex32EntryView, screen_return_value=share_a.s),
+            FlowStep(seed_views.Codex32ShareSuccessView, button_data_selection=seed_views.Codex32ShareSuccessView.NEXT),
+            FlowStep(seed_views.Codex32EntryView, screen_return_value=conflicting_share.s),
+            FlowStep(seed_views.Codex32ShareConflictConfirmView, button_data_selection=seed_views.Codex32ShareConflictConfirmView.REPLACE),
+            FlowStep(seed_views.Codex32ShareSuccessView, before_run=assert_share_replaced, button_data_selection=seed_views.Codex32ShareSuccessView.NEXT),
+            FlowStep(seed_views.Codex32EntryView),
+        ])
+
+    def test_main_scan_codex32_split_share_starts_collection_and_recovers_seed(self):
+        share_a, secret_share, share_c = _build_codex32_split_fixture()
+
+        def load_share_a(view: scan_views.ScanView):
+            view.decoder.add_data(share_a.s)
+
+        def load_share_c(view: scan_views.ScanView):
+            view.decoder.add_data(share_c.s)
+
+        self.run_sequence([
+            FlowStep(MainMenuView, button_data_selection=MainMenuView.SCAN),
+            FlowStep(scan_views.ScanView, before_run=load_share_a),
+            FlowStep(seed_views.Codex32EntryView, is_redirect=True),
+            FlowStep(seed_views.Codex32ShareSuccessView, button_data_selection=seed_views.Codex32ShareSuccessView.SCAN),
+            FlowStep(scan_views.ScanCodex32ShareView, before_run=load_share_c),
+            FlowStep(seed_views.Codex32EntryView, is_redirect=True),
+            FlowStep(seed_views.Codex32MasterShareSuccessView),
+        ])
+
+        assert isinstance(self.controller.storage.pending_seed, Codex32Seed)
+        assert self.controller.storage.pending_seed.codex32_master_share == secret_share.s
 
     def test_scan_seedqr_flow(self):
         """
@@ -516,6 +609,160 @@ class TestSeedFlows(FlowTest):
                 FlowStep(seed_views.SeedOptionsView, button_data_selection=seed_views.SeedOptionsView.BACKUP),
                 FlowStep(seed_views.SeedBackupView, button_data_selection=seed_views.SeedBackupView.EXPORT_CODEX32QR),
                 FlowStep(seed_views.SeedTranscribeSeedQRWarningView),
+            ],
+        )
+
+
+    def test_codex32_backup_multishare_routes_to_share_selection(self):
+        share_map = {
+            "a": "MS12NAMEA320ZYXWVUTSRQPNMLKJHGFEDCAXRPP870HKKQRM",
+            "c": "MS12NAMECACDEFGHJKLMNPQRSTUVWXYZ023FTR2GDZMPY6PN",
+            "s": "MS12NAMES6XQGUZTTXKEQNJSJZV4JV3NZ5K3KWGSPHUH6EVW",
+        }
+        source_map = {"a": "entered", "c": "entered", "s": "derived"}
+        seed = Codex32Seed(
+            seed_bytes=bytes.fromhex("ffeeddccbbaa99887766554433221100"),
+            codex32_master_share=share_map["s"],
+            codex32_export_shares=share_map,
+            codex32_share_sources=source_map,
+        )
+        self.controller.storage.set_pending_seed(seed)
+        self.controller.storage.finalize_pending_seed()
+
+        self.run_sequence(
+            initial_destination_view_args=dict(seed_num=0),
+            sequence=[
+                FlowStep(seed_views.SeedOptionsView, button_data_selection=seed_views.SeedOptionsView.BACKUP),
+                FlowStep(seed_views.SeedBackupView, button_data_selection=seed_views.SeedBackupView.EXPORT_CODEX32QR),
+                FlowStep(seed_views.Codex32BackupShareSelectView),
+            ],
+        )
+
+
+    def test_codex32_backup_multishare_selected_index_routes_with_selected_qr_data(self):
+        share_map = {
+            "a": "MS12NAMEA320ZYXWVUTSRQPNMLKJHGFEDCAXRPP870HKKQRM",
+            "c": "MS12NAMECACDEFGHJKLMNPQRSTUVWXYZ023FTR2GDZMPY6PN",
+            "s": "MS12NAMES6XQGUZTTXKEQNJSJZV4JV3NZ5K3KWGSPHUH6EVW",
+        }
+        source_map = {"a": "entered", "c": "entered", "s": "derived"}
+        seed = Codex32Seed(
+            seed_bytes=bytes.fromhex("ffeeddccbbaa99887766554433221100"),
+            codex32_master_share=share_map["s"],
+            codex32_export_shares=share_map,
+            codex32_share_sources=source_map,
+        )
+        self.controller.storage.set_pending_seed(seed)
+        self.controller.storage.finalize_pending_seed()
+
+        def assert_selected_share_payload(view: seed_views.SeedTranscribeSeedQRWarningView):
+            assert view.qr_data == share_map["a"]
+
+        self.run_sequence(
+            initial_destination_view_args=dict(seed_num=0),
+            sequence=[
+                FlowStep(seed_views.SeedOptionsView, button_data_selection=seed_views.SeedOptionsView.BACKUP),
+                FlowStep(seed_views.SeedBackupView, button_data_selection=seed_views.SeedBackupView.EXPORT_CODEX32QR),
+                FlowStep(
+                    seed_views.Codex32BackupShareSelectView,
+                    button_data_selection=ButtonOption("Share A", return_data="a"),
+                ),
+                FlowStep(seed_views.SeedTranscribeSeedQRWarningView, before_run=assert_selected_share_payload),
+            ],
+        )
+
+
+    def test_codex32_backup_multishare_selection_uses_derived_s_label(self):
+        share_map = {
+            "a": "MS12NAMEA320ZYXWVUTSRQPNMLKJHGFEDCAXRPP870HKKQRM",
+            "s": "MS12NAMES6XQGUZTTXKEQNJSJZV4JV3NZ5K3KWGSPHUH6EVW",
+        }
+        source_map = {"a": "entered", "s": "derived"}
+        seed = Codex32Seed(
+            seed_bytes=bytes.fromhex("ffeeddccbbaa99887766554433221100"),
+            codex32_master_share=share_map["s"],
+            codex32_export_shares=share_map,
+            codex32_share_sources=source_map,
+        )
+        self.controller.storage.set_pending_seed(seed)
+        self.controller.storage.finalize_pending_seed()
+
+        def assert_selected_share_payload(view: seed_views.SeedTranscribeSeedQRWarningView):
+            assert view.qr_data == share_map["s"]
+
+        self.run_sequence(
+            initial_destination_view_args=dict(seed_num=0),
+            sequence=[
+                FlowStep(seed_views.SeedOptionsView, button_data_selection=seed_views.SeedOptionsView.BACKUP),
+                FlowStep(seed_views.SeedBackupView, button_data_selection=seed_views.SeedBackupView.EXPORT_CODEX32QR),
+                FlowStep(
+                    seed_views.Codex32BackupShareSelectView,
+                    button_data_selection=ButtonOption("S Share (Derived)", return_data="s"),
+                ),
+                FlowStep(seed_views.SeedTranscribeSeedQRWarningView, before_run=assert_selected_share_payload),
+            ],
+        )
+
+
+    def test_codex32_backup_multishare_selection_defaults_s_label_to_entered(self):
+        share_map = {
+            "a": "MS12NAMEA320ZYXWVUTSRQPNMLKJHGFEDCAXRPP870HKKQRM",
+            "s": "MS12NAMES6XQGUZTTXKEQNJSJZV4JV3NZ5K3KWGSPHUH6EVW",
+        }
+        seed = Codex32Seed(
+            seed_bytes=bytes.fromhex("ffeeddccbbaa99887766554433221100"),
+            codex32_master_share=share_map["s"],
+            codex32_export_shares=share_map,
+            codex32_share_sources={},
+        )
+        self.controller.storage.set_pending_seed(seed)
+        self.controller.storage.finalize_pending_seed()
+
+        def assert_selected_share_payload(view: seed_views.SeedTranscribeSeedQRWarningView):
+            assert view.qr_data == share_map["s"]
+
+        self.run_sequence(
+            initial_destination_view_args=dict(seed_num=0),
+            sequence=[
+                FlowStep(seed_views.SeedOptionsView, button_data_selection=seed_views.SeedOptionsView.BACKUP),
+                FlowStep(seed_views.SeedBackupView, button_data_selection=seed_views.SeedBackupView.EXPORT_CODEX32QR),
+                FlowStep(
+                    seed_views.Codex32BackupShareSelectView,
+                    button_data_selection=ButtonOption("S Share", return_data="s"),
+                ),
+                FlowStep(seed_views.SeedTranscribeSeedQRWarningView, before_run=assert_selected_share_payload),
+            ],
+        )
+
+
+    def test_codex32_backup_multishare_overflow_metadata_routes_to_unavailable(self):
+        share_a, secret_share, _ = _build_codex32_split_fixture()
+        overflow_share_h = codex32_model.Codex32String.interpolate_at([share_a, secret_share], target="h")
+        share_map = {
+            "s": secret_share.s,
+            "a": share_a.s,
+            "c": codex32_model.Codex32String.interpolate_at([share_a, secret_share], target="c").s,
+            "d": codex32_model.Codex32String.interpolate_at([share_a, secret_share], target="d").s,
+            "e": codex32_model.Codex32String.interpolate_at([share_a, secret_share], target="e").s,
+            "f": codex32_model.Codex32String.interpolate_at([share_a, secret_share], target="f").s,
+            "h": overflow_share_h.s,
+        }
+        source_map = {idx: "entered" for idx in share_map.keys()}
+        seed = Codex32Seed(
+            seed_bytes=secret_share.data,
+            codex32_master_share=secret_share.s,
+            codex32_export_shares=share_map,
+            codex32_share_sources=source_map,
+        )
+        self.controller.storage.set_pending_seed(seed)
+        self.controller.storage.finalize_pending_seed()
+
+        self.run_sequence(
+            initial_destination_view_args=dict(seed_num=0),
+            sequence=[
+                FlowStep(seed_views.SeedOptionsView, button_data_selection=seed_views.SeedOptionsView.BACKUP),
+                FlowStep(seed_views.SeedBackupView, button_data_selection=seed_views.SeedBackupView.EXPORT_CODEX32QR),
+                FlowStep(seed_views.Codex32BackupUnavailableView),
             ],
         )
 

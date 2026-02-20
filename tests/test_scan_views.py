@@ -1,12 +1,13 @@
 from unittest.mock import MagicMock
 
 from base import BaseTest
+from seedsigner.models import codex32 as codex32_model
 from seedsigner.views import scan_views
-from seedsigner.views.view import BackStackView, ErrorView
+from seedsigner.views import seed_views
 
 
 class TestScanViews(BaseTest):
-    def test_scan_seedqr_non_s_error_copy_is_locked(self):
+    def test_scan_seedqr_non_s_routes_to_codex32_entry_collection(self):
         non_s_share = "ms12namea320zyxwvutsrqpnmlkjhgfedcaxrpp870hkkqrm"
 
         view = scan_views.ScanSeedQRView()
@@ -15,12 +16,30 @@ class TestScanViews(BaseTest):
 
         destination = view.run()
 
-        assert destination.View_cls == ErrorView
-        assert destination.view_args["title"] == "Error"
-        assert destination.view_args["status_headline"] == "Non-S Share Not Supported"
-        assert destination.view_args["text"] == "This QR is a Codex32 split share. SeedSigner MVP can only scan S-shares. Use Codex32 multi-share recovery to combine shares and recover the S-share."
-        assert destination.view_args["button_text"] == "Back"
+        assert destination.View_cls == seed_views.Codex32EntryView
+        assert destination.view_args["share_num"] == 1
+        assert destination.view_args["prefill"] == codex32_model.CODEX32_QR_CANONICAL_PREFIX
+        assert destination.view_args["share_data"] == codex32_model.normalize_codex32_display(non_s_share)
 
-        next_destination = destination.view_args["next_destination"]
-        assert next_destination.View_cls == BackStackView
-        assert next_destination.skip_current_view is True
+
+    def test_scan_codex32_collection_routes_non_s_share_to_entry(self):
+        existing_share = codex32_model.parse_codex32_share("MS12NAMEA320ZYXWVUTSRQPNMLKJHGFEDCAXRPP870HKKQRM")
+        share_collection = codex32_model.Codex32ShareCollection.from_first_share(existing_share)
+        scanned_share = codex32_model.Codex32String.interpolate_at(
+            [
+                existing_share,
+                codex32_model.parse_codex32_share("MS12NAMES6XQGUZTTXKEQNJSJZV4JV3NZ5K3KWGSPHUH6EVW"),
+            ],
+            target="c",
+        ).s
+
+        view = scan_views.ScanCodex32ShareView(share_num=2, share_collection=share_collection)
+        view.run_screen = MagicMock(return_value=None)
+        view.decoder.add_data(scanned_share)
+
+        destination = view.run()
+
+        assert destination.View_cls == seed_views.Codex32EntryView
+        assert destination.view_args["share_num"] == 2
+        assert destination.view_args["share_data"] == scanned_share
+        assert destination.view_args["share_collection"] is share_collection

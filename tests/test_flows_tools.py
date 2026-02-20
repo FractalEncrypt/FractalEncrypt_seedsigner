@@ -150,7 +150,7 @@ class TestToolsFlows(FlowTest):
         ])
 
 
-    def test__address_explorer__scan_codex32_non_s_share__routes_to_error(self):
+    def test__address_explorer__scan_codex32_non_s_share__routes_to_collection_flow(self):
         non_s_share = "ms12namea320zyxwvutsrqpnmlkjhgfedcaxrpp870hkkqrm"
 
         def load_non_s_share_into_decoder(view: scan_views.ScanView):
@@ -161,7 +161,8 @@ class TestToolsFlows(FlowTest):
             FlowStep(tools_views.ToolsMenuView, button_data_selection=tools_views.ToolsMenuView.ADDRESS_EXPLORER),
             FlowStep(tools_views.ToolsAddressExplorerSelectSourceView, button_data_selection=tools_views.ToolsAddressExplorerSelectSourceView.SCAN_SEED),
             FlowStep(scan_views.ScanSeedQRView, before_run=load_non_s_share_into_decoder),
-            FlowStep(ErrorView),
+            FlowStep(seed_views.Codex32EntryView, is_redirect=True),
+            FlowStep(seed_views.Codex32ShareSuccessView),
         ])
 
 

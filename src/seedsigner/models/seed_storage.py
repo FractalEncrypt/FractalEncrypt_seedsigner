@@ -31,8 +31,16 @@ class SeedStorage:
             if (
                 isinstance(existing_seed, Codex32Seed)
                 and isinstance(self.pending_seed, Codex32Seed)
-                and existing_seed.codex32_master_share is None
-                and self.pending_seed.codex32_master_share is not None
+                and (
+                    (
+                        existing_seed.codex32_master_share is None
+                        and self.pending_seed.codex32_master_share is not None
+                    )
+                    or (
+                        not existing_seed.codex32_export_shares
+                        and bool(self.pending_seed.codex32_export_shares)
+                    )
+                )
             ):
                 self.seeds[index] = self.pending_seed
         else:

@@ -17,6 +17,7 @@ CODEX32_QR_CANONICAL_PREFIX = "MS1"
 CODEX32_QR_CANONICAL_LENGTH = 48
 CODEX32_QR_MODULE_TARGET = 29
 CODEX32_QR_EC_LEVEL = "L"
+CODEX32_MAX_SPLIT_SHARES = 5
 
 
 class Codex32InputError(ValueError):
@@ -152,8 +153,16 @@ class Codex32ShareCollection:
         return {share.share_idx.lower() for share in self.shares}
 
     @property
+    def split_share_count(self) -> int:
+        return len([share for share in self.shares if share.share_idx.lower() != "s"])
+
+    @property
     def ready(self) -> bool:
         return len(self.shares) >= self.threshold
+
+    @property
+    def ready_for_export(self) -> bool:
+        return self.recovered_secret_share() is not None
 
     def prefix(self) -> str:
         prefix = f"ms1{self.threshold}{self.ident}"
@@ -161,12 +170,83 @@ class Codex32ShareCollection:
             return prefix.upper()
         return prefix
 
+    def get_share(self, share_idx: str) -> Codex32String | None:
+        target = share_idx.lower()
+        for share in self.shares:
+            if share.share_idx.lower() == target:
+                return share
+        return None
+
     def validate_share(self, share: Codex32String) -> None:
         if share.k != str(self.threshold) or share.ident != self.ident:
             raise Codex32InputError("Share header mismatch (k/identifier).", ERROR_HEADER)
         if share.share_idx.lower() in self.share_indices:
             raise Codex32InputError("Duplicate share index entered.", ERROR_HEADER)
+        if share.share_idx.lower() != "s" and self.split_share_count >= CODEX32_MAX_SPLIT_SHARES:
+            raise Codex32InputError(
+                f"A maximum of {CODEX32_MAX_SPLIT_SHARES} split shares is supported.",
+                ERROR_HEADER,
+            )
 
-    def add_share(self, share: Codex32String) -> None:
-        self.validate_share(share)
+    def recovered_secret_share(self) -> Codex32String | None:
+        if not self.ready:
+            return None
+        try:
+            secret_share = recover_secret_share(self.shares)
+            return validate_codex32_s_share(secret_share.s, expected_len=CODEX32_QR_CANONICAL_LENGTH)
+        except Codex32InputError:
+            return None
+
+    def export_shares(self) -> tuple[dict[str, str], dict[str, str]]:
+        share_map: dict[str, str] = {}
+        source_map: dict[str, str] = {}
+
+        for share in self.shares:
+            share_idx = share.share_idx.lower()
+            share_map[share_idx] = normalize_codex32_display(share.s)
+            source_map[share_idx] = "entered"
+
+        secret_share = self.recovered_secret_share()
+        if secret_share is not None and "s" not in share_map:
+            share_map["s"] = normalize_codex32_display(secret_share.s)
+            source_map["s"] = "derived"
+
+        return share_map, source_map
+
+    @staticmethod
+    def ordered_share_indices(share_map: dict[str, str]) -> list[str]:
+        if not share_map:
+            return []
+
+        split_indices = sorted(idx for idx in share_map.keys() if idx != "s")
+        if "s" in share_map:
+            return ["s"] + split_indices
+        return split_indices
+
+    def add_share(self, share: Codex32String, replace_existing: bool = False) -> str:
+        if share.k != str(self.threshold) or share.ident != self.ident:
+            raise Codex32InputError("Share header mismatch (k/identifier).", ERROR_HEADER)
+
+        existing = self.get_share(share.share_idx)
+        if existing is not None:
+            if existing.s.lower() == share.s.lower():
+                return "unchanged"
+            if not replace_existing:
+                raise Codex32InputError(
+                    "Conflicting share index entered. Confirm replacement to continue.",
+                    ERROR_HEADER,
+                )
+
+            for i, cur_share in enumerate(self.shares):
+                if cur_share.share_idx.lower() == share.share_idx.lower():
+                    self.shares[i] = share
+                    return "replaced"
+
+        if share.share_idx.lower() != "s" and self.split_share_count >= CODEX32_MAX_SPLIT_SHARES:
+            raise Codex32InputError(
+                f"A maximum of {CODEX32_MAX_SPLIT_SHARES} split shares is supported.",
+                ERROR_HEADER,
+            )
+
         self.shares.append(share)
+        return "added"
