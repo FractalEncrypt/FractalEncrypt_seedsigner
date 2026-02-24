@@ -1,5 +1,5 @@
 ---
-description: Codex32QR format specification aligned to SeedSigner V2 implementation with explanatory guidance and extended vectors
+description: Codex32QR format specification aligned to SeedSigner implementation with explanatory guidance and extended vectors
 ---
 
 # Codex32QR Format Specification (SeedSigner V2 Profile)
@@ -425,4 +425,4 @@ Implementers can map this spec's requirements to these files for validation, rou
 
 ## 14) Acknowledgements
 
-Special thanks to **Ben Westgate** and **Perlwort Snead** for guidance that materially improved this implementation profile.
+Special thanks to **Ben Westgate** and **Perlwort Snead** for guidance that materially improved this implementation.
