@@ -96,6 +96,7 @@ class ScanView(View):
                             "share_data": codex32_share,
                             "share_collection": self.codex32_share_collection,
                             "auto_submit_share_data": True,
+                            "entry_method": "scan",
                         },
                     )
 
@@ -109,6 +110,7 @@ class ScanView(View):
                             "prefill": codex32_model.CODEX32_QR_CANONICAL_PREFIX,
                             "share_data": codex32_share,
                             "auto_submit_share_data": True,
+                            "entry_method": "scan",
                         },
                     )
 

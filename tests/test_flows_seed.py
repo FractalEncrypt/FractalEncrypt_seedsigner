@@ -113,6 +113,33 @@ class TestSeedFlows(FlowTest):
         assert isinstance(self.controller.storage.pending_seed, Codex32Seed)
         assert self.controller.storage.pending_seed.codex32_master_share == secret_share.s
 
+    def test_codex32_share_success_back_routes_to_discard_confirm(self):
+        self.run_sequence(
+            [
+                FlowStep(seed_views.Codex32ShareSuccessView, screen_return_value=RET_CODE__BACK_BUTTON),
+                FlowStep(seed_views.Codex32DiscardAllSharesConfirmView),
+            ],
+            initial_destination_view_args={"entered_shares": 1, "total_shares": 2, "share_num": 1},
+        )
+
+    def test_codex32_master_share_success_back_routes_to_seed_discard(self):
+        self.controller.storage.set_pending_seed(
+            Seed("abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about".split())
+        )
+
+        self.run_sequence(
+            [
+                FlowStep(seed_views.Codex32MasterShareSuccessView, screen_return_value=RET_CODE__BACK_BUTTON),
+                FlowStep(seed_views.SeedDiscardView, button_data_selection=seed_views.SeedDiscardView.DISCARD),
+                FlowStep(MainMenuView),
+            ],
+            initial_destination_view_args={
+                "share_data": "MS12NAMES6XQGUZTTXKEQNJSJZV4JV3NZ5K3KWGSPHUH6EVW"
+            },
+        )
+
+        assert self.controller.storage.pending_seed is None
+
     def test_scan_seedqr_flow(self):
         """
             Selecting "Scan" from the MainMenuView and scanning a SeedQR should enter the
