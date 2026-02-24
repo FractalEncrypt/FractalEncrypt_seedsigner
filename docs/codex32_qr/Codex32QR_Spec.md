@@ -218,6 +218,24 @@ To implement compatible support in another device/app:
 5. Preserve explicit `entered` vs `derived` source semantics for `S`.
 6. Keep export gating tied to successful `S` recoverability.
 
+### 9.1 Recommended conformance tests
+
+For quick interoperability validation, implementations SHOULD include at least:
+
+1. **Canonicalization test**
+   - input mixed case + separators;
+   - output uppercase, separator-stripped payload.
+2. **Validation test**
+   - reject invalid length, invalid prefix, and checksum failures.
+3. **Routing test (`share_idx = s`)**
+   - direct scan loads seed without requiring collection.
+4. **Routing test (`share_idx != s`)**
+   - direct scan enters/continues collection mode (no hard reject).
+5. **Export-order test**
+   - share list emits `S` first, then sorted split-share indices.
+6. **Roundtrip test**
+   - exported QR text payload re-scans to the same canonical payload.
+
 ---
 
 ## 10) Reference test vectors
@@ -244,7 +262,9 @@ Multisig cosigner export:
 
 QR examples:
 
-No QR PNG assets are embedded in this repository copy of the spec.
+| Share A QR | Share C QR |
+|---|---|
+| ![L0VE Share A](img/Split%20Shares/love_share_a.png) | ![L0VE Share C](img/Split%20Shares/love_share_c.png) |
 
 ---
 
@@ -268,7 +288,9 @@ Multisig cosigner export:
 
 QR examples:
 
-No QR PNG assets are embedded in this repository copy of the spec.
+| Share A QR | Share C QR |
+|---|---|
+| ![WSFP Share A](img/Split%20Shares/wsfp_share_a.png) | ![WSFP Share C](img/Split%20Shares/wsfp_share_c.png) |
 
 ---
 
@@ -294,7 +316,13 @@ Single-sig export:
 
 QR examples:
 
-No QR PNG assets are embedded in this repository copy of the spec.
+| Share A QR | Share C QR |
+|---|---|
+| ![F0UR Share A](img/Split%20Shares/f0ur_share_a.png) | ![F0UR Share C](img/Split%20Shares/f0ur_share_c.png) |
+
+| Share D QR | Share E QR |
+|---|---|
+| ![F0UR Share D](img/Split%20Shares/f0ur_share_d.png) | ![F0UR Share E](img/Split%20Shares/f0ur_share_e.png) |
 
 ---
 
@@ -316,15 +344,49 @@ Multisig cosigner export:
 
 QR example:
 
-No QR PNG assets are embedded in this repository copy of the spec.
+![Single-share S vector QR](img/S%20Shares/codex32_s_share_1_seed.png)
 
 ---
 
-## 11) Additional QR assets in this repository
+## 11) Additional assets in this repository
 
-This repository copy of the specification does not currently include the QR PNG asset files.
+Markdown preview note:
 
-If/when image assets are added to this repo, this section should list the exact local paths and embed examples to avoid broken references.
+- To render images in local markdown preview (IDE/GitHub), the referenced image files must exist in this repository at the specified relative paths.
+- If assets live only in another repository, links will appear as broken in this document preview.
+
+### 11.1 Additional S-share QR PNGs
+
+In addition to the single-share vector shown above, these S-share PNGs are available for scan testing:
+
+- `img/S Shares/codex32_s_share_2_l0ve.png`
+- `img/S Shares/codex32_s_share_3_wfsp.png`
+
+Examples:
+
+| S Share 2 | S Share 3 |
+|---|---|
+| ![S Share 2](img/S%20Shares/codex32_s_share_2_l0ve.png) | ![S Share 3](img/S%20Shares/codex32_s_share_3_wfsp.png) |
+
+### 11.2 Printable templates for manual backup workflows
+
+The following templates are included for worksheet/card-based manual backup operations:
+
+- `printable_templates/Codex32_Seedsigner_Printable_Cards_MasterSecret_Large.png`
+- `printable_templates/Codex32_Seedsigner_Printable_Cards_Share_Large.png`
+- `printable_templates/Codex32_Seedsigner_Printable_Cards_Medium.png`
+- `printable_templates/Codex32_Seedsigner_Printable_Cards_Small.png`
+- `printable_templates/Seedsigner_Codex32_Printable_Page_SeedCards.pdf`
+
+Template previews:
+
+| Master Secret (Large) | Share (Large) |
+|---|---|
+| ![Master Secret Large Template](printable_templates/Codex32_Seedsigner_Printable_Cards_MasterSecret_Large.png) | ![Share Large Template](printable_templates/Codex32_Seedsigner_Printable_Cards_Share_Large.png) |
+
+| Medium | Small |
+|---|---|
+| ![Medium Template](printable_templates/Codex32_Seedsigner_Printable_Cards_Medium.png) | ![Small Template](printable_templates/Codex32_Seedsigner_Printable_Cards_Small.png) |
 
 ---
 
@@ -344,6 +406,23 @@ The current format uses a 29x29 QR because it reliably carries the supported tex
 
 ---
 
-## 13) Acknowledgements
+## 13) SeedSigner implementation touchpoints (informative)
+
+The following files are the primary implementation touchpoints for this profile in SeedSigner:
+
+- `src/seedsigner/models/codex32.py`
+- `src/seedsigner/models/decode_qr.py`
+- `src/seedsigner/models/qr_type.py`
+- `src/seedsigner/views/scan_views.py`
+- `src/seedsigner/views/seed_views.py`
+- `tests/test_seed.py`
+- `tests/test_flows_seed.py`
+- `tests/test_decodepsbtqr.py`
+
+Implementers can map this spec's requirements to these files for validation, routing, collection behavior, and backup/export UX.
+
+---
+
+## 14) Acknowledgements
 
 Special thanks to **Ben Westgate** and **Perlwort Snead** for guidance that materially improved this implementation profile.

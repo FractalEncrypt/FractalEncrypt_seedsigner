@@ -18,6 +18,9 @@ Static QR Formats:
         - A 48 or 96 length string of numbers representing a BIP-39 wordlist (all wordlist languages supported). The numeric sequence is a concatenation of four-digit, zero-padded segments. Each four-digit segment represents a BIP-39 word expressed by a zero-indexed position in the wordlist. For example, "0000" is "abandon" in the English BIP-39 wordlist.
     - [SeedSigner CompactSeedQR](seed_qr/README.md) format
         - The 128- or 256-bit entropy encoded as a binary QR
+    - [SeedSigner Codex32QR](codex32_qr/Codex32QR_Spec.md) format
+        - A 48-character Codex32 share string encoded as a static QR text payload.
+        - Supports direct `S` share import and split-share collection/recovery flow (up to 5 split shares).
     - English BIP-39 Mnemonic words separated by a space (currently only supports 12 and 24 word seeds)
     - English BIP-39 Mnemonic with only first 4 letters separated by a space (currently only supports 12 and 24 word seeds)
 
@@ -34,3 +37,5 @@ Static QR Formats:
 - Seed
     - SeedSigner Seed QR format
         - A 48 or 96 length string of numbers representing a BIP-39 wordlist (all wordlist languages supported). The numeric sequence is a concatenation of four-digit, zero-padded segments. Each four-digit segment represents a BIP-39 word expressed by a zero-indexed position in the wordlist. For example, "0000" is "abandon" in the English BIP-39 wordlist.
+    - [SeedSigner Codex32QR](codex32_qr/Codex32QR_Spec.md) format
+        - A 48-character Codex32 share string encoded as a static QR text payload.
