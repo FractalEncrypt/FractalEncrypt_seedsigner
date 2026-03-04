@@ -2,9 +2,9 @@
 description: Codex32QR format specification aligned to SeedSigner implementation with explanatory guidance and extended vectors
 ---
 
-# Codex32QR Format Specification (SeedSigner V2 Profile)
+# Codex32QR Format Specification (SeedSigner Profile)
 
-This document defines the Codex32 QR profile implemented in SeedSigner V2 and is intended to help developers port compatible support into other hardware wallets and airgapped tools.
+This document defines the Codex32 QR profile implemented in SeedSigner and is intended to help developers port compatible support into other hardware wallets and airgapped tools.
 
 Like the SeedQR specification, this write-up balances strict interoperability rules with practical, human-centered workflow guidance.
 

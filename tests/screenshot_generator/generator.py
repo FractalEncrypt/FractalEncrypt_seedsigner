@@ -72,10 +72,11 @@ from seedsigner.gui.toast import DefaultToast, InfoToast, SuccessToast, WarningT
 from seedsigner.hardware.microsd import MicroSD
 from seedsigner.helpers import embit_utils
 from seedsigner.models.decode_qr import DecodeQR
+from seedsigner.models import codex32 as codex32_model
 from seedsigner.models.encode_qr import BaseQrEncoder
 from seedsigner.models.psbt_parser import OPCODES, PSBTParser
 from seedsigner.models.qr_type import QRType
-from seedsigner.models.seed import Seed
+from seedsigner.models.seed import Seed, Codex32Seed
 from seedsigner.models.settings import Settings
 from seedsigner.models.settings_definition import SettingsConstants, SettingsDefinition
 from seedsigner.views import (MainMenuView, PowerOptionsView, RestartView, RemoveMicroSDWarningView, NotYetImplementedView, UnhandledExceptionView, 
@@ -150,6 +151,13 @@ mnemonic_24 = "attack pizza motion avocado network gather crop fresh patrol unus
 seed_12 = Seed(mnemonic=mnemonic_12, passphrase="cap*BRACKET3stove", wordlist_language_code=SettingsConstants.WORDLIST_LANGUAGE__ENGLISH)
 seed_24 = Seed(mnemonic=mnemonic_24, passphrase="some-PASS*phrase9", wordlist_language_code=SettingsConstants.WORDLIST_LANGUAGE__ENGLISH)
 seed_24_w_passphrase = Seed(mnemonic=mnemonic_24, passphrase="some-PASS*phrase9", wordlist_language_code=SettingsConstants.WORDLIST_LANGUAGE__ENGLISH)
+CODEX32_MASTER_SHARE = "MS12SEEDSAEFE4J44NR4FRNEZ7ZKEPA46XMJ4J2YXYJTC9YC"
+codex32_seed = Codex32Seed(
+    codex32_model.codex32_to_seed_bytes(CODEX32_MASTER_SHARE),
+    codex32_master_share=CODEX32_MASTER_SHARE,
+    codex32_export_shares={"s": CODEX32_MASTER_SHARE},
+    codex32_share_sources={"s": "entered"},
+)
 
 MULTISIG_WALLET_DESCRIPTOR = """wsh(sortedmulti(1,[22bde1a9/48h/1h/0h/2h]tpubDFfsBrmpj226ZYiRszYi2qK6iGvh2vkkghfGB2YiRUVY4rqqedHCFEgw12FwDkm7rUoVtq9wLTKc6BN2sxswvQeQgp7m8st4FP8WtP8go76/{0,1}/*,[73c5da0a/48h/1h/0h/2h]tpubDFH9dgzveyD8zTbPUFuLrGmCydNvxehyNdUXKJAQN8x4aZ4j6UZqGfnqFrD4NqyaTVGKbvEW54tsvPTK2UoSbCC1PJY8iCNiwTL3RWZEheQ/{0,1}/*))#3jhtf6yx"""
 
@@ -205,6 +213,7 @@ def generate_screenshots(locale):
         controller.storage.seeds.append(seed_12)
         controller.storage.seeds.append(seed_12b)
         controller.storage.seeds.append(seed_24)
+        controller.storage.seeds.append(codex32_seed)
         controller.storage.set_pending_seed(seed_24_w_passphrase)
 
         # Pending mnemonic for ToolsCalcFinalWordShowFinalWordView
@@ -375,16 +384,16 @@ def generate_screenshots(locale):
                     dict(entered_shares=2, total_shares=3, share_num=2),
                     screenshot_name="Codex32ShareSuccessView",
                 ),
-                ScreenshotConfig(seed_views.Codex32MasterShareSuccessView, dict(share_data="MS1-2-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX"), screenshot_name="Codex32MasterShareSuccessView"),
-                ScreenshotConfig(seed_views.Codex32MasterSecretWarningView, dict(share_data="MS1-2-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX"), screenshot_name="Codex32MasterSecretWarningView"),
+                ScreenshotConfig(seed_views.Codex32MasterShareSuccessView, dict(share_data=CODEX32_MASTER_SHARE), screenshot_name="Codex32MasterShareSuccessView"),
+                ScreenshotConfig(seed_views.Codex32MasterSecretWarningView, dict(share_data=CODEX32_MASTER_SHARE), screenshot_name="Codex32MasterSecretWarningView"),
                 ScreenshotConfig(
                     seed_views.Codex32MasterSecretDisplayView,
-                    dict(page_index=0, share_data="MS1-2-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX"),
+                    dict(page_index=0, share_data=CODEX32_MASTER_SHARE),
                     screenshot_name="Codex32MasterSecretDisplayView_1",
                 ),
                 ScreenshotConfig(
                     seed_views.Codex32MasterSecretDisplayView,
-                    dict(page_index=1, share_data="MS1-2-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX"),
+                    dict(page_index=1, share_data=CODEX32_MASTER_SHARE),
                     screenshot_name="Codex32MasterSecretDisplayView_2",
                 ),
                 ScreenshotConfig(seed_views.Codex32BackupUnavailableView, screenshot_name="Codex32BackupUnavailableView"),
@@ -414,6 +423,7 @@ def generate_screenshots(locale):
                 
                 ScreenshotConfig(seed_views.SeedOptionsView, dict(seed_num=0)),
                 ScreenshotConfig(seed_views.SeedBackupView, dict(seed_num=0)),
+                ScreenshotConfig(seed_views.SeedBackupView, dict(seed_num=3), screenshot_name="SeedBackupView_Codex32"),
                 ScreenshotConfig(seed_views.SeedExportXpubSigTypeView, dict(seed_num=0)),
                 ScreenshotConfig(seed_views.SeedExportXpubScriptTypeView, dict(seed_num=0, sig_type="msig")),
                 ScreenshotConfig(seed_views.SeedExportXpubCustomDerivationView, dict(seed_num=0, sig_type="ss", script_type="")),
