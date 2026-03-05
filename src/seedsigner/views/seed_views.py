@@ -160,8 +160,8 @@ class LoadSeedView(View):
     SEED_QR = ButtonOption("Scan a SeedQR", SeedSignerIconConstants.QRCODE)
     TYPE_12WORD = ButtonOption("Enter 12-word seed", FontAwesomeIconConstants.KEYBOARD)
     TYPE_24WORD = ButtonOption("Enter 24-word seed", FontAwesomeIconConstants.KEYBOARD)
-    TYPE_CODEX32 = ButtonOption("Enter Codex32 Seed", FontAwesomeIconConstants.KEYBOARD)
-    SCAN_CODEX32 = ButtonOption("Scan Codex32 Share", SeedSignerIconConstants.QRCODE)
+    TYPE_CODEX32 = ButtonOption("Enter codex32 Seed", FontAwesomeIconConstants.KEYBOARD)
+    SCAN_CODEX32 = ButtonOption("Scan codex32 Share", SeedSignerIconConstants.QRCODE)
     TYPE_ELECTRUM = ButtonOption("Enter Electrum seed", FontAwesomeIconConstants.KEYBOARD)
     CREATE = ButtonOption("Create a seed", SeedSignerIconConstants.PLUS)
 
@@ -437,8 +437,8 @@ class Codex32EntryView(View):
 
 
 class Codex32ShareConflictConfirmView(View):
-    REPLACE = ButtonOption("Replace existing share")
-    KEEP_EXISTING = ButtonOption("Keep existing share")
+    REPLACE = ButtonOption("Replace Existing Share")
+    KEEP_EXISTING = ButtonOption("Keep Existing Share")
 
     def __init__(
         self,
@@ -459,7 +459,7 @@ class Codex32ShareConflictConfirmView(View):
         button_data = [self.REPLACE, self.KEEP_EXISTING]
         selected_menu_num = self.run_screen(
             WarningScreen,
-            title=_("Duplicate Share Index"),
+            title=_("Duplicate share index"),
             status_headline=None,
             text=_("This share index is already entered. Replace the existing share with this one?"),
             show_back_button=False,
@@ -503,9 +503,9 @@ class Codex32ShareConflictConfirmView(View):
 
 
 class Codex32ShareInvalidView(View):
-    EDIT = ButtonOption("Review & edit")
-    DISCARD_INVALID = ButtonOption("Discard invalid share")
-    DISCARD_ALL = ButtonOption("Discard all shares", button_label_color="red")
+    EDIT = ButtonOption("Review & Edit")
+    DISCARD_INVALID = ButtonOption("Discard Invalid Share")
+    DISCARD_ALL = ButtonOption("Discard All Shares", button_label_color="red")
 
     def __init__(
         self,
@@ -539,18 +539,18 @@ class Codex32ShareInvalidView(View):
         if self.error_type == codex32_model.ERROR_DATA:
             return _("Invalid data payload; check that all boxes are filled correctly.")
         if self.error_type == codex32_model.ERROR_LENGTH:
-            return _("Invalid length; Codex32 S shares must be 48 characters.")
+            return _("Invalid length; codex32 S shares must be 48 characters.")
         if self.error_type == codex32_model.ERROR_CHECKSUM:
-            return _("Checksum failure; not a valid Codex32 share.")
+            return _("Checksum failure; not a valid codex32 share.")
         if self.error_detail:
             return self.error_detail
-        return _("Invalid Codex32 share.")
+        return _("Invalid codex32 share.")
 
     def run(self):
         button_data = [self.EDIT, self.DISCARD_INVALID, self.DISCARD_ALL]
         selected_menu_num = self.run_screen(
             DireWarningScreen,
-            title=_("Invalid Codex32 Share!"),
+            title=_("Invalid codex32 share"),
             status_icon_name=SeedSignerIconConstants.ERROR,
             status_headline=None,
             text=self._get_error_text(),
@@ -593,7 +593,7 @@ class Codex32DiscardAllSharesConfirmView(View):
         button_data = [self.CONTINUE, self.CANCEL]
         selected_menu_num = self.run_screen(
             WarningScreen,
-            title=_("Discard All Shares?"),
+            title=_("Discard all shares?"),
             status_headline=None,
             text=_("Are you sure you want to discard your valid shares too?"),
             show_back_button=False,
@@ -607,8 +607,8 @@ class Codex32DiscardAllSharesConfirmView(View):
 
 
 class Codex32ShareEntryMethodView(View):
-    ENTER = ButtonOption("Enter next share")
-    SCAN = ButtonOption("Scan next share", SeedSignerIconConstants.QRCODE)
+    ENTER = ButtonOption("Enter Next Share")
+    SCAN = ButtonOption("Scan Next Share", SeedSignerIconConstants.QRCODE)
 
     def __init__(
         self,
@@ -628,7 +628,7 @@ class Codex32ShareEntryMethodView(View):
         selected_button = 1 if self.entry_method == "scan" else 0
         selected_menu_num = self.run_screen(
             ButtonListScreen,
-            title=_("Next Share"),
+            title=_("Next share"),
             button_data=button_data,
             selected_button=selected_button,
             is_bottom_list=True,
@@ -659,8 +659,8 @@ class Codex32ShareEntryMethodView(View):
 
 
 class Codex32ShareSuccessView(View):
-    NEXT = ButtonOption("Enter next share")
-    SCAN = ButtonOption("Scan next share", SeedSignerIconConstants.QRCODE)
+    NEXT = ButtonOption("Enter Next Share")
+    SCAN = ButtonOption("Scan Next Share", SeedSignerIconConstants.QRCODE)
     DISCARD = ButtonOption("Discard", button_label_color="red")
 
     def __init__(
@@ -722,8 +722,8 @@ class Codex32ShareSuccessView(View):
 
 
 class Codex32MasterShareSuccessView(View):
-    DISPLAY = ButtonOption("Show Codex32 Key")
-    LOAD = ButtonOption("Load seed")
+    DISPLAY = ButtonOption("Show codex32 Master Seed")
+    LOAD = ButtonOption("Load Seed")
 
     def __init__(self, share_data: str):
         super().__init__()
@@ -764,7 +764,7 @@ class Codex32MasterSecretWarningView(View):
 
         selected_menu_num = self.run_screen(
             DireWarningScreen,
-            status_headline=_("This will display your private key!"),
+            status_headline=_("This will display your master seed!"),
             text=_("Never photograph or scan it into a device that connects to the internet."),
         )
 
@@ -777,7 +777,7 @@ class Codex32MasterSecretWarningView(View):
 class Codex32MasterSecretDisplayView(View):
     CONTINUE = ButtonOption("Continue to Boxes 25-48")
     FINALIZE = ButtonOption("Finalize Seed")
-    DONE = ButtonOption("Done")
+    CONFIRM = ButtonOption("Confirm Backup")
 
     def __init__(self, share_data: str, page_index: int = 0, seed_num: int | None = None):
         super().__init__()
@@ -790,7 +790,7 @@ class Codex32MasterSecretDisplayView(View):
             button_data = [self.CONTINUE]
             boxes_label = _("Boxes 1-24")
         else:
-            button_data = [self.FINALIZE if self.seed_num is None else self.DONE]
+            button_data = [self.FINALIZE if self.seed_num is None else self.CONFIRM]
             boxes_label = _("Boxes 25-48")
 
         selected_menu_num = self.run_screen(
@@ -814,17 +814,150 @@ class Codex32MasterSecretDisplayView(View):
         if self.seed_num is None:
             return Destination(SeedFinalizeView)
 
+        return Destination(
+            Codex32BackupConfirmPromptView,
+            view_args={"seed_num": self.seed_num, "expected_share": self.share_data},
+        )
+
+
+class Codex32BackupConfirmPromptView(View):
+    CONFIRM = ButtonOption("Confirm codex32 Backup")
+    DONE = ButtonOption("Done")
+
+    def __init__(self, seed_num: int, expected_share: str):
+        super().__init__()
+        self.seed_num = seed_num
+        self.expected_share = expected_share
+
+    def run(self):
+        button_data = [self.CONFIRM, self.DONE]
+        selected_menu_num = self.run_screen(
+            seed_screens.SeedTranscribeSeedQRConfirmQRPromptScreen,
+            title=_("Confirm codex32 backup?"),
+            prompt_text=_(
+                "Optionally re-enter your codex32 backup to confirm that it reads back correctly."
+            ),
+            button_data=button_data,
+        )
+
+        if selected_menu_num == RET_CODE__BACK_BUTTON:
+            return Destination(BackStackView)
+
+        if button_data[selected_menu_num] == self.CONFIRM:
+            return Destination(
+                Codex32BackupConfirmEntryView,
+                view_args={"seed_num": self.seed_num, "expected_share": self.expected_share},
+            )
+
         return Destination(SeedOptionsView, view_args={"seed_num": self.seed_num}, clear_history=True)
+
+
+class Codex32BackupConfirmEntryView(View):
+    def __init__(
+        self,
+        seed_num: int,
+        expected_share: str,
+        share_data: str | None = None,
+        start_page: int | None = None,
+    ):
+        super().__init__()
+        self.seed_num = seed_num
+        self.expected_share = codex32_model.normalize_codex32_display(expected_share)
+        self.share_data = share_data
+        self.start_page = start_page
+
+    def run(self):
+        ret = self.run_screen(
+            seed_screens.Codex32EntryScreen,
+            share_num=1,
+            prefill="MS1",
+            start_page=self.start_page,
+            share_data=self.share_data,
+        )
+
+        if ret == RET_CODE__BACK_BUTTON:
+            return Destination(BackStackView)
+
+        try:
+            codex32_model.parse_codex32_share(ret)
+            share_display = codex32_model.normalize_codex32_display(ret)
+        except codex32_model.Codex32InputError:
+            share_display = None
+
+        if share_display != self.expected_share:
+            return Destination(
+                Codex32BackupConfirmInvalidView,
+                view_args={
+                    "seed_num": self.seed_num,
+                    "expected_share": self.expected_share,
+                    "share_data": ret,
+                },
+            )
+
+        return Destination(
+            Codex32BackupConfirmSuccessView,
+            view_args={"seed_num": self.seed_num},
+        )
+
+
+class Codex32BackupConfirmInvalidView(View):
+    REVIEW = ButtonOption("Review & Edit")
+
+    def __init__(self, seed_num: int, expected_share: str, share_data: str | None = None):
+        super().__init__()
+        self.seed_num = seed_num
+        self.expected_share = expected_share
+        self.share_data = share_data
+
+    def run(self):
+        self.run_screen(
+            DireWarningScreen,
+            title=_("Confirm codex32 backup"),
+            status_headline=_("Error!"),
+            text=_("Your transcribed codex32 backup could not be validated."),
+            show_back_button=False,
+            button_data=[self.REVIEW],
+        )
+
+        return Destination(
+            Codex32BackupConfirmEntryView,
+            view_args={
+                "seed_num": self.seed_num,
+                "expected_share": self.expected_share,
+                "share_data": self.share_data,
+            },
+            skip_current_view=True,
+        )
+
+
+class Codex32BackupConfirmSuccessView(View):
+    def __init__(self, seed_num: int):
+        super().__init__()
+        self.seed_num = seed_num
+
+    def run(self):
+        from seedsigner.gui.screens.screen import LargeIconStatusScreen
+
+        self.run_screen(
+            LargeIconStatusScreen,
+            title=_("Confirm codex32 backup"),
+            status_headline=_("Success!"),
+            text=_("Your transcribed codex32 backup matched the original master seed."),
+            show_back_button=False,
+            button_data=[ButtonOption("OK")],
+        )
+
+        return Destination(SeedOptionsView, view_args={"seed_num": self.seed_num})
 
 
 class Codex32BackupUnavailableView(View):
     def run(self):
         self.run_screen(
             DireWarningScreen,
-            title=_("Backup Unavailable"),
+            title=_("Backup unavailable"),
             status_icon_name=SeedSignerIconConstants.ERROR,
-            status_headline=_("Codex32 Secret Unavailable"),
-            text=_("This Codex32 seed does not include backup metadata. Re-import the Codex32 secret to back it up."),
+            status_headline=_("Codex32 secret unavailable"),
+            text=_("This codex32 seed does not include backup metadata. Re-import the codex32 secret to back it up."),
             button_data=[ButtonOption("Back")],
             show_back_button=False,
         )
@@ -1106,9 +1239,10 @@ class SeedOptionsView(View):
     DISCARD = ButtonOption("Discard seed", button_label_color="red")
 
 
-    def __init__(self, seed_num: int):
+    def __init__(self, seed_num: int, seedqr_format: str = QRType.SEED__SEEDQR):
         super().__init__()
         self.seed_num = seed_num
+        self.seedqr_format = seedqr_format
         self.seed = self.controller.get_seed(self.seed_num)
 
 
@@ -1198,9 +1332,9 @@ class SeedOptionsView(View):
 
 
 class SeedBackupView(View):
-    VIEW_CODEX32_SECRET = ButtonOption("View Codex32 Secret")
-    VIEW_CODEX32_SECRET_UNAVAILABLE = ButtonOption("View Codex32 Secret (Unavailable)")
-    EXPORT_CODEX32QR = ButtonOption("Export as Codex32QR")
+    VIEW_CODEX32_SECRET = ButtonOption("View codex32 Secret")
+    VIEW_CODEX32_SECRET_UNAVAILABLE = ButtonOption("View codex32 Secret (Unavailable)")
+    EXPORT_CODEX32QR = ButtonOption("Export as codex32 QR")
     VIEW_WORDS = ButtonOption("View seed words")
     EXPORT_SEEDQR = ButtonOption("Export as SeedQR")
 
@@ -1364,8 +1498,8 @@ class Codex32BackupShareSelectView(View):
     def _label_for_index(share_idx: str, source: str | None) -> str:
         if share_idx == "s":
             if source == "derived":
-                return _("S Share (Derived)")
-            return _("S Share")
+                return _("Secret seed S (derived)")
+            return _("Secret seed S")
         return _("Share {}").format(share_idx.upper())
 
 
@@ -1385,7 +1519,7 @@ class Codex32BackupShareSelectView(View):
 
         selected_menu_num = self.run_screen(
             ButtonListScreen,
-            title=_("Export Codex32 Share"),
+            title=_("Export codex32 string"),
             button_data=button_data,
             is_bottom_list=True,
         )
@@ -1425,9 +1559,10 @@ class SeedExportXpubSigTypeView(View):
     SINGLE_SIG = ButtonOption("Single Sig", return_data=SettingsConstants.SINGLE_SIG)
     MULTISIG = ButtonOption("Multisig", return_data=SettingsConstants.MULTISIG)
 
-    def __init__(self, seed_num: int):
+    def __init__(self, seed_num: int, seedqr_format: str = QRType.SEED__SEEDQR):
         super().__init__()
         self.seed_num = seed_num
+        self.seedqr_format = seedqr_format
 
 
     def run(self):
@@ -2234,6 +2369,12 @@ class SeedTranscribeSeedQRWarningView(View):
     
 
     def run(self):
+        is_codex32 = self.seedqr_format == QRType.SEED__CODEX32
+        status_headline = (
+            _("Codex32 QR is your master seed!")
+            if is_codex32
+            else _("SeedQR is your private key!")
+        )
         destination = Destination(
             SeedTranscribeSeedQRWholeQRView,
             view_args={
@@ -2251,7 +2392,7 @@ class SeedTranscribeSeedQRWarningView(View):
 
         selected_menu_num = self.run_screen(
             DireWarningScreen,
-            status_headline=_("SeedQR is your private key!"),
+            status_headline=status_headline,
             text=_("Never photograph or scan it into a device that connects to the internet."),
         )
 
@@ -2286,10 +2427,15 @@ class SeedTranscribeSeedQRWholeQRView(View):
                 e = CompactSeedQrEncoder(**encoder_args)
             data = e.next_part()
 
+        title = _("Transcribe SeedQR")
+        if self.seedqr_format == QRType.SEED__CODEX32:
+            title = _("Transcribe codex32 QR")
+
         ret = self.run_screen(
             seed_screens.SeedTranscribeSeedQRWholeQRScreen,
             qr_data=data,
             num_modules=self.num_modules,
+            title=title,
         )
 
         if ret == RET_CODE__BACK_BUTTON:
@@ -2371,7 +2517,7 @@ class SeedTranscribeSeedQRZoomedInView(View):
 
 class SeedTranscribeSeedQRConfirmQRPromptView(View):
     SCAN = ButtonOption("Confirm SeedQR", SeedSignerIconConstants.QRCODE)
-    SCAN_CODEX32QR = ButtonOption("Confirm Codex32QR", SeedSignerIconConstants.QRCODE)
+    SCAN_CODEX32QR = ButtonOption("Confirm codex32 QR", SeedSignerIconConstants.QRCODE)
     DONE = ButtonOption("Done")
 
     def __init__(self, seed_num: int, seedqr_format: str = QRType.SEED__SEEDQR, expected_qr_data: str | None = None):
@@ -2385,14 +2531,17 @@ class SeedTranscribeSeedQRConfirmQRPromptView(View):
     def run(self):
         scan_button = self.SCAN
         title = _("Confirm SeedQR?")
+        prompt_text = _("Optionally scan your transcribed SeedQR to confirm that it reads back correctly.")
         if self.seedqr_format == QRType.SEED__CODEX32:
             scan_button = self.SCAN_CODEX32QR
-            title = _("Confirm Codex32QR?")
+            title = _("Confirm codex32 QR?")
+            prompt_text = _("Optionally scan your transcribed codex32 QR to confirm that it reads back correctly.")
         button_data = [scan_button, self.DONE]
 
         selected_menu_option = self.run_screen(
             seed_screens.SeedTranscribeSeedQRConfirmQRPromptScreen,
             title=title,
+            prompt_text=prompt_text,
             button_data=button_data,
         )
 
@@ -2433,7 +2582,7 @@ class SeedTranscribeSeedQRConfirmScanView(View):
         scanning_done=self.run_screen(
             ScanScreen,
             decoder=self.decoder,
-            instructions_text=_("Scan your Codex32QR") if self.seedqr_format == QRType.SEED__CODEX32 else _("Scan your SeedQR")
+            instructions_text=_("Scan your codex32 QR") if self.seedqr_format == QRType.SEED__CODEX32 else _("Scan your SeedQR")
         )
 
         # If the scanning was canceled because the back button was pressed, return to BackStackView (SeedTranscribeSeedQRConfirmQRPromptView).
@@ -2446,18 +2595,36 @@ class SeedTranscribeSeedQRConfirmScanView(View):
                     scanned_share = self.decoder.get_codex32_share()
                     expected_share = codex32_model.normalize_codex32_display(self.expected_qr_data)
                     if scanned_share != expected_share:
-                        return Destination(SeedTranscribeSeedQRConfirmWrongSeedView, skip_current_view=True)
-                    return Destination(SeedTranscribeSeedQRConfirmSuccessView, view_args={"seed_num": self.seed_num})
+                        return Destination(
+                            SeedTranscribeSeedQRConfirmWrongSeedView,
+                            view_args={"seedqr_format": self.seedqr_format},
+                            skip_current_view=True,
+                        )
+                    return Destination(
+                        SeedTranscribeSeedQRConfirmSuccessView,
+                        view_args={"seed_num": self.seed_num, "seedqr_format": self.seedqr_format},
+                    )
             elif self.decoder.is_seed:
                 seed_mnemonic = self.decoder.get_seed_phrase()
                 # Found a valid mnemonic seed! But does it match?
                 if seed_mnemonic != self.seed.mnemonic_list:
-                    return Destination(SeedTranscribeSeedQRConfirmWrongSeedView, skip_current_view=True)
+                    return Destination(
+                        SeedTranscribeSeedQRConfirmWrongSeedView,
+                        view_args={"seedqr_format": self.seedqr_format},
+                        skip_current_view=True,
+                    )
                 else:
-                    return Destination(SeedTranscribeSeedQRConfirmSuccessView, view_args={"seed_num": self.seed_num})
+                    return Destination(
+                        SeedTranscribeSeedQRConfirmSuccessView,
+                        view_args={"seed_num": self.seed_num, "seedqr_format": self.seedqr_format},
+                    )
 
         # Will trigger if a different kind of QR code is scanned (non SeedQR)
-        return Destination(SeedTranscribeSeedQRConfirmInvalidQRView, skip_current_view=True)
+        return Destination(
+            SeedTranscribeSeedQRConfirmInvalidQRView,
+            view_args={"seedqr_format": self.seedqr_format},
+            skip_current_view=True,
+        )
 
 
 
@@ -2465,14 +2632,27 @@ class SeedTranscribeSeedQRConfirmWrongSeedView(View):
     """
     A valid SeedQR was scanned but it did NOT match the one we just transcribed!
     """
+    def __init__(self, seedqr_format: str = QRType.SEED__SEEDQR):
+        super().__init__()
+        self.seedqr_format = seedqr_format
+
+
     def run(self):
+        is_codex32 = self.seedqr_format == QRType.SEED__CODEX32
+        title = _("Confirm codex32 QR") if is_codex32 else _("Confirm SeedQR")
+        text = (
+            _("Your transcribed codex32 QR does not match the original share.")
+            if is_codex32
+            else _("Your transcribed SeedQR does not match your original seed!")
+        )
+        review_label = _("Review codex32 QR") if is_codex32 else _("Review SeedQR")
         self.run_screen(
             DireWarningScreen,
-            title=_("Confirm SeedQR"),
+            title=title,
             status_headline=_("Error!"),
-            text=_("Your transcribed SeedQR does not match your original seed!"),
+            text=text,
             show_back_button=False,
-            button_data=[ButtonOption("Review SeedQR")],
+            button_data=[ButtonOption(review_label)],
         )
 
         # Skip BACK to the zoomed in transcription view
@@ -2485,15 +2665,28 @@ class SeedTranscribeSeedQRConfirmInvalidQRView(View):
     A QR code was scanned but it was not a SeedQR and certainly not the SeedQR we just
     transcribed!
     """
+    def __init__(self, seedqr_format: str = QRType.SEED__SEEDQR):
+        super().__init__()
+        self.seedqr_format = seedqr_format
+
+
     def run(self):
+        is_codex32 = self.seedqr_format == QRType.SEED__CODEX32
+        title = _("Confirm codex32 QR") if is_codex32 else _("Confirm SeedQR")
+        text = (
+            _("Your transcribed codex32 QR could not be read!")
+            if is_codex32
+            else _("Your transcribed SeedQR could not be read!")
+        )
+        review_label = _("Review codex32 QR") if is_codex32 else _("Review SeedQR")
         # TODO: A better error message would be something like: "The QR code you scanned does not contain a valid SeedQR."
         self.run_screen(
             DireWarningScreen,
-            title=_("Confirm SeedQR"),
+            title=title,
             status_headline=_("Error!"),
-            text=_("Your transcribed SeedQR could not be read!"),
+            text=text,
             show_back_button=False,
-            button_data=[ButtonOption("Review SeedQR")],
+            button_data=[ButtonOption(review_label)],
         )
 
         # Skip BACK to the zoomed in transcription view
@@ -2505,18 +2698,26 @@ class SeedTranscribeSeedQRConfirmSuccessView(View):
     """
     The SeedQR we just scanned matched the one we just transcribed.
     """
-    def __init__(self, seed_num: int):
+    def __init__(self, seed_num: int, seedqr_format: str = QRType.SEED__SEEDQR):
         super().__init__()
         self.seed_num = seed_num
+        self.seedqr_format = seedqr_format
 
 
     def run(self):
         from seedsigner.gui.screens.screen import LargeIconStatusScreen
+        is_codex32 = self.seedqr_format == QRType.SEED__CODEX32
+        title = _("Confirm codex32 QR") if is_codex32 else _("Confirm SeedQR")
+        text = (
+            _("Your transcribed codex32 QR successfully scanned and matched the original share.")
+            if is_codex32
+            else _("Your transcribed SeedQR successfully scanned and yielded the same seed.")
+        )
         self.run_screen(
             LargeIconStatusScreen,
-            title=_("Confirm SeedQR"),
+            title=title,
             status_headline=_("Success!"),
-            text=_("Your transcribed SeedQR successfully scanned and yielded the same seed."),
+            text=text,
             show_back_button=False,
             button_data=[ButtonOption("OK")],
         )

@@ -1,10 +1,10 @@
 ---
-description: Codex32QR format specification aligned to SeedSigner implementation with explanatory guidance and extended vectors
+description: Codex32QR format specification aligned to SeedSigner V2 implementation with explanatory guidance and extended vectors
 ---
 
-# Codex32QR Format Specification (SeedSigner Profile)
+# Codex32QR Format Specification (SeedSigner V2 Profile)
 
-This document defines the Codex32 QR profile implemented in SeedSigner and is intended to help developers port compatible support into other hardware wallets and airgapped tools.
+This document defines the Codex32 QR profile implemented in SeedSigner V2 and is intended to help developers port compatible support into other hardware wallets and airgapped tools.
 
 Like the SeedQR specification, this write-up balances strict interoperability rules with practical, human-centered workflow guidance.
 
@@ -38,7 +38,7 @@ Implemented profile constraints in SeedSigner V2:
 
 ---
 
-## 2) Quick review of Codex32 share strings
+## 2) Quick review of Codex32 strings
 
 Codex32 shares are human-readable strings. In this profile they are carried directly as plain text in a QR.
 
@@ -77,11 +77,12 @@ The canonical payload is a **48-character Codex32 share string**:
 
 ### 3.2 Input normalization rules
 
-Implementations SHOULD accept user input with whitespace and hyphens, then normalize by:
+Implementations SHOULD accept user input with whitespace and normalize by:
 
 1. Removing all whitespace.
-2. Removing hyphen separators.
-3. Validating checksum against normalized content.
+2. Validating checksum against normalized content.
+
+Hyphens are valid Bech32 HRP characters and MUST NOT be silently stripped. Payloads that contain hyphens MUST be rejected as invalid.
 
 ### 3.3 Validation requirements
 
@@ -150,7 +151,7 @@ Collection rules:
 4. Duplicate index, same payload: idempotent (no-op).
 5. Duplicate index, different payload: MUST require explicit user confirmation before replacement.
 
-When enough compatible shares are present, implementations recover `S` via Codex32 interpolation and validate recovered `S` as a 48-character secret share before loading.
+When enough compatible shares are present, implementations recover `S` via Codex32 interpolation and validate recovered `S` as a 48-character secret before loading.
 
 ---
 
@@ -218,24 +219,6 @@ To implement compatible support in another device/app:
 5. Preserve explicit `entered` vs `derived` source semantics for `S`.
 6. Keep export gating tied to successful `S` recoverability.
 
-### 9.1 Recommended conformance tests
-
-For quick interoperability validation, implementations SHOULD include at least:
-
-1. **Canonicalization test**
-   - input mixed case + separators;
-   - output uppercase, separator-stripped payload.
-2. **Validation test**
-   - reject invalid length, invalid prefix, and checksum failures.
-3. **Routing test (`share_idx = s`)**
-   - direct scan loads seed without requiring collection.
-4. **Routing test (`share_idx != s`)**
-   - direct scan enters/continues collection mode (no hard reject).
-5. **Export-order test**
-   - share list emits `S` first, then sorted split-share indices.
-6. **Roundtrip test**
-   - exported QR text payload re-scans to the same canonical payload.
-
 ---
 
 ## 10) Reference test vectors
@@ -264,7 +247,7 @@ QR examples:
 
 | Share A QR | Share C QR |
 |---|---|
-| ![L0VE Share A](img/Split%20Shares/love_share_a.png) | ![L0VE Share C](img/Split%20Shares/love_share_c.png) |
+| ![L0VE Share A](../QRs/Split%20Shares/love_share_a.png) | ![L0VE Share C](../QRs/Split%20Shares/love_share_c.png) |
 
 ---
 
@@ -290,7 +273,7 @@ QR examples:
 
 | Share A QR | Share C QR |
 |---|---|
-| ![WSFP Share A](img/Split%20Shares/wsfp_share_a.png) | ![WSFP Share C](img/Split%20Shares/wsfp_share_c.png) |
+| ![WSFP Share A](../QRs/Split%20Shares/wsfp_share_a.png) | ![WSFP Share C](../QRs/Split%20Shares/wsfp_share_c.png) |
 
 ---
 
@@ -318,11 +301,11 @@ QR examples:
 
 | Share A QR | Share C QR |
 |---|---|
-| ![F0UR Share A](img/Split%20Shares/f0ur_share_a.png) | ![F0UR Share C](img/Split%20Shares/f0ur_share_c.png) |
+| ![F0UR Share A](../QRs/Split%20Shares/f0ur_share_a.png) | ![F0UR Share C](../QRs/Split%20Shares/f0ur_share_c.png) |
 
 | Share D QR | Share E QR |
 |---|---|
-| ![F0UR Share D](img/Split%20Shares/f0ur_share_d.png) | ![F0UR Share E](img/Split%20Shares/f0ur_share_e.png) |
+| ![F0UR Share D](../QRs/Split%20Shares/f0ur_share_d.png) | ![F0UR Share E](../QRs/Split%20Shares/f0ur_share_e.png) |
 
 ---
 
@@ -344,49 +327,18 @@ Multisig cosigner export:
 
 QR example:
 
-![Single-share S vector QR](img/S%20Shares/codex32_s_share_1_seed.png)
+![Single-share S vector QR](../QRs/S%20Shares/codex32_s_share_1.png)
 
 ---
 
-## 11) Additional assets in this repository
+## 11) Additional QR assets in this repository
 
-Markdown preview note:
+In addition to split-share QR images above (and the single-share S example already shown), the following S-share PNGs are available in this repository for scan testing:
 
-- To render images in local markdown preview (IDE/GitHub), the referenced image files must exist in this repository at the specified relative paths.
-- If assets live only in another repository, links will appear as broken in this document preview.
+- `../QRs/S Shares/codex32_s_share_2.png`
+- `../QRs/S Shares/codex32_s_share_3.png`
 
-### 11.1 Additional S-share QR PNGs
-
-In addition to the single-share vector shown above, these S-share PNGs are available for scan testing:
-
-- `img/S Shares/codex32_s_share_2_l0ve.png`
-- `img/S Shares/codex32_s_share_3_wfsp.png`
-
-Examples:
-
-| S Share 2 | S Share 3 |
-|---|---|
-| ![S Share 2](img/S%20Shares/codex32_s_share_2_l0ve.png) | ![S Share 3](img/S%20Shares/codex32_s_share_3_wfsp.png) |
-
-### 11.2 Printable templates for manual backup workflows
-
-The following templates are included for worksheet/card-based manual backup operations:
-
-- `printable_templates/Codex32_Seedsigner_Printable_Cards_MasterSecret_Large.png`
-- `printable_templates/Codex32_Seedsigner_Printable_Cards_Share_Large.png`
-- `printable_templates/Codex32_Seedsigner_Printable_Cards_Medium.png`
-- `printable_templates/Codex32_Seedsigner_Printable_Cards_Small.png`
-- `printable_templates/Seedsigner_Codex32_Printable_Page_SeedCards.pdf`
-
-Template previews:
-
-| Master Secret (Large) | Share (Large) |
-|---|---|
-| ![Master Secret Large Template](printable_templates/Codex32_Seedsigner_Printable_Cards_MasterSecret_Large.png) | ![Share Large Template](printable_templates/Codex32_Seedsigner_Printable_Cards_Share_Large.png) |
-
-| Medium | Small |
-|---|---|
-| ![Medium Template](printable_templates/Codex32_Seedsigner_Printable_Cards_Medium.png) | ![Small Template](printable_templates/Codex32_Seedsigner_Printable_Cards_Small.png) |
+These assets are black/white and generated for practical device testing of the `Codex32QR/v1-48` textual profile.
 
 ---
 
@@ -406,23 +358,6 @@ The current format uses a 29x29 QR because it reliably carries the supported tex
 
 ---
 
-## 13) SeedSigner implementation touchpoints (informative)
+## 13) Acknowledgements
 
-The following files are the primary implementation touchpoints for this profile in SeedSigner:
-
-- `src/seedsigner/models/codex32.py`
-- `src/seedsigner/models/decode_qr.py`
-- `src/seedsigner/models/qr_type.py`
-- `src/seedsigner/views/scan_views.py`
-- `src/seedsigner/views/seed_views.py`
-- `tests/test_seed.py`
-- `tests/test_flows_seed.py`
-- `tests/test_decodepsbtqr.py`
-
-Implementers can map this spec's requirements to these files for validation, routing, collection behavior, and backup/export UX.
-
----
-
-## 14) Acknowledgements
-
-Special thanks to **Ben Westgate** and **Perlwort Snead** for guidance that materially improved this implementation.
+Special thanks to **Ben Westgate** and **Pearlwort Snead** for guidance that materially improved this implementation profile.

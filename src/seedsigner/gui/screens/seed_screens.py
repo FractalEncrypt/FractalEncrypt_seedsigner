@@ -437,8 +437,8 @@ class Codex32ShareSuccessScreen(LargeIconStatusScreen):
 class Codex32MasterShareSuccessScreen(LargeIconStatusScreen):
     def __post_init__(self):
         self.title = _("Success!")
-        self.status_headline = _("Master Seed Valid")
-        self.text = _("Codex32 secret recovered.")
+        self.status_headline = _("Master seed valid")
+        self.text = _("Codex32 master seed recovered.")
         self.is_bottom_list = True
         super().__post_init__()
 
@@ -453,7 +453,7 @@ class Codex32MasterSecretDisplayScreen(ButtonListScreen):
     boxes_label: str | None = None
 
     def __post_init__(self):
-        self.title = _("Codex32 Master Secret")
+        self.title = _("Codex32 master seed")
         self.show_back_button = False
         self.is_bottom_list = True
         super().__post_init__()
@@ -1911,7 +1911,8 @@ class SeedTranscribeSeedQRWholeQRScreen(WarningEdgesMixin, ButtonListScreen):
     num_modules: int = None
 
     def __post_init__(self):
-        self.title = _("Transcribe SeedQR")
+        if not self.title:
+            self.title = _("Transcribe SeedQR")
         # TRANSLATOR_NOTE: Refers to the QR code size: 21x21, 25x25, or 29x29
         button_label = _("Begin {}x{}").format(self.num_modules, self.num_modules)
         self.button_data = [ButtonOption(button_label)]
@@ -2132,12 +2133,19 @@ class SeedTranscribeSeedQRZoomedInScreen(BaseScreen):
 
 @dataclass
 class SeedTranscribeSeedQRConfirmQRPromptScreen(ButtonListScreen):
+    prompt_text: str | None = None
+
     def __post_init__(self):
         self.is_bottom_list = True
         super().__post_init__()
 
+        if self.prompt_text is None:
+            self.prompt_text = _(
+                "Optionally scan your transcribed SeedQR to confirm that it reads back correctly."
+            )
+
         self.components.append(TextArea(
-            text=_("Optionally scan your transcribed SeedQR to confirm that it reads back correctly."),
+            text=self.prompt_text,
             screen_y=self.top_nav.height,
             height=self.buttons[0].screen_y - self.top_nav.height,
         ))

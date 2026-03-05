@@ -396,6 +396,21 @@ def generate_screenshots(locale):
                     dict(page_index=1, share_data=CODEX32_MASTER_SHARE),
                     screenshot_name="Codex32MasterSecretDisplayView_2",
                 ),
+                ScreenshotConfig(
+                    seed_views.Codex32BackupConfirmPromptView,
+                    dict(seed_num=3, expected_share=CODEX32_MASTER_SHARE),
+                    screenshot_name="Codex32BackupConfirmPromptView",
+                ),
+                ScreenshotConfig(
+                    seed_views.Codex32BackupConfirmInvalidView,
+                    dict(seed_num=3, expected_share=CODEX32_MASTER_SHARE, share_data="MS12SEEDSAEFE4J44NR4FRNEZ7ZKEPA46XMJ4J2YXYJTC9YX"),
+                    screenshot_name="Codex32BackupConfirmInvalidView",
+                ),
+                ScreenshotConfig(
+                    seed_views.Codex32BackupConfirmSuccessView,
+                    dict(seed_num=3),
+                    screenshot_name="Codex32BackupConfirmSuccessView",
+                ),
                 ScreenshotConfig(seed_views.Codex32BackupUnavailableView, screenshot_name="Codex32BackupUnavailableView"),
                 ScreenshotConfig(
                     seed_views.Codex32BackupShareSelectView,
@@ -448,6 +463,21 @@ def generate_screenshots(locale):
                 ScreenshotConfig(seed_views.SeedTranscribeSeedQRWholeQRView, dict(seed_num=0, seedqr_format=QRType.SEED__SEEDQR, num_modules=25),        screenshot_name="SeedTranscribeSeedQRWholeQRView_12_Standard"),
                 ScreenshotConfig(seed_views.SeedTranscribeSeedQRWholeQRView, dict(seed_num=2, seedqr_format=QRType.SEED__COMPACTSEEDQR, num_modules=25), screenshot_name="SeedTranscribeSeedQRWholeQRView_24_Compact"),
                 ScreenshotConfig(seed_views.SeedTranscribeSeedQRWholeQRView, dict(seed_num=2, seedqr_format=QRType.SEED__SEEDQR, num_modules=29),        screenshot_name="SeedTranscribeSeedQRWholeQRView_24_Standard"),
+                ScreenshotConfig(
+                    seed_views.SeedTranscribeSeedQRWarningView,
+                    dict(seed_num=3, seedqr_format=QRType.SEED__CODEX32, num_modules=codex32_model.CODEX32_QR_MODULE_TARGET, qr_data=CODEX32_MASTER_SHARE),
+                    screenshot_name="SeedTranscribeCodex32QRWarningView",
+                ),
+                ScreenshotConfig(
+                    seed_views.SeedTranscribeSeedQRWholeQRView,
+                    dict(seed_num=3, seedqr_format=QRType.SEED__CODEX32, num_modules=codex32_model.CODEX32_QR_MODULE_TARGET, qr_data=CODEX32_MASTER_SHARE),
+                    screenshot_name="SeedTranscribeCodex32QRWholeQRView",
+                ),
+                ScreenshotConfig(
+                    seed_views.SeedTranscribeSeedQRZoomedInView,
+                    dict(seed_num=3, seedqr_format=QRType.SEED__CODEX32, qr_data=CODEX32_MASTER_SHARE),
+                    screenshot_name="SeedTranscribeCodex32QRZoomedInView",
+                ),
                 ScreenshotConfig(seed_views.SeedTranscribeSeedQRZoomedInView, dict(seed_num=0, seedqr_format=QRType.SEED__COMPACTSEEDQR, initial_zone_x=1, initial_zone_y=1), screenshot_name="SeedTranscribeSeedQRZoomedInView_12_Compact"),
                 ScreenshotConfig(seed_views.SeedTranscribeSeedQRZoomedInView, dict(seed_num=0, seedqr_format=QRType.SEED__SEEDQR, initial_zone_x=2, initial_zone_y=2),        screenshot_name="SeedTranscribeSeedQRZoomedInView_12_Standard"),
 
@@ -455,6 +485,26 @@ def generate_screenshots(locale):
                 ScreenshotConfig(seed_views.SeedTranscribeSeedQRConfirmWrongSeedView),
                 ScreenshotConfig(seed_views.SeedTranscribeSeedQRConfirmInvalidQRView),
                 ScreenshotConfig(seed_views.SeedTranscribeSeedQRConfirmSuccessView, dict(seed_num=0)),
+                ScreenshotConfig(
+                    seed_views.SeedTranscribeSeedQRConfirmQRPromptView,
+                    dict(seed_num=3, seedqr_format=QRType.SEED__CODEX32, expected_qr_data=CODEX32_MASTER_SHARE),
+                    screenshot_name="SeedTranscribeCodex32QRConfirmQRPromptView",
+                ),
+                ScreenshotConfig(
+                    seed_views.SeedTranscribeSeedQRConfirmWrongSeedView,
+                    dict(seedqr_format=QRType.SEED__CODEX32),
+                    screenshot_name="SeedTranscribeCodex32QRConfirmWrongSeedView",
+                ),
+                ScreenshotConfig(
+                    seed_views.SeedTranscribeSeedQRConfirmInvalidQRView,
+                    dict(seedqr_format=QRType.SEED__CODEX32),
+                    screenshot_name="SeedTranscribeCodex32QRConfirmInvalidQRView",
+                ),
+                ScreenshotConfig(
+                    seed_views.SeedTranscribeSeedQRConfirmSuccessView,
+                    dict(seed_num=3, seedqr_format=QRType.SEED__CODEX32),
+                    screenshot_name="SeedTranscribeCodex32QRConfirmSuccessView",
+                ),
 
                 # Screenshot can't render live preview screens
                 # ScreenshotConfig(seed_views.SeedTranscribeSeedQRConfirmScanView, dict(seed_num=0)),
