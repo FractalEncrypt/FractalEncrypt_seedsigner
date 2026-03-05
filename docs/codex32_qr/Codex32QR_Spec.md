@@ -4,7 +4,7 @@ description: Codex32QR format specification aligned to SeedSigner V2 implementat
 
 # Codex32QR Format Specification (SeedSigner V2 Profile)
 
-This document defines the Codex32 QR profile implemented in SeedSigner V2 and is intended to help developers port compatible support into other hardware wallets and airgapped tools.
+This document defines the codex32 QR profile implemented in SeedSigner V2 and is intended to help developers port compatible support into other hardware wallets and airgapped tools.
 
 Like the SeedQR specification, this write-up balances strict interoperability rules with practical, human-centered workflow guidance.
 
@@ -16,7 +16,7 @@ The keywords **MUST**, **SHOULD**, and **MAY** are normative in this document.
 
 This specification covers:
 
-1. A single-frame textual Codex32 QR payload profile (`Codex32QR/v1-48`).
+1. A single-frame textual codex32 QR payload profile (`Codex32QR/v1-48`).
 2. Import behavior for direct scan and multi-share collection mode.
 3. Export behavior for share selection and labeling.
 4. Validation and fail-safe behavior.
@@ -24,8 +24,8 @@ This specification covers:
 
 This specification does **not** define:
 
-1. Compact/binary Codex32 QR transport.
-2. Animated/multipart Codex32 QR transport.
+1. Compact/binary codex32 QR transport.
+2. Animated/multipart codex32 QR transport.
 3. Codex32 payloads longer than the 48-character profile.
 
 Implemented profile constraints in SeedSigner V2:
@@ -38,7 +38,7 @@ Implemented profile constraints in SeedSigner V2:
 
 ---
 
-## 2) Quick review of Codex32 strings
+## 2) Quick review of codex32 strings
 
 Codex32 shares are human-readable strings. In this profile they are carried directly as plain text in a QR.
 
@@ -68,7 +68,7 @@ Notes:
 
 ### 3.1 Canonical payload form
 
-The canonical payload is a **48-character Codex32 share string**:
+The canonical payload is a **48-character codex32 string**:
 
 - Prefix: `MS1`
 - Canonical display form: uppercase
@@ -91,10 +91,10 @@ A payload MUST satisfy all of the following:
 1. Exact length = 48 characters.
 2. Single-case input (all lower or all upper) before canonicalization.
 3. Prefix `MS1` (case-insensitive pre-check).
-4. Valid Codex32 parse and checksum.
-5. Valid Codex32 HRP (`ms`).
+4. Valid codex32 parse and checksum.
+5. Valid codex32 HRP (`ms`).
 
-Any validation failure MUST be treated as invalid Codex32 input.
+Any validation failure MUST be treated as invalid codex32 input.
 
 ---
 
@@ -102,7 +102,7 @@ Any validation failure MUST be treated as invalid Codex32 input.
 
 For `Codex32QR/v1-48`, emit a static single-frame QR code with:
 
-1. Text payload: canonical Codex32 string.
+1. Text payload: canonical codex32 string.
 2. Error correction: `L`.
 3. Version: `3`.
 4. Module size: `29x29`.
@@ -111,7 +111,7 @@ For `Codex32QR/v1-48`, emit a static single-frame QR code with:
 
 ### 4.1 Why 29x29 is used
 
-This format stores the Codex32 string directly as QR text data. The payload length is fixed:
+This format stores the codex32 string directly as QR text data. The payload length is fixed:
 
 ```text
 48 characters
@@ -121,10 +121,10 @@ At error correction level `L`, Version 3 (29x29) comfortably supports this textu
 
 ### 4.2 Phone-readable text output
 
-Because this profile stores plain text, generic phone QR scanners will normally decode the exact Codex32 string. This is useful for interop checks:
+Because this profile stores plain text, generic phone QR scanners will normally decode the exact codex32 string. This is useful for interop checks:
 
 1. Scan the QR on a phone.
-2. Confirm the decoded text equals the expected Codex32 payload.
+2. Confirm the decoded text equals the expected codex32 payload.
 3. Compare using canonical uppercase/no-separator normalization.
 
 ---
@@ -151,7 +151,7 @@ Collection rules:
 4. Duplicate index, same payload: idempotent (no-op).
 5. Duplicate index, different payload: MUST require explicit user confirmation before replacement.
 
-When enough compatible shares are present, implementations recover `S` via Codex32 interpolation and validate recovered `S` as a 48-character secret before loading.
+When enough compatible shares are present, implementations recover `S` via codex32 interpolation and validate recovered `S` as a 48-character secret before loading.
 
 ---
 
@@ -188,7 +188,7 @@ If `S` is derived, UX MUST visibly label it as **Derived** (for example: `S Shar
 
 ## 7) Failure handling requirements
 
-1. Invalid Codex32-like payloads MUST resolve to invalid status (no fallback into unrelated QR types).
+1. Invalid codex32-like payloads MUST resolve to invalid status (no fallback into unrelated QR types).
 2. No auto-correction of payload characters on parse/checksum failure.
 3. Metadata inconsistencies in export state (invalid payload, index mismatch, unsupported overflow) MUST fail closed and route to unavailable-export behavior.
 
@@ -198,7 +198,7 @@ If `S` is derived, UX MUST visibly label it as **Derived** (for example: `S Shar
 
 This profile intentionally favors recoverability through readable text transport:
 
-1. Most phone scanners can decode the QR into a plain Codex32 string.
+1. Most phone scanners can decode the QR into a plain codex32 string.
 2. A user can manually transcribe that string if required.
 3. Another compatible tool can validate checksum and parse the share directly from text.
 
@@ -212,7 +212,7 @@ This is the same recoverability principle used by Standard SeedQR: the encoded Q
 
 To implement compatible support in another device/app:
 
-1. Treat payload as plain-text Codex32.
+1. Treat payload as plain-text codex32.
 2. Enforce the 48-char profile and checksum validity.
 3. Normalize to uppercase for display/compare/export.
 4. Route non-`s` direct scans into collection mode with mixed scan/manual continuation.
@@ -258,7 +258,7 @@ This vector demonstrates split-share recovery and multisig cosigner export from 
 ```text
 Share A: MS12WSFPARFG0AFNHER0NAE08R0FNA0EFN83WMZT0A5AP6ZK
 Share C: MS12WSFPC8NFE0ANF0R80EAN0REHNFA0GFRYUQYKDKJJPYV5
-S Share (Master Codex32 key): MS12WSFPSASMA35NSTR6MR88JRAWNQRT62ELZ3NSQ592PAXE
+S Share (Master codex32 key): MS12WSFPSASMA35NSTR6MR88JRAWNQRT62ELZ3NSQ592PAXE
 ```
 
 Multisig cosigner export:
@@ -286,7 +286,7 @@ Share A: MS14F0URATWENTYSXCHARACTERSC0DEX32GAFTTAVTH203CW
 Share C: MS14F0URCG23XED0CSRETCARAHCXSYTNEWTHFYZQ3ZRYNTTD
 Share D: MS14F0URDCTERSC0DEX32GTWENTYSXCHARA8GXQMPD8VZ7NX
 Share E: MS14F0URENTYSXCHARACTERSC0DEX32GTWEKCHMRL3FDC6VV
-S Share (Master Codex32 key): MS14F0URSHTV9MFHTA5G8XDV4SUPMLS4LSECR334Y0CUHVXQ
+S Share (Master codex32 key): MS14F0URSHTV9MFHTA5G8XDV4SUPMLS4LSECR334Y0CUHVXQ
 ```
 
 Single-sig export:
@@ -354,7 +354,7 @@ This implementation caps split-share support at 5 shares. In practical manual wo
 
 ### 12.3 29x29 and no compact mode
 
-The current format uses a 29x29 QR because it reliably carries the supported textual payload with current constraints. A compact Codex32 QR mode may be possible in the future, but is out of scope here.
+The current format uses a 29x29 QR because it reliably carries the supported textual payload with current constraints. A compact codex32 QR mode may be possible in the future, but is out of scope here.
 
 ---
 
