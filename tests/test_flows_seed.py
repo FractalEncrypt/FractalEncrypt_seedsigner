@@ -616,6 +616,7 @@ class TestSeedFlows(FlowTest):
                 FlowStep(seed_views.Codex32MasterSecretWarningView, screen_return_value=0),
                 FlowStep(seed_views.Codex32MasterSecretDisplayView, screen_return_value=0),
                 FlowStep(seed_views.Codex32MasterSecretDisplayView, screen_return_value=0),
+                FlowStep(seed_views.Codex32BackupConfirmPromptView, screen_return_value=1),
                 FlowStep(seed_views.SeedOptionsView),
             ],
         )
@@ -724,7 +725,7 @@ class TestSeedFlows(FlowTest):
                 FlowStep(seed_views.SeedBackupView, button_data_selection=seed_views.SeedBackupView.EXPORT_CODEX32QR),
                 FlowStep(
                     seed_views.Codex32BackupShareSelectView,
-                    button_data_selection=ButtonOption("S Share (Derived)", return_data="s"),
+                    button_data_selection=ButtonOption("Secret seed S (derived)", return_data="s"),
                 ),
                 FlowStep(seed_views.SeedTranscribeSeedQRWarningView, before_run=assert_selected_share_payload),
             ],
@@ -755,7 +756,7 @@ class TestSeedFlows(FlowTest):
                 FlowStep(seed_views.SeedBackupView, button_data_selection=seed_views.SeedBackupView.EXPORT_CODEX32QR),
                 FlowStep(
                     seed_views.Codex32BackupShareSelectView,
-                    button_data_selection=ButtonOption("S Share", return_data="s"),
+                    button_data_selection=ButtonOption("Secret seed S", return_data="s"),
                 ),
                 FlowStep(seed_views.SeedTranscribeSeedQRWarningView, before_run=assert_selected_share_payload),
             ],
