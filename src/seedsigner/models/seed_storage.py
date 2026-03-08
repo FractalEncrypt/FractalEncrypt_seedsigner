@@ -51,6 +51,8 @@ class SeedStorage:
 
 
     def clear_pending_seed(self):
+        if self.pending_seed is not None:
+            self.pending_seed.wipe()
         self.pending_seed = None
 
 

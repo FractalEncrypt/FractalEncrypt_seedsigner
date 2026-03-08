@@ -123,9 +123,15 @@ Rather than introducing a parallel architecture, we added codex32-specific logic
   - Adds [Codex32Seed](cci:2://file:///c:/Users/FractalEncrypt/Documents/Windsurf/SeedSigner/src/seedsigner/models/seed.py:179:0-232:48) as a seed type backed by the recovered 16-byte entropy.
   - Preserves codex32-specific metadata needed for backup/export UX (`master_share`, export-share map, source map).
   - Explicitly keeps codex32 seeds passphrase-free to match the codex32 model.
+  - Adds best-effort `wipe()` handling for `Seed` and `Codex32Seed` fields to reduce in-memory secret residency before references are dropped.
 
 - **[src/seedsigner/models/seed_storage.py](cci:7://file:///c:/Users/FractalEncrypt/Documents/Windsurf/SeedSigner/src/seedsigner/models/seed_storage.py:0:0-0:0)**
   - Updates duplicate-seed handling so reloading an equivalent codex32 seed can enrich existing stored metadata instead of discarding it.
+  - Clears pending seeds via explicit best-effort wipe before nulling references (`clear_pending_seed`).
+
+- **[src/seedsigner/controller.py](cci:7://file:///c:/Users/FractalEncrypt/Documents/Windsurf/SeedSigner/src/seedsigner/controller.py:0:0-0:0)**
+  - Adds Home-reset lifecycle hardening to clear transient codex32/PSBT state consistently.
+  - Uses a guarded `psbt_seed` wipe policy: wipe transient seeds, but avoid wiping onboard stored seeds that remain loaded intentionally.
 
 #### QR Decode/Encode Integration
 
@@ -144,6 +150,7 @@ Rather than introducing a parallel architecture, we added codex32-specific logic
 - **[src/seedsigner/views/scan_views.py](cci:7://file:///c:/Users/FractalEncrypt/Documents/Windsurf/SeedSigner/src/seedsigner/views/scan_views.py:0:0-0:0)**
   - Extends scan routing so codex32 shares can enter either direct success flow (`S` share) or multi-share collection flow (non-`S` shares).
   - Adds a dedicated collection scan view for iterative share intake.
+  - Normalizes scanned codex32 payloads to canonical display format early and avoids passing redundant master-share payload args downstream when pending seed metadata already carries canonical share data.
 
 - **[src/seedsigner/views/seed_views.py](cci:7://file:///c:/Users/FractalEncrypt/Documents/Windsurf/SeedSigner/src/seedsigner/views/seed_views.py:0:0-0:0)**
   - Extends load-seed menu with codex32 entry/scan options.
@@ -155,6 +162,8 @@ Rather than introducing a parallel architecture, we added codex32-specific logic
     - source-aware labeling (e.g., derived `S` share),
     - unavailable-state routing when metadata is insufficient.
   - Integrates codex32 into transcribe-and-confirm scan verification flow with canonical string comparison.
+  - Reduces `share_data` propagation across view transitions by resolving canonical master share from pending/stored seed metadata where possible.
+  - Introduces bounded transient handoff (`controller.codex32_temp_share`) in warning/display flow to avoid unnecessary repeated payload copies in `Destination.view_args`.
 
 #### PSBT Robustness (Supporting Work in Same Branch)
 
@@ -169,9 +178,12 @@ Rather than introducing a parallel architecture, we added codex32-specific logic
 
 - **[tests/test_decodepsbtqr.py](cci:7://file:///c:/Users/FractalEncrypt/Documents/Windsurf/SeedSigner/tests/test_decodepsbtqr.py:0:0-0:0)**: codex32 decode canonicalization, invalid checksum handling, and precedence regressions.
 - **[tests/test_scan_views.py](cci:7://file:///c:/Users/FractalEncrypt/Documents/Windsurf/SeedSigner/tests/test_scan_views.py:0:0-0:0)**: non-`S` scan routing into collection-mode entry.
-- **[tests/test_flows_seed.py](cci:7://file:///c:/Users/FractalEncrypt/Documents/Windsurf/SeedSigner/tests/test_flows_seed.py:0:0-0:0)**: end-to-end collection, conflict replacement, backup/export menus, share selection, and confirm-scan roundtrip.
+- **[tests/test_seed.py](cci:7://file:///c:/Users/FractalEncrypt/Documents/Windsurf/SeedSigner/tests/test_seed.py:0:0-0:0)**: codex32 constants/metadata plus zeroization regressions (`Seed.wipe`, `Codex32Seed.wipe`, share-collection wipe, and pending-seed clear wipe).
+- **[tests/test_flows_seed.py](cci:7://file:///c:/Users/FractalEncrypt/Documents/Windsurf/SeedSigner/tests/test_flows_seed.py:0:0-0:0)**: end-to-end collection, conflict replacement, backup/export menus, share selection, confirm-scan roundtrip, and discard-all wipe lifecycle checks.
+- **[tests/test_flows_tools.py](cci:7://file:///c:/Users/FractalEncrypt/Documents/Windsurf/SeedSigner/tests/test_flows_tools.py:0:0-0:0)**: codex32 sideflow routing with canonical share resolution in address-explorer entry paths.
 - **[tests/test_seedqr.py](cci:7://file:///c:/Users/FractalEncrypt/Documents/Windsurf/SeedSigner/tests/test_seedqr.py:0:0-0:0)**: codex32 QR rendering profile expectations.
 - **[tests/test_psbt_parser.py](cci:7://file:///c:/Users/FractalEncrypt/Documents/Windsurf/SeedSigner/tests/test_psbt_parser.py:0:0-0:0) + [tests/test_flows_psbt.py](cci:7://file:///c:/Users/FractalEncrypt/Documents/Windsurf/SeedSigner/tests/test_flows_psbt.py:0:0-0:0)**: missing-UTXO detection and warning flow coverage.
+- **[tests/test_controller.py](cci:7://file:///c:/Users/FractalEncrypt/Documents/Windsurf/SeedSigner/tests/test_controller.py:0:0-0:0)**: MainMenu reset lifecycle coverage for transient `psbt_seed` wipe vs onboard-seed preservation.
 
 ### 4.6. Scope Boundaries: Practical Subset of BIP93
 
@@ -179,6 +191,8 @@ Our SeedSigner implementation intentionally does **not** implement the full code
 
 #### What we support today
 - **48-character codex32 strings only** (the fixed-length profile used by our codex32QR workflow).
+- **128-bit (16-byte) codex32 master seeds only** in this release.
+- **256-bit (32-byte) codex32 master seeds are not yet supported**.
 - **Up to 5 split shares** in collection/export workflows.
 
 #### Why this scope is intentional
@@ -188,6 +202,19 @@ Our SeedSigner implementation intentionally does **not** implement the full code
 #### Future expansion path
 This is a deliberate product boundary, not a protocol limitation.  
 If we see meaningful real-world demand for larger share sets, higher thresholds, or longer codex32 string formats, we can extend support in a future iteration.
+
+### 4.7. In-memory Secret Handling & Zeroization Guarantees
+
+SeedSigner remains a stateless signer, and codex32 follows the same in-memory model.  
+We implemented **best-effort in-memory cleanup** for codex32/seed-sensitive fields at key lifecycle boundaries (discard/reset/clear-pending paths).
+
+Important limitation: this is **not** a formal secure-erase guarantee.  
+Because SeedSigner is implemented in Python, immutable strings/bytes and interpreter/runtime memory behavior can leave copies outside direct application control.
+
+In short:
+- We reduce resident sensitive material where we can.
+- We do not claim cryptographic-grade memory erasure guarantees.
+- Full process-isolated secret handling is a future hardening path if required by stricter threat models.
 
 ---
 

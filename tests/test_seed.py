@@ -170,6 +170,19 @@ def test_seed_storage_preserves_codex32_export_metadata_on_duplicate():
 	assert storage.seeds[first_index].codex32_share_sources == source_map
 
 
+def test_seed_storage_clear_pending_seed_wipes_pending_seed():
+	storage = SeedStorage()
+	pending_seed = Seed(mnemonic="obscure bone gas open exotic abuse virus bunker shuffle nasty ship dash".split())
+
+	storage.set_pending_seed(pending_seed)
+	storage.clear_pending_seed()
+
+	assert storage.pending_seed is None
+	assert pending_seed.seed_bytes is None
+	assert pending_seed.mnemonic_list == []
+	assert pending_seed.passphrase == ""
+
+
 def test_codex32_qr_profile_constants():
 	assert codex32_model.CODEX32_QR_CANONICAL_PREFIX == "MS1"
 	assert codex32_model.CODEX32_QR_CANONICAL_LENGTH == 48
@@ -283,3 +296,65 @@ def test_codex32_share_collection_export_shares_preserves_entered_s_source():
 
 	assert share_map == {"s": entered_s.s}
 	assert source_map == {"s": "entered"}
+
+
+def test_codex32_seed_derives_correct_fingerprint_and_xpub():
+	"""
+	Codex32Seed uses raw 16-byte entropy directly for BIP32 derivation (no BIP39 PBKDF2).
+
+	Reference vector source:
+	- BIP32 test vector seed: 000102030405060708090a0b0c0d0e0f
+	- Expected xpub at m/: xpub661MyMwAqRbcFtXgS5sYJABqqG9YLmC4Q1Rdap9gSE8NqtwybGhePY2gZ29ESFjqJoCu1Rupje8YtGqsefD265TMg7usUDFdp6W1EGMcet8
+	"""
+	seed = Codex32Seed(seed_bytes=bytes.fromhex("000102030405060708090a0b0c0d0e0f"))
+
+	assert seed.get_fingerprint(SettingsConstants.MAINNET) == "3442193e"
+	assert str(seed.get_xpub(wallet_path="m/", network=SettingsConstants.MAINNET)) == (
+		"xpub661MyMwAqRbcFtXgS5sYJABqqG9YLmC4Q1Rdap9gSE8NqtwybGhePY2gZ29ESFjqJoCu1Rupje8YtGqsefD265TMg7usUDFdp6W1EGMcet8"
+	)
+
+
+def test_seed_wipe_clears_sensitive_fields():
+	seed = Seed(mnemonic="obscure bone gas open exotic abuse virus bunker shuffle nasty ship dash".split())
+
+	assert seed.seed_bytes is not None
+	assert len(seed.mnemonic_list) == 12
+
+	seed.wipe()
+
+	assert seed.seed_bytes is None
+	assert seed.mnemonic_list == []
+	assert seed.passphrase == ""
+
+
+def test_codex32_seed_wipe_clears_seed_and_metadata_fields():
+	seed = Codex32Seed(
+		seed_bytes=bytes.fromhex("00112233445566778899aabbccddeeff"),
+		codex32_master_share="MS12NAMES6XQGUZTTXKEQNJSJZV4JV3NZ5K3KWGSPHUH6EVW",
+		codex32_export_shares={"s": "MS12NAMES6XQGUZTTXKEQNJSJZV4JV3NZ5K3KWGSPHUH6EVW"},
+		codex32_share_sources={"s": "entered"},
+	)
+
+	seed.wipe()
+
+	assert seed.seed_bytes is None
+	assert seed.mnemonic_list == []
+	assert seed.passphrase == ""
+	assert seed.codex32_master_share is None
+	assert seed.codex32_export_shares is None
+	assert seed.codex32_share_sources is None
+
+
+def test_codex32_share_collection_wipe_clears_collection_and_share_buffers():
+	share_a, _, share_c = _build_codex32_split_fixture()
+	collection = codex32_model.Codex32ShareCollection.from_first_share(share_a)
+	collection.add_share(share_c)
+
+	collection.wipe()
+
+	assert collection.shares == []
+	assert collection.threshold == 0
+	assert collection.ident == ""
+	assert collection.case == "lower"
+	assert share_a.data == b""
+	assert share_c.data == b""

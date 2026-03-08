@@ -316,10 +316,7 @@ class Codex32EntryView(View):
                 codex32_share_sources=source_map,
             )
             view.controller.storage.set_pending_seed(seed)
-            return Destination(
-                Codex32MasterShareSuccessView,
-                view_args={"share_data": share_display},
-            )
+            return Destination(Codex32MasterShareSuccessView)
 
         return Destination(
             Codex32ShareSuccessView,
@@ -389,10 +386,7 @@ class Codex32EntryView(View):
                 codex32_share_sources={"s": "entered"},
             )
             self.controller.storage.set_pending_seed(seed)
-            return Destination(
-                Codex32MasterShareSuccessView,
-                view_args={"share_data": share_display},
-            )
+            return Destination(Codex32MasterShareSuccessView)
 
         try:
             if self.share_collection is None:
@@ -582,12 +576,19 @@ class Codex32ShareInvalidView(View):
             )
 
         elif button_data[selected_menu_num] == self.DISCARD_ALL:
-            return Destination(Codex32DiscardAllSharesConfirmView)
+            return Destination(
+                Codex32DiscardAllSharesConfirmView,
+                view_args={"share_collection": self.share_collection},
+            )
 
 
 class Codex32DiscardAllSharesConfirmView(View):
     CONTINUE = ButtonOption("Continue", button_label_color="red")
     CANCEL = ButtonOption("Cancel")
+
+    def __init__(self, share_collection: codex32_model.Codex32ShareCollection | None = None):
+        super().__init__()
+        self.share_collection = share_collection
 
     def run(self):
         button_data = [self.CONTINUE, self.CANCEL]
@@ -601,6 +602,9 @@ class Codex32DiscardAllSharesConfirmView(View):
         )
 
         if button_data[selected_menu_num] == self.CONTINUE:
+            if self.share_collection is not None:
+                self.share_collection.wipe()
+                self.share_collection = None
             return Destination(MainMenuView, clear_history=True)
 
         return Destination(BackStackView)
@@ -692,7 +696,10 @@ class Codex32ShareSuccessView(View):
         )
 
         if selected_menu_num == RET_CODE__BACK_BUTTON:
-            return Destination(Codex32DiscardAllSharesConfirmView)
+            return Destination(
+                Codex32DiscardAllSharesConfirmView,
+                view_args={"share_collection": self.share_collection},
+            )
 
         if button_data[selected_menu_num] == self.NEXT:
             return Destination(
@@ -718,6 +725,7 @@ class Codex32ShareSuccessView(View):
         elif button_data[selected_menu_num] == self.DISCARD:
             return Destination(
                 Codex32DiscardAllSharesConfirmView,
+                view_args={"share_collection": self.share_collection},
             )
 
 
@@ -725,9 +733,20 @@ class Codex32MasterShareSuccessView(View):
     DISPLAY = ButtonOption("Show codex32 Master Seed")
     LOAD = ButtonOption("Load Seed")
 
-    def __init__(self, share_data: str):
+    def __init__(self, share_data: str | None = None):
         super().__init__()
-        self.share_data = share_data
+        self.share_data = codex32_model.normalize_codex32_display(share_data) if share_data else None
+
+
+    def _resolve_share_data(self) -> str | None:
+        if self.share_data:
+            return self.share_data
+
+        pending_seed = self.controller.storage.get_pending_seed()
+        if isinstance(pending_seed, Codex32Seed) and pending_seed.codex32_master_share:
+            return codex32_model.normalize_codex32_display(pending_seed.codex32_master_share)
+
+        return None
 
     def run(self):
         button_data = [self.DISPLAY, self.LOAD]
@@ -740,25 +759,57 @@ class Codex32MasterShareSuccessView(View):
             return Destination(SeedDiscardView)
 
         if button_data[selected_menu_num] == self.DISPLAY:
+            share_data = self._resolve_share_data()
+            self.share_data = None
+            if share_data is None:
+                return Destination(Codex32BackupUnavailableView)
             return Destination(
                 Codex32MasterSecretWarningView,
-                view_args={"share_data": self.share_data},
+                view_args={"share_data": share_data},
             )
 
         elif button_data[selected_menu_num] == self.LOAD:
+            self.share_data = None
+            self.controller.codex32_temp_share = None
             return Destination(SeedFinalizeView)
 
 
 class Codex32MasterSecretWarningView(View):
-    def __init__(self, share_data: str, seed_num: int | None = None):
+    def __init__(self, share_data: str | None = None, seed_num: int | None = None):
         super().__init__()
-        self.share_data = share_data
+        self.share_data = codex32_model.normalize_codex32_display(share_data) if share_data else None
         self.seed_num = seed_num
 
+
+    def _resolve_share_data(self) -> str | None:
+        if self.share_data:
+            return self.share_data
+
+        if self.controller.codex32_temp_share:
+            return self.controller.codex32_temp_share
+
+        if self.seed_num is None:
+            pending_seed = self.controller.storage.get_pending_seed()
+            if isinstance(pending_seed, Codex32Seed) and pending_seed.codex32_master_share:
+                return codex32_model.normalize_codex32_display(pending_seed.codex32_master_share)
+            return None
+
+        seed = self.controller.get_seed(self.seed_num)
+        if isinstance(seed, Codex32Seed) and seed.codex32_master_share:
+            return codex32_model.normalize_codex32_display(seed.codex32_master_share)
+        return None
+
     def run(self):
+        share_data = self._resolve_share_data()
+        if share_data is None:
+            return Destination(Codex32BackupUnavailableView)
+
+        self.controller.codex32_temp_share = share_data
+        self.share_data = None
+
         destination = Destination(
             Codex32MasterSecretDisplayView,
-            view_args={"share_data": self.share_data, "page_index": 0, "seed_num": self.seed_num},
+            view_args={"page_index": 0, "seed_num": self.seed_num},
             skip_current_view=True,
         )
 
@@ -769,6 +820,7 @@ class Codex32MasterSecretWarningView(View):
         )
 
         if selected_menu_num == RET_CODE__BACK_BUTTON:
+            self.controller.codex32_temp_share = None
             return Destination(BackStackView)
 
         return destination
@@ -779,13 +831,17 @@ class Codex32MasterSecretDisplayView(View):
     FINALIZE = ButtonOption("Finalize Seed")
     CONFIRM = ButtonOption("Confirm Backup")
 
-    def __init__(self, share_data: str, page_index: int = 0, seed_num: int | None = None):
+    def __init__(self, share_data: str | None = None, page_index: int = 0, seed_num: int | None = None):
         super().__init__()
-        self.share_data = share_data
+        self.share_data = codex32_model.normalize_codex32_display(share_data) if share_data else None
         self.page_index = page_index
         self.seed_num = seed_num
 
     def run(self):
+        share_data = self.share_data if self.share_data is not None else self.controller.codex32_temp_share
+        if share_data is None:
+            return Destination(Codex32BackupUnavailableView)
+
         if self.page_index == 0:
             button_data = [self.CONTINUE]
             boxes_label = _("Boxes 1-24")
@@ -795,7 +851,7 @@ class Codex32MasterSecretDisplayView(View):
 
         selected_menu_num = self.run_screen(
             seed_screens.Codex32MasterSecretDisplayScreen,
-            share_data=self.share_data,
+            share_data=share_data,
             start_index=self.page_index * 24,
             chunk_size=24,
             boxes_label=boxes_label,
@@ -808,15 +864,17 @@ class Codex32MasterSecretDisplayView(View):
         if button_data[selected_menu_num] == self.CONTINUE:
             return Destination(
                 Codex32MasterSecretDisplayView,
-                view_args={"share_data": self.share_data, "page_index": 1, "seed_num": self.seed_num},
+                view_args={"page_index": 1, "seed_num": self.seed_num},
             )
 
         if self.seed_num is None:
+            self.controller.codex32_temp_share = None
             return Destination(SeedFinalizeView)
 
+        self.controller.codex32_temp_share = None
         return Destination(
             Codex32BackupConfirmPromptView,
-            view_args={"seed_num": self.seed_num, "expected_share": self.share_data},
+            view_args={"seed_num": self.seed_num, "expected_share": share_data},
         )
 
 
@@ -827,7 +885,7 @@ class Codex32BackupConfirmPromptView(View):
     def __init__(self, seed_num: int, expected_share: str):
         super().__init__()
         self.seed_num = seed_num
-        self.expected_share = expected_share
+        self.expected_share = codex32_model.normalize_codex32_display(expected_share)
 
     def run(self):
         button_data = [self.CONFIRM, self.DONE]
@@ -906,8 +964,8 @@ class Codex32BackupConfirmInvalidView(View):
     def __init__(self, seed_num: int, expected_share: str, share_data: str | None = None):
         super().__init__()
         self.seed_num = seed_num
-        self.expected_share = expected_share
-        self.share_data = share_data
+        self.expected_share = codex32_model.normalize_codex32_display(expected_share)
+        self.share_data = codex32_model.normalize_codex32_display(share_data) if share_data else None
 
     def run(self):
         self.run_screen(

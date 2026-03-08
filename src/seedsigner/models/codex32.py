@@ -116,6 +116,37 @@ def codex32_to_mnemonic(codex_str: str) -> str:
     return seed_bytes_to_mnemonic(codex32_to_seed_bytes(codex_str))
 
 
+def wipe_codex32_share(share: Codex32String | None) -> None:
+    """
+    Best-effort wipe of a Codex32String object's sensitive fields.
+
+    Because Python strings/bytes are immutable, this cannot guarantee all copies are
+    erased, but it reduces live references and buffers we control.
+    """
+    if share is None:
+        return
+
+    if hasattr(share, "value") and isinstance(share.value, str):
+        share.value = "\x00" * len(share.value)
+        share.value = ""
+
+    if hasattr(share, "data") and isinstance(share.data, (bytes, bytearray)):
+        wipe_buf = bytearray(share.data)
+        for i in range(len(wipe_buf)):
+            wipe_buf[i] = 0
+        share.data = b""
+
+    if hasattr(share, "_payload_values") and isinstance(share._payload_values, list):
+        for i in range(len(share._payload_values)):
+            share._payload_values[i] = 0
+        share._payload_values = []
+
+    if hasattr(share, "_data_part_values") and isinstance(share._data_part_values, list):
+        for i in range(len(share._data_part_values)):
+            share._data_part_values[i] = 0
+        share._data_part_values = []
+
+
 def recover_secret_share(shares: list[Codex32String]) -> Codex32String:
     """Recover the secret share (index 's') from a set of codex32 shares."""
     if not shares:
@@ -250,3 +281,14 @@ class Codex32ShareCollection:
 
         self.shares.append(share)
         return "added"
+
+
+    def wipe(self) -> None:
+        """Best-effort wipe of in-memory share collection state."""
+        for share in self.shares:
+            wipe_codex32_share(share)
+
+        self.shares = []
+        self.threshold = 0
+        self.ident = ""
+        self.case = "lower"

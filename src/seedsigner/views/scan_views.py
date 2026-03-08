@@ -82,7 +82,7 @@ class ScanView(View):
                 from seedsigner.models.seed import Codex32Seed
                 from .seed_views import Codex32EntryView, Codex32MasterShareSuccessView
 
-                codex32_share = self.decoder.get_codex32_share()
+                codex32_share = codex32_model.normalize_codex32_display(self.decoder.get_codex32_share())
 
                 if self.codex32_collect_mode:
                     prefill = "MS1"
@@ -123,10 +123,7 @@ class ScanView(View):
                         codex32_share_sources={"s": "entered"},
                     )
                 )
-                return Destination(
-                    Codex32MasterShareSuccessView,
-                    view_args={"share_data": codex32_share},
-                )
+                return Destination(Codex32MasterShareSuccessView)
 
             if self.decoder.is_seed:
                 seed_mnemonic = self.decoder.get_seed_phrase()

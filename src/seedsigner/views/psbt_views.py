@@ -599,7 +599,13 @@ class PSBTFinalizeView(View):
                 )
             
             else:
-                self.controller.psbt = psbt
+                # Some coordinators may reject re-import if non-signature PSBT metadata
+                # changes. When we synthesized missing fingerprints for parsing, export a
+                # signatures-only PSBT payload to maximize merge compatibility.
+                if psbt_parser.filled_missing_fingerprint_count > 0:
+                    self.controller.psbt = PSBTParser.trim(psbt)
+                else:
+                    self.controller.psbt = psbt
                 return Destination(PSBTSignedQRDisplayView)
 
 

@@ -42,6 +42,7 @@ class PSBTParser():
         self.destination_addresses = []
         self.destination_amounts = []
         self.op_return_data: bytes = None
+        self.filled_missing_fingerprint_count = 0
 
         self.root = None
 
@@ -118,7 +119,7 @@ class PSBTParser():
         self._set_root()
 
         # Try to fix missing fingerprints before parsing
-        self._fill_missing_fingerprints()
+        self.filled_missing_fingerprint_count = self._fill_missing_fingerprints()
 
         rt = self._parse_inputs()
         if rt == False:
@@ -455,7 +456,7 @@ class PSBTParser():
         return is_owner
 
 
-    def _fill_missing_fingerprints(self):
+    def _fill_missing_fingerprints(self) -> int:
         """
         Fix for when fingerprint is missing (defaults to all zeros). Happens when the user
         creates a new wallet in an external coordinator but only provides the xpub
@@ -468,9 +469,12 @@ class PSBTParser():
         """
         if not self.root:
             return 0
+
+        filled_count = 0
         
         def _fill_scope(scope: InputScope | OutputScope):
             """Helper function to fill missing fingerprints in a scope (input/output)"""
+            nonlocal filled_count
             signing_seed_fingerprint = self.root.child(0).fingerprint
             
             # Helper function to check and fix fingerprint
@@ -494,6 +498,7 @@ class PSBTParser():
                 new_derivation = _get_updated_fingerprint(public_key, derivation_path_obj)
                 if new_derivation:
                     scope.bip32_derivations[public_key] = new_derivation
+                    filled_count += 1
                     logger.debug(f"Filled missing fingerprint for pubkey {public_key.sec().hex()} derivation {bip32.path_to_str(derivation_path_obj.derivation)}")
             
             # Handle Taproot derivations  
@@ -501,6 +506,7 @@ class PSBTParser():
                 new_derivation = _get_updated_fingerprint(public_key, derivation_path_obj)
                 if new_derivation:
                     scope.taproot_bip32_derivations[public_key] = (leaf_hashes, new_derivation)
+                    filled_count += 1
                     logger.debug(f"Filled missing fingerprint for pubkey {public_key.sec().hex()} derivation {bip32.path_to_str(derivation_path_obj.derivation)}")
 
         for inp in self.psbt.inputs:
@@ -508,3 +514,5 @@ class PSBTParser():
 
         for out in self.psbt.outputs:
             _fill_scope(out)
+
+        return filled_count

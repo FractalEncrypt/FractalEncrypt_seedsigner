@@ -4,6 +4,7 @@ import pytest
 from base import BaseTest
 
 from seedsigner.controller import Controller
+from seedsigner.models.seed import Seed
 
 
 class TestController(BaseTest):
@@ -79,3 +80,34 @@ class TestController(BaseTest):
         # ...get a new copy of the instance and confirm change
         controller = Controller.get_instance()
         assert controller.unverified_address == "123abc"
+
+
+    def test_reset_main_menu_state_wipes_transient_psbt_seed(self):
+        controller = Controller.get_instance()
+        transient_seed = Seed(mnemonic="obscure bone gas open exotic abuse virus bunker shuffle nasty ship dash".split())
+        controller.psbt_seed = transient_seed
+        controller.psbt = "dummy_psbt"
+        controller.psbt_parser = object()
+        controller.resume_main_flow = Controller.FLOW__PSBT
+
+        controller._reset_main_menu_state()
+
+        assert controller.psbt_seed is None
+        assert controller.psbt is None
+        assert controller.psbt_parser is None
+        assert controller.resume_main_flow is None
+        assert transient_seed.seed_bytes is None
+        assert transient_seed.mnemonic_list == []
+
+
+    def test_reset_main_menu_state_does_not_wipe_onboard_psbt_seed(self):
+        controller = Controller.get_instance()
+        onboard_seed = Seed(mnemonic="obscure bone gas open exotic abuse virus bunker shuffle nasty ship dash".split())
+        controller.storage.seeds.append(onboard_seed)
+        controller.psbt_seed = onboard_seed
+
+        controller._reset_main_menu_state()
+
+        assert controller.psbt_seed is None
+        assert onboard_seed.seed_bytes is not None
+        assert len(onboard_seed.mnemonic_list) == 12

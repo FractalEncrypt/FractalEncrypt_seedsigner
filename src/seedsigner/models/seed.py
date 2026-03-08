@@ -167,6 +167,29 @@ class Seed:
 
         # TODO: Support other BIP-39 wordlist languages!
         return bip85.derive_mnemonic(root, bip85_num_words, bip85_index)
+
+
+    def wipe(self) -> None:
+        """
+        Best-effort wipe of sensitive in-memory fields.
+
+        Python object lifecycles and immutable strings/bytes prevent a hard guarantee,
+        but this minimizes resident secret material before references are dropped.
+        """
+        if self.seed_bytes is not None:
+            wipe_buf = bytearray(self.seed_bytes)
+            for i in range(len(wipe_buf)):
+                wipe_buf[i] = 0
+        self.seed_bytes = None
+
+        if self._mnemonic is not None:
+            for i in range(len(self._mnemonic)):
+                self._mnemonic[i] = ""
+            self._mnemonic = []
+
+        if self._passphrase:
+            self._passphrase = "\x00" * len(self._passphrase)
+        self._passphrase = ""
         
 
     ### override operators    
@@ -231,6 +254,28 @@ class Codex32Seed(Seed):
         if self._codex32_share_sources is None:
             return None
         return dict(self._codex32_share_sources)
+
+
+    def wipe(self) -> None:
+        super().wipe()
+
+        if self._codex32_master_share:
+            self._codex32_master_share = "\x00" * len(self._codex32_master_share)
+        self._codex32_master_share = None
+
+        if self._codex32_export_shares:
+            for share_idx, share in list(self._codex32_export_shares.items()):
+                if isinstance(share, str):
+                    self._codex32_export_shares[share_idx] = "\x00" * len(share)
+            self._codex32_export_shares.clear()
+        self._codex32_export_shares = None
+
+        if self._codex32_share_sources:
+            for share_idx, source in list(self._codex32_share_sources.items()):
+                if isinstance(source, str):
+                    self._codex32_share_sources[share_idx] = "\x00" * len(source)
+            self._codex32_share_sources.clear()
+        self._codex32_share_sources = None
 
 
 

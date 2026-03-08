@@ -122,6 +122,28 @@ class TestSeedFlows(FlowTest):
             initial_destination_view_args={"entered_shares": 1, "total_shares": 2, "share_num": 1},
         )
 
+
+    def test_codex32_discard_all_confirm_continue_wipes_share_collection(self):
+        share_a, _, share_c = _build_codex32_split_fixture()
+        share_collection = codex32_model.Codex32ShareCollection.from_first_share(share_a)
+        share_collection.add_share(share_c)
+
+        self.run_sequence(
+            [
+                FlowStep(
+                    seed_views.Codex32DiscardAllSharesConfirmView,
+                    button_data_selection=seed_views.Codex32DiscardAllSharesConfirmView.CONTINUE,
+                ),
+                FlowStep(MainMenuView),
+            ],
+            initial_destination_view_args={"share_collection": share_collection},
+        )
+
+        assert share_collection.shares == []
+        assert share_collection.threshold == 0
+        assert share_collection.ident == ""
+        assert share_collection.case == "lower"
+
     def test_codex32_master_share_success_back_routes_to_seed_discard(self):
         self.controller.storage.set_pending_seed(
             Seed("abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about".split())

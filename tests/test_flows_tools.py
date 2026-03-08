@@ -132,7 +132,8 @@ class TestToolsFlows(FlowTest):
             pending_seed = self.controller.storage.get_pending_seed()
             assert isinstance(pending_seed, Codex32Seed)
             assert pending_seed.codex32_master_share == canonical_s_share
-            assert view.share_data == canonical_s_share
+            assert view.share_data is None
+            assert view._resolve_share_data() == canonical_s_share
 
         self.run_sequence([
             FlowStep(MainMenuView, button_data_selection=MainMenuView.TOOLS),

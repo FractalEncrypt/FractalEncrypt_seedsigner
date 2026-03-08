@@ -183,6 +183,7 @@ class TestPSBTParser:
             
             # Test the PSBTParser's ability to fill missing fingerprints during parsing
             parser = PSBTParser(p=psbt, seed=PSBTTestData.seed, network=SettingsConstants.REGTEST)
+            assert parser.filled_missing_fingerprint_count > 0
             
             # Verify fingerprints were correctly filled after parsing
             seed_fingerprint = parser.seed.get_fingerprint(SettingsConstants.REGTEST)
@@ -214,6 +215,13 @@ class TestPSBTParser:
                     else:
                         # This pubkey doesn't derive from current seed, should remain 00000000
                         assert fingerprint_hex == "00000000"
+
+
+    def test_filled_missing_fingerprint_count_zero_when_no_patch_needed(self):
+        psbt = PSBT.parse(a2b_base64(PSBTTestData.SINGLE_SIG_NATIVE_SEGWIT_1_INPUT))
+        parser = PSBTParser(p=psbt, seed=PSBTTestData.seed, network=SettingsConstants.REGTEST)
+
+        assert parser.filled_missing_fingerprint_count == 0
 
 
     def test_get_inputs_missing_utxo(self):
