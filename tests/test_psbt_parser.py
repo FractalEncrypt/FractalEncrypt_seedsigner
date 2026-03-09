@@ -18,7 +18,12 @@ class TestPSBTParser:
     """
     Exhaustively test all supported script input and output types.
     """
-    seed = PSBTTestData.seed
+    seed_words = "model ensure search plunge galaxy firm exclude brain satoshi meadow cable roast".split()
+
+    def setup_method(self):
+        # Use a fresh seed per test to avoid shared-state mutation from other tests
+        # that may wipe transient signing seeds.
+        self.seed = Seed(self.seed_words.copy())
 
     def run_basic_test(self, psbt_base64: str, change_data: str, self_transfer_data: str):
         """
@@ -139,7 +144,7 @@ class TestPSBTParser:
         wrong_seed = Seed(["bacon"] * 24)
         for input in PSBTTestData.ALL_INPUTS:
             psbt = PSBT.parse(a2b_base64(input))
-            assert PSBTParser.has_matching_input_fingerprint(psbt, PSBTTestData.seed)
+            assert PSBTParser.has_matching_input_fingerprint(psbt, self.seed)
             assert PSBTParser.has_matching_input_fingerprint(psbt, wrong_seed) == False
 
         # The other keys in the multisig inputs should also match        
@@ -175,14 +180,14 @@ class TestPSBTParser:
             # Test that has_matching_input_fingerprint can correctly identify that an input 
             # from the psbt does belong to the provided seed, even when the fingerprints 
             # (in the inputs' bip32 derivations) have been zeroed out.
-            assert PSBTParser.has_matching_input_fingerprint(psbt, PSBTTestData.seed, SettingsConstants.REGTEST)
+            assert PSBTParser.has_matching_input_fingerprint(psbt, self.seed, SettingsConstants.REGTEST)
             
             # Test that it correctly rejects wrong seeds
             wrong_seed = Seed(["bacon"] * 24)
             assert not PSBTParser.has_matching_input_fingerprint(psbt, wrong_seed, SettingsConstants.REGTEST)
             
             # Test the PSBTParser's ability to fill missing fingerprints during parsing
-            parser = PSBTParser(p=psbt, seed=PSBTTestData.seed, network=SettingsConstants.REGTEST)
+            parser = PSBTParser(p=psbt, seed=self.seed, network=SettingsConstants.REGTEST)
             assert parser.filled_missing_fingerprint_count > 0
             
             # Verify fingerprints were correctly filled after parsing
@@ -219,7 +224,7 @@ class TestPSBTParser:
 
     def test_filled_missing_fingerprint_count_zero_when_no_patch_needed(self):
         psbt = PSBT.parse(a2b_base64(PSBTTestData.SINGLE_SIG_NATIVE_SEGWIT_1_INPUT))
-        parser = PSBTParser(p=psbt, seed=PSBTTestData.seed, network=SettingsConstants.REGTEST)
+        parser = PSBTParser(p=psbt, seed=self.seed, network=SettingsConstants.REGTEST)
 
         assert parser.filled_missing_fingerprint_count == 0
 

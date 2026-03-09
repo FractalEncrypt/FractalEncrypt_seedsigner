@@ -4,6 +4,7 @@ from embit.psbt import PSBT
 from base import FlowTest, FlowStep
 
 from seedsigner.controller import Controller
+from seedsigner.models.seed import Seed
 from seedsigner.views.view import MainMenuView
 from seedsigner.views import scan_views, seed_views, psbt_views
 from seedsigner.models.settings import SettingsConstants
@@ -70,7 +71,7 @@ class TestPSBTFlows(FlowTest):
             inp.non_witness_utxo = None
 
         self.controller.psbt = psbt
-        self.controller.psbt_seed = PSBTTestData.seed
+        self.controller.psbt_seed = Seed("model ensure search plunge galaxy firm exclude brain satoshi meadow cable roast".split())
 
         self.run_sequence([
             FlowStep(psbt_views.PSBTOverviewView, is_redirect=True),
