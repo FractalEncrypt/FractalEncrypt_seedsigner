@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from .codex32_min import Codex32String, CodexError
+from .codex32_min import Codex32String, CodexError, _is_single_case
 from embit import bip39
 
 ERROR_HEADER = "header"
@@ -29,20 +29,21 @@ class Codex32InputError(ValueError):
 
 
 def sanitize_codex32_input(raw: str | None) -> str:
-    """Normalize user input by removing whitespace and separators."""
+    """Normalize user input by removing whitespace (per Codex32QR spec 3.2)."""
     if raw is None:
         return ""
     compact = "".join(raw.split())
-    return compact.replace("-", "")
+    if "-" in compact:
+        raise Codex32InputError(
+            "Hyphens are not permitted in codex32 input",
+            ERROR_DATA,
+        )
+    return compact
 
 
 def normalize_codex32_display(raw: str | None) -> str:
     """Normalize Codex32 input for display (uppercase, no separators)."""
     return sanitize_codex32_input(raw).upper()
-
-
-def _is_single_case(value: str) -> bool:
-    return value == value.lower() or value == value.upper()
 
 
 def _classify_codex_error(exc: CodexError) -> str:
@@ -116,24 +117,48 @@ def codex32_to_mnemonic(codex_str: str) -> str:
     return seed_bytes_to_mnemonic(codex32_to_seed_bytes(codex_str))
 
 
+def _ctypes_zero(obj, length: int) -> None:
+    """Zero the internal buffer of a bytes/str object using ctypes.
+
+    CPython stores the raw data of bytes objects at a fixed offset from the
+    object's address.  This writes zeros directly into that buffer, wiping the
+    original content even though the object is nominally immutable.
+    """
+    import ctypes
+    import sys
+
+    if length <= 0:
+        return
+
+    if isinstance(obj, bytes):
+        # CPython bytes layout: ob_refcnt, ob_type, ob_size, ob_shash, then data
+        offset = sys.getsizeof(b"") - 1  # size of empty bytes minus NUL terminator
+    elif isinstance(obj, str):
+        # CPython compact ASCII str: header then data
+        offset = sys.getsizeof("") - 1
+    else:
+        return
+
+    addr = id(obj) + offset
+    ctypes.memset(addr, 0, length)
+
+
 def wipe_codex32_share(share: Codex32String | None) -> None:
     """
     Best-effort wipe of a Codex32String object's sensitive fields.
 
-    Because Python strings/bytes are immutable, this cannot guarantee all copies are
-    erased, but it reduces live references and buffers we control.
+    Uses ctypes.memset to zero the internal buffers of immutable bytes/str
+    objects in-place (CPython-specific).  Also clears mutable list fields.
     """
     if share is None:
         return
 
     if hasattr(share, "value") and isinstance(share.value, str):
-        share.value = "\x00" * len(share.value)
+        _ctypes_zero(share.value, len(share.value))
         share.value = ""
 
     if hasattr(share, "data") and isinstance(share.data, (bytes, bytearray)):
-        wipe_buf = bytearray(share.data)
-        for i in range(len(wipe_buf)):
-            wipe_buf[i] = 0
+        _ctypes_zero(share.data, len(share.data))
         share.data = b""
 
     if hasattr(share, "_payload_values") and isinstance(share._payload_values, list):
