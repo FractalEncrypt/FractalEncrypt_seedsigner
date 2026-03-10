@@ -190,10 +190,17 @@ def test_codex32_qr_profile_constants():
 	assert codex32_model.CODEX32_QR_EC_LEVEL == "L"
 
 
-def test_codex32_qr_normalization_is_canonical_uppercase():
-	raw_share = "ms10-abcdsqqq qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq"
-	expected = raw_share.replace("-", "").replace(" ", "").upper()
+def test_codex32_qr_normalization_strips_whitespace_and_uppercases():
+	raw_share = "ms10abcdsqqq qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq"
+	expected = "MS10ABCDSQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ"
 	assert codex32_model.normalize_codex32_display(raw_share) == expected
+
+
+def test_codex32_qr_normalization_rejects_hyphens():
+	import pytest
+	raw_share = "ms10-abcdsqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq"
+	with pytest.raises(codex32_model.Codex32InputError):
+		codex32_model.normalize_codex32_display(raw_share)
 
 
 def _build_codex32_split_fixture():

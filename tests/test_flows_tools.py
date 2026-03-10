@@ -122,7 +122,7 @@ class TestToolsFlows(FlowTest):
 
 
     def test__address_explorer__scan_codex32_s_share__sideflow(self):
-        raw_s_share = "ms12-names6xqguzttxkeqnjsjzv4jv3nz5k3kwgsphuh6evw"
+        raw_s_share = "ms12names6xqguzttxkeqnjsjzv4jv3nz5k3kwgsphuh6evw"
         canonical_s_share = "MS12NAMES6XQGUZTTXKEQNJSJZV4JV3NZ5K3KWGSPHUH6EVW"
 
         def load_codex32_share_into_decoder(view: scan_views.ScanView):

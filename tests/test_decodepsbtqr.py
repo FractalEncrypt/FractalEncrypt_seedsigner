@@ -411,7 +411,7 @@ def test_seed_qr():
 
 
 def test_codex32qr_decode_returns_canonical_s_share():
-    raw_share = "ms12-names6xqguzttxkeqnjsjzv4jv3nz5k3kwgsphuh6evw"
+    raw_share = "ms12names6xqguzttxkeqnjsjzv4jv3nz5k3kwgsphuh6evw"
     canonical_share = "MS12NAMES6XQGUZTTXKEQNJSJZV4JV3NZ5K3KWGSPHUH6EVW"
 
     d = DecodeQR()
