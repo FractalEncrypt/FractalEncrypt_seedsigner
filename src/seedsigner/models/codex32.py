@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 
 from .codex32_min import Codex32String, CodexError, _is_single_case
 from embit import bip39
+
+logger = logging.getLogger(__name__)
 
 ERROR_HEADER = "header"
 ERROR_DATA = "data"
@@ -250,7 +253,8 @@ class Codex32ShareCollection:
         try:
             secret_share = recover_secret_share(self.shares)
             return validate_codex32_s_share(secret_share.s, expected_len=CODEX32_QR_CANONICAL_LENGTH)
-        except Codex32InputError:
+        except Codex32InputError as e:
+            logger.debug("Secret share recovery failed: %s", e)
             return None
 
     def export_shares(self) -> tuple[dict[str, str], dict[str, str]]:

@@ -365,3 +365,68 @@ def test_codex32_share_collection_wipe_clears_collection_and_share_buffers():
 	assert collection.case == "lower"
 	assert share_a.data == b""
 	assert share_c.data == b""
+
+
+# --- Adversarial input tests ---
+
+
+def test_codex32_parse_rejects_valid_prefix_with_garbage_payload():
+	"""Malformed input with valid MS1 prefix but garbage after it."""
+	with pytest.raises(codex32_model.Codex32InputError):
+		codex32_model.parse_codex32_share("MS1" + "!" * 45)
+
+
+def test_codex32_parse_rejects_wrong_length():
+	"""Input that is too short (only prefix + threshold + ident)."""
+	with pytest.raises(codex32_model.Codex32InputError, match="Expected 48"):
+		codex32_model.parse_codex32_share("MS12NAMES")
+
+
+def test_codex32_parse_rejects_extremely_long_input():
+	"""Input far exceeding the expected 48-character length."""
+	long_input = "MS12NAMES" + "Q" * 200
+	with pytest.raises(codex32_model.Codex32InputError, match="Expected 48"):
+		codex32_model.parse_codex32_share(long_input)
+
+
+def test_codex32_parse_rejects_corrupted_checksum():
+	"""Valid share with one character flipped in the checksum region."""
+	valid = "MS12NAMEA320ZYXWVUTSRQPNMLKJHGFEDCAXRPP870HKKQRM"
+	# Flip last character to corrupt checksum
+	corrupted = valid[:-1] + ("N" if valid[-1] != "N" else "P")
+	with pytest.raises(codex32_model.Codex32InputError):
+		codex32_model.parse_codex32_share(corrupted)
+
+
+def test_codex32_parse_rejects_mixed_case():
+	"""Mixed case input should be rejected."""
+	with pytest.raises(codex32_model.Codex32InputError, match="single-case"):
+		codex32_model.parse_codex32_share("Ms12NAMEA320ZYXWVUTSRQPNMLKJHGFEDCAXRPP870HKKQRM")
+
+
+def test_codex32_parse_rejects_wrong_hrp():
+	"""Input with valid structure but wrong human-readable part."""
+	# 48 chars starting with something other than ms1
+	bad_hrp = "BC12NAMEA320ZYXWVUTSRQPNMLKJHGFEDCAXRPP870HKKQRM"
+	with pytest.raises(codex32_model.Codex32InputError):
+		codex32_model.parse_codex32_share(bad_hrp)
+
+
+def test_codex32_sanitize_rejects_none_gracefully():
+	"""None input returns empty string, not an error."""
+	assert codex32_model.sanitize_codex32_input(None) == ""
+
+
+def test_codex32_sanitize_rejects_empty_string():
+	"""Empty string sanitizes to empty, parse_codex32_share raises."""
+	assert codex32_model.sanitize_codex32_input("") == ""
+	with pytest.raises(codex32_model.Codex32InputError, match="empty"):
+		codex32_model.parse_codex32_share("")
+
+
+def test_codex32_recovered_secret_share_returns_none_on_bad_recovery():
+	"""recovered_secret_share returns None (not raises) when recovery fails."""
+	share_a, _, _ = _build_codex32_split_fixture()
+	collection = codex32_model.Codex32ShareCollection.from_first_share(share_a)
+	# Only one share, cannot recover (needs threshold=2)
+	assert collection.recovered_secret_share() is None
