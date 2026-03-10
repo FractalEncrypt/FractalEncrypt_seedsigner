@@ -80,7 +80,8 @@ def ms32_verify_checksum(data: List[int]) -> bool:
         return ms32_polymod(data) == MS32_CONST
     raise CodexError(
         f"Invalid codex32 data length {len(data)}: "
-        "valid lengths are <= 93 (short) or >= 96 (long)"
+        "lengths 94-95 are not permitted by BIP-93 "
+        "(short checksum covers <= 93, long checksum covers >= 96)"
     )
 
 
@@ -103,7 +104,8 @@ def _checksum_length(data_values: List[int]) -> int:
         return 13
     raise CodexError(
         f"Invalid codex32 data length {len(data_values)}: "
-        "valid lengths are <= 93 (short) or >= 96 (long)"
+        "lengths 94-95 are not permitted by BIP-93 "
+        "(short checksum covers <= 93, long checksum covers >= 96)"
     )
 
 
