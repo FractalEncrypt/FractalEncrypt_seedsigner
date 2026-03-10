@@ -91,6 +91,7 @@ class PSBTParser():
     def get_inputs_signed_by_fingerprint(psbt_obj: PSBT, fingerprint_hex: str) -> List[int]:
         signed_input_indexes = []
         for i, inp in enumerate(psbt_obj.inputs):
+            # Check legacy/segwit partial signatures
             for pubkey in inp.partial_sigs.keys():
                 derivation_path_obj = inp.bip32_derivations.get(pubkey)
                 if not derivation_path_obj:
@@ -99,6 +100,14 @@ class PSBTParser():
                 if hexlify(derivation_path_obj.fingerprint).decode() == fingerprint_hex:
                     signed_input_indexes.append(i)
                     break
+            else:
+                # Check Taproot: final_scriptwitness present and fingerprint in
+                # taproot_bip32_derivations means this seed already signed.
+                if inp.final_scriptwitness:
+                    for pubkey, (leaf_hashes, derivation_path_obj) in inp.taproot_bip32_derivations.items():
+                        if hexlify(derivation_path_obj.fingerprint).decode() == fingerprint_hex:
+                            signed_input_indexes.append(i)
+                            break
 
         return signed_input_indexes
 
