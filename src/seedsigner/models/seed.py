@@ -212,18 +212,24 @@ class Codex32Seed(Seed):
             raise InvalidSeedException(
                 f"Expected 16 bytes for a Codex32 master seed, got {len(seed_bytes)}"
             )
-        self._wordlist_language_code = SettingsConstants.WORDLIST_LANGUAGE__ENGLISH
-        self._mnemonic = unicodedata.normalize("NFKD", bip39.mnemonic_from_bytes(seed_bytes)).split()
-        self._passphrase = ""
-        self.seed_bytes = seed_bytes
+        # Store raw 16-byte codex32 entropy before super().__init__() calls
+        # _generate_seed(). Must be set first since _generate_seed() reads it.
+        self._codex32_entropy = seed_bytes
+
+        # Derive BIP39 mnemonic from raw entropy, then delegate to parent.
+        mnemonic = unicodedata.normalize("NFKD", bip39.mnemonic_from_bytes(seed_bytes)).split()
+        super().__init__(mnemonic=mnemonic, passphrase="")
+
         self._codex32_master_share = codex32_master_share
         self._codex32_export_shares = dict(codex32_export_shares) if codex32_export_shares else None
         self._codex32_share_sources = dict(codex32_share_sources) if codex32_share_sources else None
 
 
     def _generate_seed(self):
-        # Seed bytes are already provided by Codex32; do not apply PBKDF2.
-        return
+        # Codex32 stores the raw 16-byte entropy as seed_bytes, not the
+        # 64-byte PBKDF2 output that BIP39 normally produces. This matches
+        # the codex32 spec where the secret IS the master seed entropy.
+        self.seed_bytes = self._codex32_entropy
 
 
     def set_passphrase(self, passphrase: str, regenerate_seed: bool = True):
