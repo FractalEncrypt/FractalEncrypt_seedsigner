@@ -151,6 +151,9 @@ def recover_secret_share(shares: list[Codex32String]) -> Codex32String:
     """Recover the secret share (index 's') from a set of codex32 shares."""
     if not shares:
         raise Codex32InputError("No shares provided for recovery", ERROR_DATA)
+    indices = {s.share_idx.lower() for s in shares}
+    if len(indices) != len(shares):
+        raise Codex32InputError("Duplicate share indices detected", ERROR_DATA)
     try:
         return Codex32String.interpolate_at(shares, target="s")
     except CodexError as exc:
