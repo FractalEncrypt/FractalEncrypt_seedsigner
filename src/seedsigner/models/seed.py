@@ -265,6 +265,12 @@ class Codex32Seed(Seed):
     def wipe(self) -> None:
         super().wipe()
 
+        if self._codex32_entropy is not None:
+            wipe_buf = bytearray(self._codex32_entropy)
+            for i in range(len(wipe_buf)):
+                wipe_buf[i] = 0
+        self._codex32_entropy = None
+
         if self._codex32_master_share:
             self._codex32_master_share = "\x00" * len(self._codex32_master_share)
         self._codex32_master_share = None
