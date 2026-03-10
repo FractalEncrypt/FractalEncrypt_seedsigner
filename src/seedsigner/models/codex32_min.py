@@ -78,7 +78,11 @@ def ms32_verify_checksum(data: List[int]) -> bool:
         return ms32_verify_long_checksum(data)
     if len(data) <= 93:
         return ms32_polymod(data) == MS32_CONST
-    return False
+    raise CodexError(
+        f"Invalid codex32 data length {len(data)}: "
+        "lengths 94-95 are not permitted by BIP-93 "
+        "(short checksum covers <= 93, long checksum covers >= 96)"
+    )
 
 
 def ms32_create_checksum(data: List[int]) -> List[int]:
@@ -94,7 +98,15 @@ def ms32_encode(data: List[int]) -> str:
 
 
 def _checksum_length(data_values: List[int]) -> int:
-    return 15 if len(data_values) >= 96 else 13
+    if len(data_values) >= 96:
+        return 15
+    if len(data_values) <= 93:
+        return 13
+    raise CodexError(
+        f"Invalid codex32 data length {len(data_values)}: "
+        "lengths 94-95 are not permitted by BIP-93 "
+        "(short checksum covers <= 93, long checksum covers >= 96)"
+    )
 
 
 def _decode_data_values(codex_str: str) -> tuple[List[int], str]:
