@@ -117,28 +117,24 @@ def codex32_to_mnemonic(codex_str: str) -> str:
     return seed_bytes_to_mnemonic(codex32_to_seed_bytes(codex_str))
 
 
-def _ctypes_zero(obj, length: int) -> None:
-    """Zero the internal buffer of a bytes/str object using ctypes.
+def _ctypes_zero_bytes(obj: bytes, length: int) -> None:
+    """Zero the internal buffer of a bytes object using ctypes.
 
     CPython stores the raw data of bytes objects at a fixed offset from the
     object's address.  This writes zeros directly into that buffer, wiping the
     original content even though the object is nominally immutable.
+
+    Only safe for bytes objects - do NOT use on str objects because Python
+    aggressively interns strings, and zeroing an interned string corrupts
+    every reference to it across the entire process.
     """
     import ctypes
     import sys
 
-    if length <= 0:
+    if not isinstance(obj, bytes) or length <= 0:
         return
 
-    if isinstance(obj, bytes):
-        # CPython bytes layout: ob_refcnt, ob_type, ob_size, ob_shash, then data
-        offset = sys.getsizeof(b"") - 1  # size of empty bytes minus NUL terminator
-    elif isinstance(obj, str):
-        # CPython compact ASCII str: header then data
-        offset = sys.getsizeof("") - 1
-    else:
-        return
-
+    offset = sys.getsizeof(b"") - 1
     addr = id(obj) + offset
     ctypes.memset(addr, 0, length)
 
@@ -147,18 +143,19 @@ def wipe_codex32_share(share: Codex32String | None) -> None:
     """
     Best-effort wipe of a Codex32String object's sensitive fields.
 
-    Uses ctypes.memset to zero the internal buffers of immutable bytes/str
-    objects in-place (CPython-specific).  Also clears mutable list fields.
+    Uses ctypes.memset to zero bytes buffers in-place (CPython-specific).
+    Strings are overwritten with null chars then replaced, since ctypes on
+    interned strings would corrupt the global string table.
     """
     if share is None:
         return
 
     if hasattr(share, "value") and isinstance(share.value, str):
-        _ctypes_zero(share.value, len(share.value))
+        share.value = "\x00" * len(share.value)
         share.value = ""
 
     if hasattr(share, "data") and isinstance(share.data, (bytes, bytearray)):
-        _ctypes_zero(share.data, len(share.data))
+        _ctypes_zero_bytes(share.data, len(share.data))
         share.data = b""
 
     if hasattr(share, "_payload_values") and isinstance(share._payload_values, list):
