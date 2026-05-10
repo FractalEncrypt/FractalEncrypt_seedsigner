@@ -93,6 +93,8 @@ When a user manually enters a codex32 share into the SeedSigner, the device vali
 Typing 48 characters with a joystick can be tedious. We engineered a specific QR code profile (`Codex32QR/v1-48`) which encodes the codex32 text into a dense, scannable 29x29 format. 
 - Users can scan these QRs directly using the SeedSigner's camera.
 - Because it's plain text, a user can also scan a codex32QR with a generic smartphone camera to verify its contents, promoting radical transparency.
+- Compatibility detail: codex32QR is a distinct payload type from BIP39 SeedQR (not an alias of numeric SeedQR encoding).
+- Routing detail: the generic scan entry path (including `Scan SeedQR`) can still ingest codex32 payloads and route them into codex32 validation/collection flow.
 
 ### 4.3. Multi-Share Collection Mode
 If a user inputs a split share (e.g., Share A of a 2-of-3 set), the SeedSigner intelligently enters a "Collection Mode." 
@@ -111,6 +113,8 @@ Once the `S` share is successfully recovered (or directly entered), SeedSigner l
 
 The codex32 integration was implemented as a focused extension of SeedSigner’s existing seed, QR, and PSBT pipelines.  
 Rather than introducing a parallel architecture, we added codex32-specific logic at key model and view boundaries while preserving existing behavior for BIP39/SeedQR users.
+
+In practice, this means SeedQR and codex32QR remain separate wire formats while sharing some scan/transcribe UI components.
 
 #### Core Domain & Validation Layer
 
@@ -172,7 +176,7 @@ Rather than introducing a parallel architecture, we added codex32-specific logic
 
 - **[src/seedsigner/views/psbt_views.py](cci:7://file:///c:/Users/FractalEncrypt/Documents/Windsurf/SeedSigner/src/seedsigner/views/psbt_views.py:0:0-0:0)**
   - Routes missing-UTXO parse failures to user-facing warning flow.
-  - Finalize/sign path preserves PSBT metadata by avoiding destructive trimming in the signed export flow.
+  - Finalize/sign path preserves PSBT metadata by default and only trims to a signatures-only payload when missing fingerprints were synthesized during parsing (to maximize coordinator merge compatibility).
 
 #### Regression & Integration Test Coverage
 

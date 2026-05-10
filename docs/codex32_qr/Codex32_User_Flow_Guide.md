@@ -22,6 +22,11 @@ SeedSigner is used to **verify** and recover from hand-calculated shares. It doe
    - `Enter Codex32 Seed`
    - `Scan Codex32 Share`
 
+Compatibility note:
+
+- The generic camera entry path (including `Scan SeedQR`) can ingest codex32 shares.
+- When a codex32 payload is detected, SeedSigner routes into codex32 validation/collection flow instead of treating it as a BIP39 SeedQR payload.
+
 ## Core Codex32 entry/recovery flow
 
 2. `Codex32EntryView` (manual character entry in numbered boxes)
@@ -39,15 +44,16 @@ SeedSigner is used to **verify** and recover from hand-calculated shares. It doe
 
 12. `SeedBackupView` (Codex32 options appear for Codex32Seed)
 13. `Codex32BackupShareSelectView` (choose `S` or split share for QR export or manual display)
-14. `Codex32BackupUnavailableView` (if export metadata is missing/inconsistent)
-15. `SeedTranscribeSeedQRWarningView` (Codex32QR warning path)
-16. `SeedTranscribeSeedQRWholeQRView`
-17. `SeedTranscribeSeedQRZoomedInView`
-18. `SeedTranscribeSeedQRConfirmQRPromptView` (Confirm Codex32QR)
-19. `SeedTranscribeSeedQRConfirmScanView`
-20. `SeedTranscribeSeedQRConfirmWrongSeedView`
-21. `SeedTranscribeSeedQRConfirmInvalidQRView`
-22. `SeedTranscribeSeedQRConfirmSuccessView`
+14. `Codex32BackupUnavailableView` (if export metadata is missing/invalid/inconsistent)
+15. `Codex32BackupMetadataWarningView` (warns when inconsistent split-share metadata is omitted and flow continues with `S`-only)
+16. `SeedTranscribeSeedQRWarningView` (Codex32QR warning path)
+17. `SeedTranscribeSeedQRWholeQRView`
+18. `SeedTranscribeSeedQRZoomedInView`
+19. `SeedTranscribeSeedQRConfirmQRPromptView` (Confirm Codex32QR)
+20. `SeedTranscribeSeedQRConfirmScanView`
+21. `SeedTranscribeSeedQRConfirmWrongSeedView`
+22. `SeedTranscribeSeedQRConfirmInvalidQRView`
+23. `SeedTranscribeSeedQRConfirmSuccessView`
 
 ---
 
@@ -154,6 +160,7 @@ For Codex32 backups specifically:
     which share to display (S share or split share).
 - `Backup seed -> Export as Codex32QR`
   - If multiple shares available, `Codex32BackupShareSelectView` lets user choose which share QR to transcribe/export.
+  - `SeedTranscribeSeedQR*` screens are shared UI components; in this path they carry codex32QR payloads (not numeric SeedQR payloads).
 
 ---
 

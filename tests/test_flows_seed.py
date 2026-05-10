@@ -35,6 +35,15 @@ def _build_conflicting_share_same_index(share: codex32_model.Codex32String):
     return codex32_model.parse_codex32_share(mutated)
 
 
+def _build_header_mismatch_share(share: codex32_model.Codex32String, threshold_char: str = "3"):
+    data_values = share.data_part_values
+    data_values[0] = codex32_min.CHARSET_MAP[threshold_char]
+    mutated = codex32_min.ms32_encode(data_values)
+    if share.case == "upper":
+        mutated = mutated.upper()
+    return codex32_model.parse_codex32_share(mutated)
+
+
 
 class TestSeedFlows(FlowTest):
 
@@ -89,6 +98,72 @@ class TestSeedFlows(FlowTest):
             FlowStep(seed_views.Codex32ShareConflictConfirmView, button_data_selection=seed_views.Codex32ShareConflictConfirmView.REPLACE),
             FlowStep(seed_views.Codex32ShareSuccessView, before_run=assert_share_replaced, button_data_selection=seed_views.Codex32ShareSuccessView.NEXT),
             FlowStep(seed_views.Codex32EntryView),
+        ])
+
+
+    def test_codex32_collection_conflict_confirm_keep_existing_preserves_original_share(self):
+        share_a, _, _ = _build_codex32_split_fixture()
+        conflicting_share = _build_conflicting_share_same_index(share_a)
+
+        def assert_original_share_preserved(view: seed_views.Codex32EntryView):
+            assert view.share_collection is not None
+            assert view.share_collection.get_share("a").s == share_a.s
+
+        self.run_sequence([
+            FlowStep(MainMenuView, button_data_selection=MainMenuView.SEEDS),
+            FlowStep(seed_views.SeedsMenuView, is_redirect=True),
+            FlowStep(seed_views.LoadSeedView, button_data_selection=seed_views.LoadSeedView.TYPE_CODEX32),
+            FlowStep(seed_views.Codex32EntryView, screen_return_value=share_a.s),
+            FlowStep(seed_views.Codex32ShareSuccessView, button_data_selection=seed_views.Codex32ShareSuccessView.NEXT),
+            FlowStep(seed_views.Codex32EntryView, screen_return_value=conflicting_share.s),
+            FlowStep(seed_views.Codex32ShareConflictConfirmView, button_data_selection=seed_views.Codex32ShareConflictConfirmView.KEEP_EXISTING),
+            FlowStep(seed_views.Codex32EntryView, before_run=assert_original_share_preserved),
+        ])
+
+
+    def test_codex32_collection_manual_header_mismatch_routes_to_invalid_and_preserves_collection(self):
+        share_a, _, _ = _build_codex32_split_fixture()
+        mismatched_share = _build_header_mismatch_share(share_a, threshold_char="3")
+
+        def assert_mismatch_invalid(view: seed_views.Codex32ShareInvalidView):
+            assert view._get_error_text() == "Share does not match the current share set (threshold/identifier mismatch)."
+            assert view.share_collection is not None
+            assert len(view.share_collection.shares) == 1
+            assert view.share_collection.get_share("a").s == share_a.s
+
+        self.run_sequence([
+            FlowStep(MainMenuView, button_data_selection=MainMenuView.SEEDS),
+            FlowStep(seed_views.SeedsMenuView, is_redirect=True),
+            FlowStep(seed_views.LoadSeedView, button_data_selection=seed_views.LoadSeedView.TYPE_CODEX32),
+            FlowStep(seed_views.Codex32EntryView, screen_return_value=share_a.s),
+            FlowStep(seed_views.Codex32ShareSuccessView, button_data_selection=seed_views.Codex32ShareSuccessView.NEXT),
+            FlowStep(seed_views.Codex32EntryView, screen_return_value=mismatched_share.s),
+            FlowStep(seed_views.Codex32ShareInvalidView, before_run=assert_mismatch_invalid),
+        ])
+
+
+    def test_codex32_collection_scan_header_mismatch_routes_to_invalid_and_preserves_collection(self):
+        share_a, _, _ = _build_codex32_split_fixture()
+        mismatched_share = _build_header_mismatch_share(share_a, threshold_char="3")
+
+        def load_mismatched_share(view: scan_views.ScanView):
+            view.decoder.add_data(mismatched_share.s)
+
+        def assert_mismatch_invalid(view: seed_views.Codex32ShareInvalidView):
+            assert view._get_error_text() == "Share does not match the current share set (threshold/identifier mismatch)."
+            assert view.share_collection is not None
+            assert len(view.share_collection.shares) == 1
+            assert view.share_collection.get_share("a").s == share_a.s
+
+        self.run_sequence([
+            FlowStep(MainMenuView, button_data_selection=MainMenuView.SEEDS),
+            FlowStep(seed_views.SeedsMenuView, is_redirect=True),
+            FlowStep(seed_views.LoadSeedView, button_data_selection=seed_views.LoadSeedView.TYPE_CODEX32),
+            FlowStep(seed_views.Codex32EntryView, screen_return_value=share_a.s),
+            FlowStep(seed_views.Codex32ShareSuccessView, button_data_selection=seed_views.Codex32ShareSuccessView.SCAN),
+            FlowStep(scan_views.ScanCodex32ShareView, before_run=load_mismatched_share),
+            FlowStep(seed_views.Codex32EntryView, is_redirect=True),
+            FlowStep(seed_views.Codex32ShareInvalidView, before_run=assert_mismatch_invalid),
         ])
 
     def test_main_scan_codex32_split_share_starts_collection_and_recovers_seed(self):
@@ -588,9 +663,10 @@ class TestSeedFlows(FlowTest):
 
 
     def test_codex32_backup_routes_to_secret_display_warning(self):
+        secret_share = "MS12NAMES6XQGUZTTXKEQNJSJZV4JV3NZ5K3KWGSPHUH6EVW"
         seed = Codex32Seed(
             seed_bytes=bytes.fromhex("00112233445566778899aabbccddeeff"),
-            codex32_master_share="MS10ABCDSQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ",
+            codex32_master_share=secret_share,
         )
         self.controller.storage.set_pending_seed(seed)
         self.controller.storage.finalize_pending_seed()
@@ -620,10 +696,77 @@ class TestSeedFlows(FlowTest):
         )
 
 
+    def test_codex32_backup_export_invalid_canonical_s_routes_to_unavailable(self):
+        seed = Codex32Seed(
+            seed_bytes=bytes.fromhex("ffeeddccbbaa99887766554433221100"),
+            codex32_master_share="NOT_A_VALID_CODEX32_SHARE",
+        )
+        self.controller.storage.set_pending_seed(seed)
+        self.controller.storage.finalize_pending_seed()
+
+        self.run_sequence(
+            initial_destination_view_args=dict(seed_num=0),
+            sequence=[
+                FlowStep(seed_views.SeedOptionsView, button_data_selection=seed_views.SeedOptionsView.BACKUP),
+                FlowStep(seed_views.SeedBackupView, button_data_selection=seed_views.SeedBackupView.EXPORT_CODEX32QR),
+                FlowStep(seed_views.Codex32BackupUnavailableView),
+            ],
+        )
+
+
+    def test_codex32_backup_view_secret_conflicting_canonical_s_routes_to_unavailable(self):
+        secret_share = codex32_model.parse_codex32_share("MS12NAMES6XQGUZTTXKEQNJSJZV4JV3NZ5K3KWGSPHUH6EVW")
+        conflicting_values = secret_share.data_part_values
+        conflicting_values[6] = (conflicting_values[6] + 1) % 32
+        conflicting_share = codex32_min.ms32_encode(conflicting_values).upper()
+        seed = Codex32Seed(
+            seed_bytes=bytes.fromhex("ffeeddccbbaa99887766554433221100"),
+            codex32_master_share=secret_share.s,
+            codex32_export_shares={"s": conflicting_share},
+            codex32_share_sources={"s": "entered"},
+        )
+        self.controller.storage.set_pending_seed(seed)
+        self.controller.storage.finalize_pending_seed()
+
+        self.run_sequence(
+            initial_destination_view_args=dict(seed_num=0),
+            sequence=[
+                FlowStep(seed_views.SeedOptionsView, button_data_selection=seed_views.SeedOptionsView.BACKUP),
+                FlowStep(seed_views.SeedBackupView, button_data_selection=seed_views.SeedBackupView.VIEW_CODEX32_SECRET),
+                FlowStep(seed_views.Codex32BackupUnavailableView),
+            ],
+        )
+
+
+    def test_codex32_backup_export_conflicting_canonical_s_routes_to_unavailable(self):
+        secret_share = codex32_model.parse_codex32_share("MS12NAMES6XQGUZTTXKEQNJSJZV4JV3NZ5K3KWGSPHUH6EVW")
+        conflicting_values = secret_share.data_part_values
+        conflicting_values[6] = (conflicting_values[6] + 1) % 32
+        conflicting_share = codex32_min.ms32_encode(conflicting_values).upper()
+        seed = Codex32Seed(
+            seed_bytes=bytes.fromhex("ffeeddccbbaa99887766554433221100"),
+            codex32_master_share=secret_share.s,
+            codex32_export_shares={"s": conflicting_share},
+            codex32_share_sources={"s": "entered"},
+        )
+        self.controller.storage.set_pending_seed(seed)
+        self.controller.storage.finalize_pending_seed()
+
+        self.run_sequence(
+            initial_destination_view_args=dict(seed_num=0),
+            sequence=[
+                FlowStep(seed_views.SeedOptionsView, button_data_selection=seed_views.SeedOptionsView.BACKUP),
+                FlowStep(seed_views.SeedBackupView, button_data_selection=seed_views.SeedBackupView.EXPORT_CODEX32QR),
+                FlowStep(seed_views.Codex32BackupUnavailableView),
+            ],
+        )
+
+
     def test_codex32_backup_secret_display_done_returns_to_seed_options(self):
+        secret_share = "MS12NAMES6XQGUZTTXKEQNJSJZV4JV3NZ5K3KWGSPHUH6EVW"
         seed = Codex32Seed(
             seed_bytes=bytes.fromhex("00112233445566778899aabbccddeeff"),
-            codex32_master_share="MS10ABCDSQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ",
+            codex32_master_share=secret_share,
         )
         self.controller.storage.set_pending_seed(seed)
         self.controller.storage.finalize_pending_seed()
@@ -657,6 +800,129 @@ class TestSeedFlows(FlowTest):
                 FlowStep(seed_views.SeedOptionsView, button_data_selection=seed_views.SeedOptionsView.BACKUP),
                 FlowStep(seed_views.SeedBackupView, button_data_selection=seed_views.SeedBackupView.EXPORT_CODEX32QR),
                 FlowStep(seed_views.SeedTranscribeSeedQRWarningView),
+            ],
+        )
+
+
+    def test_codex32_backup_export_invalid_non_s_metadata_warns_and_exports_s_only(self):
+        secret_share = "MS12NAMES6XQGUZTTXKEQNJSJZV4JV3NZ5K3KWGSPHUH6EVW"
+        seed = Codex32Seed(
+            seed_bytes=bytes.fromhex("ffeeddccbbaa99887766554433221100"),
+            codex32_master_share=secret_share,
+            codex32_export_shares={"s": secret_share, "a": "NOT_A_VALID_CODEX32_SHARE"},
+            codex32_share_sources={"s": "entered", "a": "entered"},
+        )
+        self.controller.storage.set_pending_seed(seed)
+        self.controller.storage.finalize_pending_seed()
+
+        def assert_s_only_payload(view: seed_views.SeedTranscribeSeedQRWarningView):
+            assert view.qr_data == secret_share
+
+        self.run_sequence(
+            initial_destination_view_args=dict(seed_num=0),
+            sequence=[
+                FlowStep(seed_views.SeedOptionsView, button_data_selection=seed_views.SeedOptionsView.BACKUP),
+                FlowStep(seed_views.SeedBackupView, button_data_selection=seed_views.SeedBackupView.EXPORT_CODEX32QR),
+                FlowStep(seed_views.Codex32BackupMetadataWarningView),
+                FlowStep(seed_views.SeedTranscribeSeedQRWarningView, before_run=assert_s_only_payload),
+            ],
+        )
+
+
+    def test_codex32_backup_export_index_key_mismatch_warns_and_exports_s_only(self):
+        secret_share = "MS12NAMES6XQGUZTTXKEQNJSJZV4JV3NZ5K3KWGSPHUH6EVW"
+        valid_non_s_share = "MS12NAMEA320ZYXWVUTSRQPNMLKJHGFEDCAXRPP870HKKQRM"
+        seed = Codex32Seed(
+            seed_bytes=bytes.fromhex("ffeeddccbbaa99887766554433221100"),
+            codex32_master_share=secret_share,
+            codex32_export_shares={"s": secret_share, "b": valid_non_s_share},
+            codex32_share_sources={"s": "entered", "b": "entered"},
+        )
+        self.controller.storage.set_pending_seed(seed)
+        self.controller.storage.finalize_pending_seed()
+
+        def assert_s_only_payload(view: seed_views.SeedTranscribeSeedQRWarningView):
+            assert view.qr_data == secret_share
+
+        self.run_sequence(
+            initial_destination_view_args=dict(seed_num=0),
+            sequence=[
+                FlowStep(seed_views.SeedOptionsView, button_data_selection=seed_views.SeedOptionsView.BACKUP),
+                FlowStep(seed_views.SeedBackupView, button_data_selection=seed_views.SeedBackupView.EXPORT_CODEX32QR),
+                FlowStep(seed_views.Codex32BackupMetadataWarningView),
+                FlowStep(seed_views.SeedTranscribeSeedQRWarningView, before_run=assert_s_only_payload),
+            ],
+        )
+
+
+    def test_codex32_backup_display_invalid_non_s_metadata_warns_and_displays_s_only(self):
+        secret_share = "MS12NAMES6XQGUZTTXKEQNJSJZV4JV3NZ5K3KWGSPHUH6EVW"
+        seed = Codex32Seed(
+            seed_bytes=bytes.fromhex("ffeeddccbbaa99887766554433221100"),
+            codex32_master_share=secret_share,
+            codex32_export_shares={"s": secret_share, "a": "NOT_A_VALID_CODEX32_SHARE"},
+            codex32_share_sources={"s": "entered", "a": "entered"},
+        )
+        self.controller.storage.set_pending_seed(seed)
+        self.controller.storage.finalize_pending_seed()
+
+        def assert_s_only_display(view: seed_views.Codex32MasterSecretWarningView):
+            assert view.share_data == secret_share
+
+        self.run_sequence(
+            initial_destination_view_args=dict(seed_num=0),
+            sequence=[
+                FlowStep(seed_views.SeedOptionsView, button_data_selection=seed_views.SeedOptionsView.BACKUP),
+                FlowStep(seed_views.SeedBackupView, button_data_selection=seed_views.SeedBackupView.VIEW_CODEX32_SECRET),
+                FlowStep(seed_views.Codex32BackupMetadataWarningView),
+                FlowStep(seed_views.Codex32MasterSecretWarningView, before_run=assert_s_only_display),
+            ],
+        )
+
+
+    def test_codex32_backup_export_mixed_set_non_s_metadata_warns_and_exports_s_only(self):
+        canonical_secret = "MS12NAMES6XQGUZTTXKEQNJSJZV4JV3NZ5K3KWGSPHUH6EVW"
+        share_a = codex32_model.parse_codex32_share("MS12NAMEA320ZYXWVUTSRQPNMLKJHGFEDCAXRPP870HKKQRM")
+        mismatched_non_s_values = share_a.data_part_values
+        mismatched_non_s_values[0] = codex32_min.CHARSET_MAP["3"]
+        mismatched_non_s = codex32_min.ms32_encode(mismatched_non_s_values).upper()
+        seed = Codex32Seed(
+            seed_bytes=bytes.fromhex("00112233445566778899aabbccddeeff"),
+            codex32_master_share=canonical_secret,
+            codex32_export_shares={"s": canonical_secret, "a": mismatched_non_s},
+            codex32_share_sources={"s": "entered", "a": "entered"},
+        )
+        self.controller.storage.set_pending_seed(seed)
+        self.controller.storage.finalize_pending_seed()
+
+        def assert_s_only_payload(view: seed_views.SeedTranscribeSeedQRWarningView):
+            assert view.qr_data == canonical_secret
+
+        self.run_sequence(
+            initial_destination_view_args=dict(seed_num=0),
+            sequence=[
+                FlowStep(seed_views.SeedOptionsView, button_data_selection=seed_views.SeedOptionsView.BACKUP),
+                FlowStep(seed_views.SeedBackupView, button_data_selection=seed_views.SeedBackupView.EXPORT_CODEX32QR),
+                FlowStep(seed_views.Codex32BackupMetadataWarningView),
+                FlowStep(seed_views.SeedTranscribeSeedQRWarningView, before_run=assert_s_only_payload),
+            ],
+        )
+
+
+    def test_codex32_backup_view_secret_invalid_canonical_s_routes_to_unavailable(self):
+        seed = Codex32Seed(
+            seed_bytes=bytes.fromhex("ffeeddccbbaa99887766554433221100"),
+            codex32_master_share="NOT_A_VALID_CODEX32_SHARE",
+        )
+        self.controller.storage.set_pending_seed(seed)
+        self.controller.storage.finalize_pending_seed()
+
+        self.run_sequence(
+            initial_destination_view_args=dict(seed_num=0),
+            sequence=[
+                FlowStep(seed_views.SeedOptionsView, button_data_selection=seed_views.SeedOptionsView.BACKUP),
+                FlowStep(seed_views.SeedBackupView, button_data_selection=seed_views.SeedBackupView.VIEW_CODEX32_SECRET),
+                FlowStep(seed_views.Codex32BackupUnavailableView),
             ],
         )
 

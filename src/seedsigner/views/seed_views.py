@@ -1015,12 +1015,56 @@ class Codex32BackupUnavailableView(View):
             title=_("Backup unavailable"),
             status_icon_name=SeedSignerIconConstants.ERROR,
             status_headline=_("Codex32 secret unavailable"),
-            text=_("This codex32 seed does not include backup metadata. Re-import the codex32 secret to back it up."),
+            text=_(
+                "This codex32 seed is missing, invalid, or inconsistent backup metadata. "
+                "Re-import the codex32 secret to restore backup metadata before backing it up."
+            ),
             button_data=[ButtonOption("Back")],
             show_back_button=False,
         )
 
         return Destination(BackStackView)
+
+
+class Codex32BackupMetadataWarningView(View):
+    CONTINUE = ButtonOption("Continue")
+    MODE_DISPLAY = "display"
+    MODE_EXPORT = "export"
+
+    def __init__(self, seed_num: int, share_data: str, next_mode: str):
+        super().__init__()
+        self.seed_num = seed_num
+        self.share_data = codex32_model.normalize_codex32_display(share_data)
+        self.next_mode = next_mode
+
+    def run(self):
+        self.run_screen(
+            WarningScreen,
+            title=_("Backup metadata warning"),
+            status_headline=None,
+            text=_(
+                "Some split-share backup metadata was invalid or inconsistent and was omitted. "
+                "Continuing with secret seed S only."
+            ),
+            show_back_button=False,
+            button_data=[self.CONTINUE],
+        )
+
+        if self.next_mode == self.MODE_DISPLAY:
+            return Destination(
+                Codex32MasterSecretWarningView,
+                view_args={"share_data": self.share_data, "seed_num": self.seed_num},
+            )
+
+        return Destination(
+            SeedTranscribeSeedQRWarningView,
+            view_args={
+                "seed_num": self.seed_num,
+                "seedqr_format": QRType.SEED__CODEX32,
+                "num_modules": codex32_model.CODEX32_QR_MODULE_TARGET,
+                "qr_data": self.share_data,
+            },
+        )
 
 
 
@@ -1402,47 +1446,130 @@ class SeedBackupView(View):
         self.seed = self.controller.get_seed(self.seed_num)
 
 
-    def _get_codex32_export_data(self) -> tuple[dict[str, str], dict[str, str]]:
+    @staticmethod
+    def _normalize_source_value(source_value: str | None) -> str:
+        return source_value if source_value in ["entered", "derived"] else "entered"
+
+
+    def _codex32_metadata_warning_destination(self, share_data: str, next_mode: str) -> Destination:
+        return Destination(
+            Codex32BackupMetadataWarningView,
+            view_args={
+                "seed_num": self.seed_num,
+                "share_data": share_data,
+                "next_mode": next_mode,
+            },
+        )
+
+
+    def _get_codex32_export_data(self) -> tuple[dict[str, str], dict[str, str], bool]:
         raw_share_map = self.seed.codex32_export_shares or {}
         raw_source_map = self.seed.codex32_share_sources or {}
         share_map: dict[str, str] = {}
         source_map: dict[str, str] = {}
+        dropped_non_s_entries = False
+
+        raw_s_candidates: list[tuple[str, codex32_model.Codex32String, str]] = []
+        invalid_s_context = False
 
         for share_idx_raw, share_value in raw_share_map.items():
             share_idx = str(share_idx_raw).lower()
+            if share_idx != "s":
+                continue
+
             if not isinstance(share_value, str) or not share_value:
+                invalid_s_context = True
+                continue
+
+            share_display = codex32_model.normalize_codex32_display(share_value)
+            try:
+                parsed = codex32_model.validate_codex32_s_share(share_display)
+            except codex32_model.Codex32InputError:
+                invalid_s_context = True
+                continue
+
+            raw_s_candidates.append((share_display, parsed, str(share_idx_raw)))
+
+        if invalid_s_context:
+            return {}, {}, False
+
+        canonical_s_display: str | None = None
+        canonical_s: codex32_model.Codex32String | None = None
+        canonical_s_source = "entered"
+
+        if raw_s_candidates:
+            canonical_s_display = raw_s_candidates[0][0]
+            canonical_s = raw_s_candidates[0][1]
+            canonical_s_key = raw_s_candidates[0][2]
+
+            for candidate_display, _, _ in raw_s_candidates[1:]:
+                if candidate_display != canonical_s_display:
+                    return {}, {}, False
+
+            source_value = raw_source_map.get(canonical_s_key) or raw_source_map.get("s")
+            canonical_s_source = self._normalize_source_value(source_value)
+
+            if self.seed.codex32_master_share is not None:
+                master_share = codex32_model.normalize_codex32_display(self.seed.codex32_master_share)
+                try:
+                    codex32_model.validate_codex32_s_share(master_share)
+                except codex32_model.Codex32InputError:
+                    master_share = None
+                if master_share is not None and master_share != canonical_s_display:
+                    return {}, {}, False
+
+        elif self.seed.codex32_master_share is not None:
+            master_share = codex32_model.normalize_codex32_display(self.seed.codex32_master_share)
+            try:
+                canonical_s = codex32_model.validate_codex32_s_share(master_share)
+                canonical_s_display = master_share
+            except codex32_model.Codex32InputError:
+                return {}, {}, False
+        else:
+            return {}, {}, False
+
+        if canonical_s_display is None or canonical_s is None:
+            return {}, {}, False
+
+        share_map["s"] = canonical_s_display
+        source_map["s"] = canonical_s_source
+
+        for share_idx_raw, share_value in raw_share_map.items():
+            share_idx = str(share_idx_raw).lower()
+            if share_idx == "s":
+                continue
+
+            if not isinstance(share_value, str) or not share_value:
+                dropped_non_s_entries = True
                 continue
 
             share_display = codex32_model.normalize_codex32_display(share_value)
             try:
                 parsed = codex32_model.parse_codex32_share(share_display)
             except codex32_model.Codex32InputError:
+                dropped_non_s_entries = True
                 continue
 
             if parsed.share_idx.lower() != share_idx:
+                dropped_non_s_entries = True
+                continue
+
+            if parsed.k != canonical_s.k or parsed.ident != canonical_s.ident:
+                dropped_non_s_entries = True
                 continue
 
             share_map[share_idx] = share_display
             source_value = raw_source_map.get(share_idx_raw) or raw_source_map.get(share_idx)
-            source_map[share_idx] = source_value if source_value in ["entered", "derived"] else "entered"
-
-        if "s" not in share_map and self.seed.codex32_master_share is not None:
-            master_share = codex32_model.normalize_codex32_display(self.seed.codex32_master_share)
-            try:
-                codex32_model.validate_codex32_s_share(master_share)
-                share_map["s"] = master_share
-                source_map["s"] = "entered"
-            except codex32_model.Codex32InputError:
-                pass
+            source_map[share_idx] = self._normalize_source_value(source_value)
 
         split_indices = [idx for idx in share_map.keys() if idx != "s"]
         if len(split_indices) > codex32_model.CODEX32_MAX_SPLIT_SHARES:
-            return {}, {}
+            return {}, {}, False
 
-        if "s" not in share_map:
-            return {}, {}
+        if dropped_non_s_entries:
+            return {"s": share_map["s"]}, {"s": source_map["s"]}, True
 
-        return share_map, source_map
+        return share_map, source_map, False
     
 
     def run(self):
@@ -1468,32 +1595,37 @@ class SeedBackupView(View):
             return Destination(BackStackView)
 
         elif button_data[selected_menu_num] == self.VIEW_CODEX32_SECRET:
-            share_map, source_map = self._get_codex32_export_data()
-            if share_map:
-                ordered_indices = codex32_model.Codex32ShareCollection.ordered_share_indices(share_map)
-                if len(ordered_indices) > 1:
-                    return Destination(
-                        Codex32BackupShareSelectView,
-                        view_args={
-                            "seed_num": self.seed_num,
-                            "share_map": share_map,
-                            "source_map": source_map,
-                            "selection_mode": "display",
-                        },
-                    )
+            share_map, source_map, show_metadata_warning = self._get_codex32_export_data()
+            if not share_map:
+                return Destination(Codex32BackupUnavailableView)
 
-                selected_share = share_map.get("s")
-                if selected_share is None and ordered_indices:
-                    selected_share = share_map[ordered_indices[0]]
-                if selected_share is not None:
-                    return Destination(
-                        Codex32MasterSecretWarningView,
-                        view_args={"share_data": selected_share, "seed_num": self.seed_num},
-                    )
+            ordered_indices = codex32_model.Codex32ShareCollection.ordered_share_indices(share_map)
+            if len(ordered_indices) > 1:
+                return Destination(
+                    Codex32BackupShareSelectView,
+                    view_args={
+                        "seed_num": self.seed_num,
+                        "share_map": share_map,
+                        "source_map": source_map,
+                        "selection_mode": "display",
+                    },
+                )
+
+            selected_share = share_map.get("s")
+            if selected_share is None and ordered_indices:
+                selected_share = share_map[ordered_indices[0]]
+            if selected_share is None:
+                return Destination(Codex32BackupUnavailableView)
+
+            if show_metadata_warning:
+                return self._codex32_metadata_warning_destination(
+                    share_data=selected_share,
+                    next_mode=Codex32BackupMetadataWarningView.MODE_DISPLAY,
+                )
 
             return Destination(
                 Codex32MasterSecretWarningView,
-                view_args={"share_data": self.seed.codex32_master_share, "seed_num": self.seed_num},
+                view_args={"share_data": selected_share, "seed_num": self.seed_num},
             )
 
         elif button_data[selected_menu_num] == self.VIEW_CODEX32_SECRET_UNAVAILABLE:
@@ -1506,7 +1638,7 @@ class SeedBackupView(View):
             return Destination(SeedTranscribeSeedQRFormatView, view_args={"seed_num": self.seed_num})
 
         elif button_data[selected_menu_num] == self.EXPORT_CODEX32QR:
-            share_map, source_map = self._get_codex32_export_data()
+            share_map, source_map, show_metadata_warning = self._get_codex32_export_data()
             if not share_map:
                 return Destination(Codex32BackupUnavailableView)
 
@@ -1525,6 +1657,14 @@ class SeedBackupView(View):
             qr_share = share_map.get("s")
             if qr_share is None and ordered_indices:
                 qr_share = share_map[ordered_indices[0]]
+            if qr_share is None:
+                return Destination(Codex32BackupUnavailableView)
+
+            if show_metadata_warning:
+                return self._codex32_metadata_warning_destination(
+                    share_data=qr_share,
+                    next_mode=Codex32BackupMetadataWarningView.MODE_EXPORT,
+                )
 
             return Destination(
                 SeedTranscribeSeedQRWarningView,
