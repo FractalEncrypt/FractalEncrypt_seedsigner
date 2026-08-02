@@ -63,6 +63,18 @@ class TestPSBTFlows(FlowTest):
             FlowStep(MainMenuView)
         ])
 
+        # Run the same PSBT flow again, this time selecting the seed that the
+        # previous flow left loaded in memory.
+        self.run_sequence([
+            FlowStep(MainMenuView, button_data_selection=MainMenuView.SCAN),
+            FlowStep(scan_views.ScanView, before_run=load_psbt_into_decoder),
+            FlowStep(psbt_views.PSBTSelectSeedView, screen_return_value=0),
+            FlowStep(psbt_views.PSBTOverviewView),
+        ])
+
+        # Selecting the existing seed should have set it as the signing seed
+        assert self.controller.psbt_seed is self.controller.storage.seeds[0]
+
 
     def test_missing_input_utxo_routes_to_warning(self):
         psbt = PSBT.parse(a2b_base64(PSBTTestData.SINGLE_SIG_NATIVE_SEGWIT_1_INPUT))

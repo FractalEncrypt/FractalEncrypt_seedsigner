@@ -127,7 +127,7 @@ def test_seed_storage_preserves_richer_codex32_metadata_on_duplicate():
 	storage = SeedStorage()
 
 	storage.set_pending_seed(Codex32Seed(seed_bytes=seed_bytes))
-	first_index = storage.finalize_pending_seed()
+	first_seed = storage.finalize_pending_seed()
 
 	storage.set_pending_seed(
 		Codex32Seed(
@@ -135,11 +135,12 @@ def test_seed_storage_preserves_richer_codex32_metadata_on_duplicate():
 			codex32_master_share="MS10ABCDSQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ",
 		)
 	)
-	second_index = storage.finalize_pending_seed()
+	second_seed = storage.finalize_pending_seed()
 
-	assert first_index == second_index
-	assert isinstance(storage.seeds[first_index], Codex32Seed)
-	assert storage.seeds[first_index].codex32_master_share == "MS10ABCDSQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ"
+	assert first_seed == second_seed
+	assert second_seed is storage.seeds[0]
+	assert isinstance(second_seed, Codex32Seed)
+	assert second_seed.codex32_master_share == "MS10ABCDSQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ"
 
 
 def test_seed_storage_preserves_codex32_export_metadata_on_duplicate():
@@ -147,7 +148,7 @@ def test_seed_storage_preserves_codex32_export_metadata_on_duplicate():
 	storage = SeedStorage()
 
 	storage.set_pending_seed(Codex32Seed(seed_bytes=seed_bytes))
-	first_index = storage.finalize_pending_seed()
+	first_seed = storage.finalize_pending_seed()
 
 	share_map = {
 		"a": "MS12NAMEA320ZYXWVUTSRQPNMLKJHGFEDCAXRPP870HKKQRM",
@@ -163,11 +164,12 @@ def test_seed_storage_preserves_codex32_export_metadata_on_duplicate():
 			codex32_share_sources=source_map,
 		)
 	)
-	second_index = storage.finalize_pending_seed()
+	second_seed = storage.finalize_pending_seed()
 
-	assert first_index == second_index
-	assert storage.seeds[first_index].codex32_export_shares == share_map
-	assert storage.seeds[first_index].codex32_share_sources == source_map
+	assert first_seed == second_seed
+	assert second_seed is storage.seeds[0]
+	assert second_seed.codex32_export_shares == share_map
+	assert second_seed.codex32_share_sources == source_map
 
 
 def test_seed_storage_clear_pending_seed_wipes_pending_seed():

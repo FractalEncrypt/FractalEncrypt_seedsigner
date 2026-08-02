@@ -20,34 +20,36 @@ class SeedStorage:
         return self.pending_seed
 
 
-    def finalize_pending_seed(self) -> int:
-        # Finally store the pending seed and return its index
-        if self.pending_seed in self.seeds:
-            index = self.seeds.index(self.pending_seed)
+    def finalize_pending_seed(self) -> Seed:
+        # Store the pending seed and return the stored Seed object.
+        seed = self.pending_seed
+        if seed in self.seeds:
+            index = self.seeds.index(seed)
             existing_seed = self.seeds[index]
 
             # Preserve richer Codex32 backup metadata when a duplicate Codex32 seed
             # (same bytes) is loaded again.
             if (
                 isinstance(existing_seed, Codex32Seed)
-                and isinstance(self.pending_seed, Codex32Seed)
+                and isinstance(seed, Codex32Seed)
                 and (
                     (
                         existing_seed.codex32_master_share is None
-                        and self.pending_seed.codex32_master_share is not None
+                        and seed.codex32_master_share is not None
                     )
                     or (
                         not existing_seed.codex32_export_shares
-                        and bool(self.pending_seed.codex32_export_shares)
+                        and bool(seed.codex32_export_shares)
                     )
                 )
             ):
-                self.seeds[index] = self.pending_seed
+                self.seeds[index] = seed
+            else:
+                seed = existing_seed
         else:
-            self.seeds.append(self.pending_seed)
-            index = len(self.seeds) - 1
+            self.seeds.append(seed)
         self.pending_seed = None
-        return index
+        return seed
 
 
     def clear_pending_seed(self):
