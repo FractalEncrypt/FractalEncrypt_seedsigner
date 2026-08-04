@@ -650,7 +650,7 @@ class Codex32EntryScreen(BaseTopNavScreen):
             font_name=GUIConstants.FIXED_WIDTH_EMPHASIS_FONT_NAME,
             font_size=GUIConstants.get_button_font_size() + 2,
             rows=4,
-            cols=9,
+            cols=10,
             rect=(
                 GUIConstants.EDGE_PADDING + keyboard_x_shift,
                 self.keyboard_top,
@@ -1167,7 +1167,7 @@ class Codex32EntryScreen(BaseTopNavScreen):
                             selected_key.is_selected = False
                             selected_key.render_key()
                             self.focus_area = "right_arrow"
-                        if is_last_box and all(self.values):
+                        if all(self.values) and (is_last_box or self.review_mode):
                             self.focus_area = "keyboard"
                             self._select_keyboard_key(Keyboard.KEY_OK["code"])
                             self.keyboard.render_keys()

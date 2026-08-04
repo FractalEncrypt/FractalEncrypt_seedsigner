@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 from dataclasses import dataclass
 import embit
 import pathlib
@@ -298,32 +299,52 @@ def generate_screenshots(locale):
         settingsqr_data_persistent = f"settings::v1 name=English_noob_mode persistent=E xpub_qr=urca,sta denom=thr network=M qr_density=M sigs=ss scripts=nat xpub_details=E passphrase=E camera=0 compact_seedqr=E bip85=D priv_warn=E dire_warn=E partners=E locale={locale}"
         settingsqr_data_not_persistent = f"settings::v1 name=Mode_Ephemeral persistent=D xpub_qr=urca,sta denom=thr network=M qr_density=M sigs=ss scripts=nat xpub_details=E passphrase=E camera=0 compact_seedqr=E bip85=D priv_warn=E dire_warn=E partners=E locale={locale}"
 
-        # Set up screenshot-specific callbacks to inject data before the View is run and
-        # reset data after the View is run.
-        def load_single_sig_psbt_cb():
+        # Set up mocks to provide whatever temporary data/state a particular screenshot
+        # might need.
+        @contextmanager
+        def mock_load_psbt(base64_psbt: str, seed: Seed = seed_12b):
+            """Temporarily load a PSBT and its associated controller state."""
             decoder = DecodeQR()
-            decoder.add_data(BASE64_SINGLE_SIG_PSBT)
-            controller.psbt = decoder.get_psbt()
-            controller.psbt_seed = seed_12b
-            controller.psbt_parser = PSBTParser(p=controller.psbt, seed=seed_12b)
-            controller.multisig_wallet_descriptor = None
+            decoder.add_data(base64_psbt)
+            with patch.object(controller, "psbt", decoder.get_psbt()):
+                with patch.object(controller, "psbt_seed", seed):
+                    with patch.object(
+                        controller,
+                        "psbt_parser",
+                        PSBTParser(p=controller.psbt, seed=seed),
+                    ):
+                        yield
 
 
-        def load_multisig_psbt_cb():
-            decoder = DecodeQR()
-            decoder.add_data(BASE64_MULTISIG_PSBT)
-            controller.psbt = decoder.get_psbt()
-            controller.psbt_seed = seed_12b
-            controller.psbt_parser = PSBTParser(p=controller.psbt, seed=seed_12b)
-            controller.multisig_wallet_descriptor = None
+        @contextmanager
+        def mock_single_sig_psbt_loaded():
+            with mock_load_psbt(BASE64_SINGLE_SIG_PSBT):
+                yield
 
 
-        def load_multisig_wallet_descriptor_cb():
-            controller.multisig_wallet_descriptor = embit.descriptor.Descriptor.from_string(MULTISIG_WALLET_DESCRIPTOR)
+        @contextmanager
+        def mock_multisig_psbt_loaded():
+            with mock_load_psbt(BASE64_MULTISIG_PSBT):
+                yield
 
 
-        def load_address_verification_data_cb():
-            controller.unverified_address = dict(
+        @contextmanager
+        def mock_multisig_wallet_descriptor_loaded():
+            descriptor = embit.descriptor.Descriptor.from_string(MULTISIG_WALLET_DESCRIPTOR)
+            with patch.object(controller, "multisig_wallet_descriptor", descriptor):
+                yield
+
+
+        @contextmanager
+        def mock_multisig_psbt_and_descriptor_loaded():
+            with mock_multisig_psbt_loaded():
+                with mock_multisig_wallet_descriptor_loaded():
+                    yield
+
+
+        @contextmanager
+        def mock_address_verification_data_loaded():
+            fake_addr_verification_data = dict(
                 # These are all totally fake data
                 address="bc1q6p00wazu4nnqac29fvky6vhjnnhku5u2g9njss62rvy7e0yuperq86f5ek",
                 network=SettingsConstants.MAINNET,
@@ -333,25 +354,27 @@ def generate_screenshots(locale):
                 verified_index=5,
                 verified_index_is_change=False
             )
+            with patch.object(controller, "unverified_address", fake_addr_verification_data):
+                yield
 
 
-        def PSBTSelectSeedView_cb_before():
+        @contextmanager
+        def mock_controller_psbt_seed_empty():
             # Have to ensure this is cleared out in order to get the seed selection screen
-            controller.psbt_seed = None
+            with patch.object(controller, "psbt_seed", None):
+                yield
 
 
-        def PSBTOverviewView_op_return_cb_before():
-            controller.psbt_seed = seed_12b
-            decoder = DecodeQR()
-            decoder.add_data(BASE64_PSBT_WITH_OP_RETURN_TEXT)
-            controller.psbt = decoder.get_psbt()
-            controller.psbt_parser = PSBTParser(p=controller.psbt, seed=seed_12b)
-        
+        @contextmanager
+        def mock_psbt_with_op_return_loaded():
+            with mock_load_psbt(BASE64_PSBT_WITH_OP_RETURN_TEXT):
+                yield
 
-        def PSBTOpReturnView_raw_hex_data_cb_before():
-            decoder.add_data(BASE64_PSBT_WITH_OP_RETURN_RAW_BYTES)
-            controller.psbt = decoder.get_psbt()
-            controller.psbt_parser = PSBTParser(p=controller.psbt, seed=seed_12b)
+
+        @contextmanager
+        def mock_psbt_with_op_return_raw_bytes_loaded():
+            with mock_load_psbt(BASE64_PSBT_WITH_OP_RETURN_RAW_BYTES):
+                yield
 
 
         @contextmanager
@@ -550,27 +573,27 @@ def generate_screenshots(locale):
                 ScreenshotConfig(seed_views.SeedElectrumMnemonicStartView),
             ],
             "PSBT Views": [
-                ScreenshotConfig(psbt_views.PSBTSelectSeedView, run_before=PSBTSelectSeedView_cb_before),
-                ScreenshotConfig(psbt_views.PSBTOverviewView, run_before=load_multisig_psbt_cb),
+                ScreenshotConfig(psbt_views.PSBTSelectSeedView, mock_context_manager=mock_controller_psbt_seed_empty),
+                ScreenshotConfig(psbt_views.PSBTOverviewView, mock_context_manager=mock_multisig_psbt_loaded),
                 ScreenshotConfig(psbt_views.PSBTUnsupportedScriptTypeWarningView),
                 ScreenshotConfig(psbt_views.PSBTNoChangeWarningView),
-                ScreenshotConfig(psbt_views.PSBTMathView),
-                ScreenshotConfig(psbt_views.PSBTAddressDetailsView, dict(address_num=0)),
+                ScreenshotConfig(psbt_views.PSBTMathView, mock_context_manager=mock_multisig_psbt_loaded),
+                ScreenshotConfig(psbt_views.PSBTAddressDetailsView, dict(address_num=0), mock_context_manager=mock_multisig_psbt_loaded),
 
-                ScreenshotConfig(psbt_views.PSBTChangeDetailsView, dict(change_address_num=0), screenshot_name="PSBTChangeDetailsView_single_sig_change_verified", run_before=load_single_sig_psbt_cb),
-                ScreenshotConfig(psbt_views.PSBTChangeDetailsView, dict(change_address_num=1), screenshot_name="PSBTChangeDetailsView_single_sig_self_transfer_verified", run_before=load_single_sig_psbt_cb),
-                ScreenshotConfig(psbt_views.PSBTChangeDetailsView, dict(change_address_num=0), screenshot_name="PSBTChangeDetailsView_multisig_unverified", run_before=load_multisig_psbt_cb),
-                ScreenshotConfig(psbt_views.PSBTChangeDetailsView, dict(change_address_num=0), screenshot_name="PSBTChangeDetailsView_multisig_verified", run_before=load_multisig_wallet_descriptor_cb),
-                ScreenshotConfig(psbt_views.PSBTOverviewView, screenshot_name="PSBTOverviewView_op_return", run_before=PSBTOverviewView_op_return_cb_before),
-                ScreenshotConfig(psbt_views.PSBTOpReturnView, screenshot_name="PSBTOpReturnView_text"),  # Relies on callback above
-                ScreenshotConfig(psbt_views.PSBTOpReturnView, screenshot_name="PSBTOpReturnView_raw_hex_data", run_before=PSBTOpReturnView_raw_hex_data_cb_before),
+                ScreenshotConfig(psbt_views.PSBTChangeDetailsView, dict(change_address_num=0), screenshot_name="PSBTChangeDetailsView_single_sig_change_verified", mock_context_manager=mock_single_sig_psbt_loaded),
+                ScreenshotConfig(psbt_views.PSBTChangeDetailsView, dict(change_address_num=1), screenshot_name="PSBTChangeDetailsView_single_sig_self_transfer_verified", mock_context_manager=mock_single_sig_psbt_loaded),
+                ScreenshotConfig(psbt_views.PSBTChangeDetailsView, dict(change_address_num=0), screenshot_name="PSBTChangeDetailsView_multisig_unverified", mock_context_manager=mock_multisig_psbt_loaded),
+                ScreenshotConfig(psbt_views.PSBTChangeDetailsView, dict(change_address_num=0), screenshot_name="PSBTChangeDetailsView_multisig_verified", mock_context_manager=mock_multisig_psbt_and_descriptor_loaded),
+                ScreenshotConfig(psbt_views.PSBTOverviewView, screenshot_name="PSBTOverviewView_op_return", mock_context_manager=mock_psbt_with_op_return_loaded),
+                ScreenshotConfig(psbt_views.PSBTOpReturnView, screenshot_name="PSBTOpReturnView_text", mock_context_manager=mock_psbt_with_op_return_loaded),
+                ScreenshotConfig(psbt_views.PSBTOpReturnView, screenshot_name="PSBTOpReturnView_raw_hex_data", mock_context_manager=mock_psbt_with_op_return_raw_bytes_loaded),
                 ScreenshotConfig(psbt_views.PSBTAddressVerificationFailedView, dict(is_change=True, is_multisig=False),  screenshot_name="PSBTAddressVerificationFailedView_singlesig_change"),
                 ScreenshotConfig(psbt_views.PSBTAddressVerificationFailedView, dict(is_change=False, is_multisig=False), screenshot_name="PSBTAddressVerificationFailedView_singlesig_selftransfer"),
                 ScreenshotConfig(psbt_views.PSBTAddressVerificationFailedView, dict(is_change=True, is_multisig=True),   screenshot_name="PSBTAddressVerificationFailedView_multisig_change"),
                 ScreenshotConfig(psbt_views.PSBTAddressVerificationFailedView, dict(is_change=False, is_multisig=True),  screenshot_name="PSBTAddressVerificationFailedView_multisig_selftransfer"),
-                ScreenshotConfig(psbt_views.PSBTFinalizeView),
+                ScreenshotConfig(psbt_views.PSBTFinalizeView, mock_context_manager=mock_multisig_psbt_loaded),
                 #ScreenshotConfig(PSBTSignedQRDisplayViewScreenshotConfig),
-                ScreenshotConfig(psbt_views.PSBTSigningErrorView),
+                ScreenshotConfig(psbt_views.PSBTSigningErrorView, mock_context_manager=mock_multisig_psbt_loaded),
             ],
             "Tools Views": [
                 ScreenshotConfig(tools_views.ToolsMenuView),
@@ -586,7 +609,7 @@ def generate_screenshots(locale):
                 ScreenshotConfig(tools_views.ToolsCalcFinalWordShowFinalWordView, dict(coin_flips="0010101"), screenshot_name="ToolsCalcFinalWordShowFinalWordView_coin_flips"),
                 ScreenshotConfig(tools_views.ToolsCalcFinalWordDoneView),
                 ScreenshotConfig(tools_views.ToolsAddressExplorerSelectSourceView),
-                ScreenshotConfig(tools_views.ToolsAddressExplorerAddressTypeView),
+                ScreenshotConfig(tools_views.ToolsAddressExplorerAddressTypeView, mock_context_manager=mock_multisig_wallet_descriptor_loaded),
                 ScreenshotConfig(tools_views.ToolsAddressExplorerAddressListView),
                 # ScreenshotConfig(tools_views.ToolsAddressExplorerAddressView),
             ],
@@ -632,9 +655,10 @@ def generate_screenshots(locale):
             try:
                 cur_count = screenshot_renderer.render_count
 
-                # Set up and run the target View
-                screenshot_config.run_callback_before()
-                screenshot_config.View_cls(**screenshot_config.view_kwargs).run()
+                # Activate any screenshot-specific temporary data/state while the
+                # target View runs.
+                with screenshot_config.mock_context_manager():
+                    screenshot_config.View_cls(**screenshot_config.view_kwargs).run()
 
                 if screenshot_renderer.render_count == cur_count:
                     # The View didn't actually render anything
@@ -660,9 +684,6 @@ def generate_screenshots(locale):
             if toast_thread and toast_thread.is_alive():
                 toast_thread.stop()
                 toast_thread.join()
-
-            screenshot_config.run_callback_after()
-
 
     # Parse the main `l10n/messages.pot` for overall stats
     messages_source_path = os.path.join(pathlib.Path(__file__).parent.resolve().parent.resolve().parent.resolve(), "l10n", "messages.pot")
