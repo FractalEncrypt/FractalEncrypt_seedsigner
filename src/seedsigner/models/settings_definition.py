@@ -256,10 +256,14 @@ class SettingsConstants:
     # Seed-related constants
     MAINNET = "M"
     TESTNET = "T"
+    TESTNET4 = "T4"
+    SIGNET = "S"
     REGTEST = "R"
     ALL_NETWORKS = [
         (MAINNET, _mft("Mainnet")),
-        (TESTNET, _mft("Testnet")),
+        (TESTNET, _mft("Testnet3")),
+        (TESTNET4, _mft("Testnet4")),
+        (SIGNET, _mft("Signet")),
         (REGTEST, _mft("Regtest"))
     ]
 
@@ -268,7 +272,7 @@ class SettingsConstants:
         # Note these are `embit` constants; do not wrap for translation
         if network == SettingsConstants.MAINNET:
             return "main"
-        elif network == SettingsConstants.TESTNET:
+        elif network in (SettingsConstants.TESTNET, SettingsConstants.TESTNET4, SettingsConstants.SIGNET):
             return "test"
         if network == SettingsConstants.REGTEST:
             return "regtest"

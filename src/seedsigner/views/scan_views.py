@@ -4,7 +4,7 @@ import re
 from gettext import gettext as _
 from seedsigner.helpers.l10n import mark_for_translation as _mft
 from seedsigner.models.settings import SettingsConstants
-from seedsigner.helpers.anti_exfil_protocol import Stage
+from seedsigner.helpers.anti_exfil_protocol_v1 import Stage
 from seedsigner.views.view import BackStackView, ErrorView, MainMenuView, NotYetImplementedView, View, Destination
 from seedsigner.gui.screens.screen import ButtonOption
 

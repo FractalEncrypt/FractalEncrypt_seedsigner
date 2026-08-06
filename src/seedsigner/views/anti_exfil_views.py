@@ -13,7 +13,8 @@ from seedsigner.gui.screens.screen import (
     QRDisplayScreen,
     WarningScreen,
 )
-from seedsigner.helpers.anti_exfil_protocol import AntiExfilProtocolError, Stage
+from seedsigner.helpers.anti_exfil_protocol import AntiExfilProtocolError
+from seedsigner.helpers.anti_exfil_protocol_v1 import Stage
 from seedsigner.models.encode_qr import AntiExfilQrEncoder
 from seedsigner.models.settings import SettingsConstants
 from seedsigner.views.view import BackStackView, Destination, MainMenuView, View

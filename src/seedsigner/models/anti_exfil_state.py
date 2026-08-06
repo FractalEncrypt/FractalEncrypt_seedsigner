@@ -9,14 +9,9 @@ import hashlib
 from embit.psbt import PSBT, PSBTError
 
 from seedsigner.helpers.anti_exfil import AntiExfilNativeBackend
-from seedsigner.helpers.anti_exfil_protocol import (
-    AntiExfilProtocolCode,
-    AntiExfilProtocolError,
-    AntiExfilSignerController,
-    ControllerResult,
-    Stage,
-    decode_message,
-)
+from seedsigner.helpers.anti_exfil_protocol import AntiExfilProtocolCode, AntiExfilProtocolError
+from seedsigner.helpers.anti_exfil_protocol_v1 import Stage, decode_message
+from seedsigner.helpers.anti_exfil_signer_v1 import AntiExfilSignerController, ControllerResult
 from seedsigner.helpers.anti_exfil_transport import AntiExfilTransportPackage
 from seedsigner.models.seed import Seed
 

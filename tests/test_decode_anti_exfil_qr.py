@@ -2,7 +2,7 @@ import hashlib
 
 import pytest
 
-from seedsigner.helpers.anti_exfil_protocol import AntiExfilMessage, Stage
+from seedsigner.helpers.anti_exfil_protocol_v1 import Network, ProtocolMessage, SigningSlot, Stage
 from seedsigner.helpers.anti_exfil_transport import (
     AntiExfilTransportPackage,
     TransportNetwork,
@@ -21,17 +21,17 @@ SIGNER_PUBKEY = bytes.fromhex(
 
 
 def host_commit_package():
-    message = AntiExfilMessage(
-        stage=Stage.HOST_COMMIT,
-        session_id=bytes.fromhex("c3" * 32),
-        message_hash=bytes.fromhex("88" * 32),
-        signer_pubkey=SIGNER_PUBKEY,
-        commitment=hashlib.sha256(bytes.fromhex("a5" * 32)).digest(),
+    psbt = b"psbt\xff"
+    message = ProtocolMessage(
+        network=Network.TESTNET3, stage=Stage.HOST_COMMIT,
+        session_id=bytes.fromhex("c3" * 32), psbt_digest=hashlib.sha256(psbt).digest(),
+        slots=(SigningSlot(0, SIGNER_PUBKEY, bytes.fromhex("88" * 32), 1,
+                           hashlib.sha256(bytes.fromhex("a5" * 32)).digest()),),
     ).encode()
     return AntiExfilTransportPackage(
         message=message,
         network=TransportNetwork.TESTNET,
-        psbt=b"psbt\xff",
+        psbt=psbt,
     )
 
 
@@ -77,13 +77,11 @@ def test_transport_rejects_digest_change_and_response_psbt():
     with pytest.raises(Exception, match="digest mismatch"):
         AntiExfilTransportPackage.decode(bytes(encoded))
 
-    response = AntiExfilMessage(
-        stage=Stage.SIGNER_OPENINGS,
-        session_id=bytes.fromhex("c3" * 32),
-        message_hash=bytes.fromhex("88" * 32),
-        signer_pubkey=SIGNER_PUBKEY,
-        commitment=hashlib.sha256(bytes.fromhex("a5" * 32)).digest(),
-        opening=SIGNER_PUBKEY,
+    response = ProtocolMessage(
+        Network.TESTNET3, Stage.SIGNER_OPENINGS, bytes.fromhex("c3" * 32),
+        hashlib.sha256(b"psbt\xff").digest(),
+        (SigningSlot(0, SIGNER_PUBKEY, bytes.fromhex("88" * 32), 1,
+                     hashlib.sha256(bytes.fromhex("a5" * 32)).digest(), opening=SIGNER_PUBKEY),),
     ).encode()
     with pytest.raises(Exception, match="forbids PSBT"):
         AntiExfilTransportPackage(

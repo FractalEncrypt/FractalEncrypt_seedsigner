@@ -8,12 +8,8 @@ import hashlib
 import hmac
 import struct
 
-from seedsigner.helpers.anti_exfil_protocol import (
-    AntiExfilProtocolCode,
-    AntiExfilProtocolError,
-    Stage,
-    decode_message,
-)
+from seedsigner.helpers.anti_exfil_protocol import AntiExfilProtocolCode, AntiExfilProtocolError
+from seedsigner.helpers.anti_exfil_protocol_v1 import Stage, decode_message
 from seedsigner.models.settings import SettingsConstants
 
 
@@ -28,14 +24,18 @@ MAX_PSBT_BYTES = 2_000_000
 
 class TransportNetwork(IntEnum):
     MAINNET = 0
+    TESTNET3 = 1
     TESTNET = 1
     REGTEST = 2
     SIGNET = 3
+    TESTNET4 = 4
 
 
 _SETTINGS_NETWORKS = {
     SettingsConstants.MAINNET: TransportNetwork.MAINNET,
-    SettingsConstants.TESTNET: TransportNetwork.TESTNET,
+    SettingsConstants.TESTNET: TransportNetwork.TESTNET3,
+    SettingsConstants.TESTNET4: TransportNetwork.TESTNET4,
+    SettingsConstants.SIGNET: TransportNetwork.SIGNET,
     SettingsConstants.REGTEST: TransportNetwork.REGTEST,
 }
 
@@ -116,6 +116,10 @@ class AntiExfilTransportPackage:
             raise _invalid("AEXT transport PSBT has invalid magic")
         flags = FLAG_PSBT if psbt else 0
         digest = hashlib.sha256(psbt).digest() if psbt else bytes(32)
+        if int(parsed.network) != int(network):
+            raise _invalid("AEXT network conflicts with AEXB network", code=AntiExfilProtocolCode.TRANSACTION_MISMATCH)
+        if psbt and not hmac.compare_digest(parsed.psbt_digest, digest):
+            raise _invalid("AEXB PSBT digest conflicts with AEXT PSBT", code=AntiExfilProtocolCode.TRANSACTION_MISMATCH)
         return HEADER.pack(
             MAGIC,
             VERSION,
@@ -184,10 +188,20 @@ class AntiExfilTransportPackage:
                 code=AntiExfilProtocolCode.TRANSACTION_MISMATCH,
             )
         parsed = decode_message(message)
+        if int(parsed.network) != int(network):
+            raise _invalid(
+                "AEXT network conflicts with the embedded protocol message",
+                code=AntiExfilProtocolCode.TRANSACTION_MISMATCH,
+            )
         if parsed.stage != outer_stage:
             raise _invalid(
                 "AEXT stage conflicts with the embedded protocol message",
                 code=AntiExfilProtocolCode.WRONG_STAGE,
+            )
+        if has_psbt and not hmac.compare_digest(parsed.psbt_digest, expected_digest):
+            raise _invalid(
+                "AEXB PSBT digest conflicts with AEXT PSBT",
+                code=AntiExfilProtocolCode.TRANSACTION_MISMATCH,
             )
         package = cls(
             message=message,
