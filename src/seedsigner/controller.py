@@ -112,6 +112,7 @@ class Controller(Singleton):
     psbt: PSBT = None
     psbt_seed: Seed = None
     psbt_parser: PSBTParser = None
+    anti_exfil_state = None
 
     unverified_address = None
 
@@ -129,6 +130,7 @@ class Controller(Singleton):
     # return navigation to the main flow (e.g. PSBT flow, load multisig descriptor,
     # then resume PSBT flow).
     FLOW__PSBT = "psbt"
+    FLOW__ANTI_EXFIL = "anti_exfil"
     FLOW__VERIFY_MULTISIG_ADDR = "multisig_addr"
     FLOW__VERIFY_SINGLESIG_ADDR = "singlesig_addr"
     FLOW__ADDRESS_EXPLORER = "address_explorer"
@@ -187,6 +189,7 @@ class Controller(Singleton):
         # Store one working psbt in memory
         controller.psbt = None
         controller.psbt_parser = None
+        controller.anti_exfil_state = None
 
         # Configure the Renderer
         Renderer.configure_instance()
@@ -313,6 +316,7 @@ class Controller(Singleton):
                     self.psbt = None
                     self.psbt_parser = None
                     self.psbt_seed = None
+                    self.anti_exfil_state = None
                 
                 logger.info(f"\nback_stack: {self.back_stack}")
 

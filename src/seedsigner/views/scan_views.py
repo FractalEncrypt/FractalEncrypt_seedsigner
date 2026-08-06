@@ -4,6 +4,7 @@ import re
 from gettext import gettext as _
 from seedsigner.helpers.l10n import mark_for_translation as _mft
 from seedsigner.models.settings import SettingsConstants
+from seedsigner.helpers.anti_exfil_protocol import Stage
 from seedsigner.views.view import BackStackView, ErrorView, MainMenuView, NotYetImplementedView, View, Destination
 from seedsigner.gui.screens.screen import ButtonOption
 
@@ -22,6 +23,7 @@ class ScanView(View):
     """
     instructions_text = _mft("Scan a QR code")
     invalid_qr_type_message = _mft("QRCode not recognized or not yet supported.")
+    expected_anti_exfil_stage: Stage | None = None
 
 
     def __init__(self):
@@ -56,6 +58,13 @@ class ScanView(View):
         # Handle the results
         if self.decoder.is_complete:
             if not self.is_valid_qr_type:
+                if self.decoder.is_anti_exfil:
+                    from seedsigner.views.anti_exfil_views import AntiExfilModeMismatchView
+                    return Destination(
+                        AntiExfilModeMismatchView,
+                        view_args={"received_anti_exfil": True},
+                        clear_history=True,
+                    )
                 # We recognized the QR type but it was not the type expected for the
                 # current flow.
                 # Report QR types in more human-readable text (e.g. QRType
@@ -89,7 +98,74 @@ class ScanView(View):
                     else:
                         return Destination(SeedFinalizeView)
             
+            elif self.decoder.is_anti_exfil:
+                from seedsigner.helpers.anti_exfil_protocol import (
+                    AntiExfilProtocolCode,
+                    AntiExfilProtocolError,
+                )
+                from seedsigner.models.anti_exfil_state import AntiExfilFlowState
+                from seedsigner.views.anti_exfil_views import (
+                    AntiExfilFailureView,
+                    AntiExfilModeMismatchView,
+                    AntiExfilRequestView,
+                )
+
+                if self.settings.get_value(SettingsConstants.SETTING__ANTI_EXFIL) != SettingsConstants.OPTION__REQUIRED:
+                    return Destination(
+                        AntiExfilModeMismatchView,
+                        view_args={"received_anti_exfil": True},
+                        clear_history=True,
+                    )
+                try:
+                    package = self.decoder.get_anti_exfil_package(
+                        self.settings.get_value(SettingsConstants.SETTING__NETWORK)
+                    )
+                    state = AntiExfilFlowState.from_package(package)
+                    if (
+                        self.expected_anti_exfil_stage is not None
+                        and state.request_stage != self.expected_anti_exfil_stage
+                    ):
+                        raise AntiExfilProtocolError(
+                            AntiExfilProtocolCode.WRONG_STAGE,
+                            _("Expected host reveal message 3, received anti-exfil message {number}").format(
+                                number=int(state.request_stage)
+                            ),
+                        )
+                except AntiExfilProtocolError as exc:
+                    return Destination(
+                        AntiExfilFailureView,
+                        view_args={
+                            "error_code": exc.code.value,
+                            "error_message": exc.message,
+                            "security_failure": False,
+                        },
+                        clear_history=True,
+                    )
+                except Exception as exc:
+                    logger.info(repr(exc), exc_info=True)
+                    return Destination(
+                        AntiExfilFailureView,
+                        view_args={
+                            "error_code": "AE_INVALID_MESSAGE",
+                            "error_message": "anti-exfil QR could not be decoded",
+                            "security_failure": False,
+                        },
+                        clear_history=True,
+                    )
+                self.controller.anti_exfil_state = state
+                self.controller.psbt = state.request_psbt
+                self.controller.psbt_parser = None
+                self.controller.psbt_seed = None
+                return Destination(AntiExfilRequestView, skip_current_view=True)
+
             elif self.decoder.is_psbt:
+                if self.settings.get_value(SettingsConstants.SETTING__ANTI_EXFIL) == SettingsConstants.OPTION__REQUIRED:
+                    from seedsigner.views.anti_exfil_views import AntiExfilModeMismatchView
+                    return Destination(
+                        AntiExfilModeMismatchView,
+                        view_args={"received_anti_exfil": False},
+                        clear_history=True,
+                    )
                 from seedsigner.views.psbt_views import PSBTSelectSeedView
                 psbt = self.decoder.get_psbt()
                 self.controller.psbt = psbt
@@ -177,6 +253,16 @@ class ScanPSBTView(ScanView):
     @property
     def is_valid_qr_type(self):
         return self.decoder.is_psbt
+
+
+class ScanAntiExfilHostRevealView(ScanView):
+    instructions_text = _mft("Scan host reveal")
+    invalid_qr_type_message = _mft("Expected anti-exfil host reveal message 3")
+    expected_anti_exfil_stage = Stage.HOST_REVEAL
+
+    @property
+    def is_valid_qr_type(self):
+        return self.decoder.is_anti_exfil
 
 
 
