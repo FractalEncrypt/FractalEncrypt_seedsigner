@@ -20,17 +20,17 @@ SIGNER_PUBKEY = bytes.fromhex(
 )
 
 
-def host_commit_package():
+def host_commit_package(network=Network.TESTNET3):
     psbt = b"psbt\xff"
     message = ProtocolMessage(
-        network=Network.TESTNET3, stage=Stage.HOST_COMMIT,
+        network=network, stage=Stage.HOST_COMMIT,
         session_id=bytes.fromhex("c3" * 32), psbt_digest=hashlib.sha256(psbt).digest(),
         slots=(SigningSlot(0, SIGNER_PUBKEY, bytes.fromhex("88" * 32), 1,
                            hashlib.sha256(bytes.fromhex("a5" * 32)).digest()),),
     ).encode()
     return AntiExfilTransportPackage(
         message=message,
-        network=TransportNetwork.TESTNET,
+        network=TransportNetwork(int(network)),
         psbt=psbt,
     )
 
@@ -69,6 +69,23 @@ def test_anti_exfil_qr_network_mismatch_fails_closed():
             break
     with pytest.raises(Exception, match="active network"):
         decoder.get_anti_exfil_package(SettingsConstants.MAINNET)
+
+
+@pytest.mark.parametrize("network", [Network.TESTNET3, Network.TESTNET4, Network.SIGNET])
+def test_stock_testnet_setting_accepts_test_family_wire_labels(network):
+    package = host_commit_package(network)
+    recovered = AntiExfilTransportPackage.decode(
+        package.encode(), expected_network=SettingsConstants.TESTNET
+    )
+    assert recovered.network == TransportNetwork(int(network))
+
+
+def test_stock_network_menu_is_not_expanded_by_anti_exfil():
+    assert [value for value, _ in SettingsConstants.ALL_NETWORKS] == [
+        SettingsConstants.MAINNET,
+        SettingsConstants.TESTNET,
+        SettingsConstants.REGTEST,
+    ]
 
 
 def test_transport_rejects_digest_change_and_response_psbt():

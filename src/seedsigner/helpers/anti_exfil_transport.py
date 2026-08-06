@@ -40,6 +40,19 @@ _SETTINGS_NETWORKS = {
 }
 
 
+def _network_matches_setting(network: TransportNetwork, setting: str) -> bool:
+    """Match SeedSigner's chain families without discarding wire separation."""
+    if setting == SettingsConstants.TESTNET:
+        # PSBT v0, testnet keys, and addresses cannot distinguish these chains.
+        # The exact coordinator-supplied label remains bound inside AEXT/AEXB.
+        return network in (
+            TransportNetwork.TESTNET3,
+            TransportNetwork.TESTNET4,
+            TransportNetwork.SIGNET,
+        )
+    return network == _SETTINGS_NETWORKS.get(setting)
+
+
 def _invalid(message: str, *, code=AntiExfilProtocolCode.INVALID_MESSAGE):
     return AntiExfilProtocolError(code, message)
 
@@ -167,7 +180,7 @@ class AntiExfilTransportPackage:
             expected = _SETTINGS_NETWORKS.get(expected_network)
             if expected is None:
                 raise _invalid(f"unsupported active network {expected_network!r}")
-            if network != expected:
+            if not _network_matches_setting(network, expected_network):
                 raise _invalid(
                     "anti-exfil QR network does not match SeedSigner's active network",
                     code=AntiExfilProtocolCode.TRANSACTION_MISMATCH,

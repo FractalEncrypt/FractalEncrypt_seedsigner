@@ -92,15 +92,15 @@ def test_frozen_reference_stage_one_vector_and_strict_slot_rules():
     with pytest.raises(AntiExfilProtocolError): replace(message, slots=(replace(message.slots[0], sighash_type=0x81),)).encode()
     with pytest.raises(AntiExfilProtocolError): replace(message, slots=(replace(message.slots[0], commitment=message.slots[1].commitment), message.slots[1])).encode()
 
-def test_testnet4_is_distinct_and_uses_testnet_key_material():
+def test_testnet_setting_accepts_distinct_test_family_wire_labels():
     psbt = build_fixture(); raw = psbt.serialize(); seed = Seed(MNEMONIC.split())
     _, contexts = derive_signing_contexts(raw, seed, SettingsConstants.TESTNET4)
     message = ProtocolMessage(Network.TESTNET4, Stage.HOST_COMMIT, SESSION_ID,
         hashlib.sha256(raw).digest(), make_commit(raw, contexts).slots)
-    response = AntiExfilSignerController(seed, SettingsConstants.TESTNET4, FakeNativeBackend()).process(message.encode(), raw).response
+    response = AntiExfilSignerController(seed, SettingsConstants.TESTNET, FakeNativeBackend()).process(message.encode(), raw).response
     assert response.network == Network.TESTNET4
     with pytest.raises(AntiExfilProtocolError):
-        AntiExfilSignerController(seed, SettingsConstants.TESTNET, FakeNativeBackend()).process(message.encode(), raw)
+        AntiExfilSignerController(seed, SettingsConstants.MAINNET, FakeNativeBackend()).process(message.encode(), raw)
 
 def test_controller_completes_all_slots_deterministically(fixture_context):
     _, raw, _, controller, commit = fixture_context

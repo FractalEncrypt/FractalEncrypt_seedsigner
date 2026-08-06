@@ -261,9 +261,7 @@ class SettingsConstants:
     REGTEST = "R"
     ALL_NETWORKS = [
         (MAINNET, _mft("Mainnet")),
-        (TESTNET, _mft("Testnet3")),
-        (TESTNET4, _mft("Testnet4")),
-        (SIGNET, _mft("Signet")),
+        (TESTNET, _mft("Testnet")),
         (REGTEST, _mft("Regtest"))
     ]
 

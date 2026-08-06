@@ -46,6 +46,11 @@ def protocol_network_for_setting(network: str) -> Network:
     try: return mapping[network]
     except KeyError as exc: raise AntiExfilProtocolError(AntiExfilProtocolCode.INVALID_MESSAGE, f"unsupported network {network!r}") from exc
 
+def protocol_network_matches_setting(setting: str, network: Network) -> bool:
+    if setting == SettingsConstants.TESTNET:
+        return network in (Network.TESTNET3, Network.TESTNET4, Network.SIGNET)
+    return network == protocol_network_for_setting(setting)
+
 def parse_psbt_v0(raw: bytes) -> PSBT:
     if not isinstance(raw, bytes) or not raw.startswith(b"psbt\xff"):
         _fail(AntiExfilProtocolCode.INVALID_MESSAGE, "invalid PSBT magic")
@@ -108,8 +113,8 @@ class AntiExfilSignerController:
     def process(self, request_bytes: bytes, psbt_bytes: bytes) -> ControllerResult:
         request = decode_message(request_bytes)
         if request.stage not in (Stage.HOST_COMMIT, Stage.HOST_REVEAL): _fail(AntiExfilProtocolCode.WRONG_STAGE, "SeedSigner accepts only messages 1 and 3")
-        expected_network = protocol_network_for_setting(self.network)
-        if request.network != expected_network: _fail(AntiExfilProtocolCode.TRANSACTION_MISMATCH, "message network differs from active network")
+        if not protocol_network_matches_setting(self.network, request.network):
+            _fail(AntiExfilProtocolCode.TRANSACTION_MISMATCH, "message network differs from active network family")
         if not hmac.compare_digest(request.psbt_digest, hashlib.sha256(psbt_bytes).digest()): _fail(AntiExfilProtocolCode.TRANSACTION_MISMATCH, "message PSBT digest differs from exact PSBT")
         _, contexts = derive_signing_contexts(psbt_bytes, self.seed, self.network)
         if tuple(context.identifier for context in contexts) != tuple(slot.identifier for slot in request.slots): _fail(AntiExfilProtocolCode.SIGNATURE_SLOT_MISMATCH, "message slot set differs from SeedSigner enumeration")
