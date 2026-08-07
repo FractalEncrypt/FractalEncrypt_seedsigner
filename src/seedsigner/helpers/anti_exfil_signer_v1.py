@@ -110,7 +110,9 @@ def derive_signing_context(psbt_bytes: bytes, seed: Seed, network: str):
 class AntiExfilSignerController:
     def __init__(self, seed: Seed, network: str, backend):
         self.seed, self.network, self.backend = seed, network, backend
-    def process(self, request_bytes: bytes, psbt_bytes: bytes) -> ControllerResult:
+
+    def validate_request(self, request_bytes: bytes, psbt_bytes: bytes):
+        """Validate the complete request without invoking the signing backend."""
         request = decode_message(request_bytes)
         if request.stage not in (Stage.HOST_COMMIT, Stage.HOST_REVEAL): _fail(AntiExfilProtocolCode.WRONG_STAGE, "SeedSigner accepts only messages 1 and 3")
         if not protocol_network_matches_setting(self.network, request.network):
@@ -118,10 +120,15 @@ class AntiExfilSignerController:
         if not hmac.compare_digest(request.psbt_digest, hashlib.sha256(psbt_bytes).digest()): _fail(AntiExfilProtocolCode.TRANSACTION_MISMATCH, "message PSBT digest differs from exact PSBT")
         _, contexts = derive_signing_contexts(psbt_bytes, self.seed, self.network)
         if tuple(context.identifier for context in contexts) != tuple(slot.identifier for slot in request.slots): _fail(AntiExfilProtocolCode.SIGNATURE_SLOT_MISMATCH, "message slot set differs from SeedSigner enumeration")
+        for context, slot in zip(contexts, request.slots):
+            if context.message_hash != slot.message_hash or slot.sighash_type != SIGHASH.ALL: _fail(AntiExfilProtocolCode.TRANSACTION_MISMATCH, "slot sighash context differs from PSBT")
+        return request, contexts
+
+    def process(self, request_bytes: bytes, psbt_bytes: bytes) -> ControllerResult:
+        request, contexts = self.validate_request(request_bytes, psbt_bytes)
         output = []
         try:
             for context, slot in zip(contexts, request.slots):
-                if context.message_hash != slot.message_hash or slot.sighash_type != SIGHASH.ALL: _fail(AntiExfilProtocolCode.TRANSACTION_MISMATCH, "slot sighash context differs from PSBT")
                 if request.stage == Stage.HOST_COMMIT:
                     opening = self.backend.signer_commit(context.secret_key, context.message_hash, slot.commitment)
                     output.append(SigningSlot(slot.input_index, slot.signer_pubkey, slot.message_hash, slot.sighash_type, slot.commitment, opening=opening))

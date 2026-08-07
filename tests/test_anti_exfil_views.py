@@ -1,4 +1,8 @@
 from unittest.mock import Mock, patch
+import hashlib
+
+from embit import script
+from embit.psbt import PSBT
 
 from base import BaseTest, FlowStep, FlowTest
 
@@ -12,7 +16,9 @@ from seedsigner.views.anti_exfil_views import (
     AntiExfilResponseReadyView,
     AntiExfilRoundOneCompleteView,
 )
-from seedsigner.views.scan_views import ScanAntiExfilHostRevealView, ScanView
+from seedsigner.helpers.anti_exfil_protocol_v1 import ProtocolMessage, decode_message
+from seedsigner.helpers.anti_exfil_transport import AntiExfilTransportPackage
+from seedsigner.views.scan_views import ScanAntiExfilHostRevealView, ScanPSBTView, ScanView
 from seedsigner.views import psbt_views
 
 from test_anti_exfil_protocol import FakeNativeBackend
@@ -76,6 +82,28 @@ class TestAntiExfilViews(BaseTest):
         assert destination.View_cls is AntiExfilRequestView
         assert self.controller.anti_exfil_state.round_number == 1
         assert self.controller.psbt.serialize() == package.psbt
+
+    def test_seed_specific_transaction_scan_accepts_anti_exfil_and_preserves_seed(self):
+        self.settings.set_value(
+            SettingsConstants.SETTING__ANTI_EXFIL,
+            SettingsConstants.OPTION__REQUIRED,
+        )
+        self.settings.set_value(
+            SettingsConstants.SETTING__NETWORK,
+            SettingsConstants.REGTEST,
+        )
+        seed, _, package = make_round_one()
+        self.controller.psbt_seed = seed
+        view = ScanPSBTView()
+        view.decoder = FakeCompletedDecoder(is_anti_exfil=True, package=package)
+        view.run_screen = Mock(return_value=None)
+        view.controller.reset_screensaver_timeout = Mock()
+
+        destination = view.run()
+
+        assert destination.View_cls is AntiExfilRequestView
+        assert self.controller.anti_exfil_state.round_number == 1
+        assert self.controller.psbt_seed is seed
 
     def test_host_reveal_shortcut_accepts_only_message_three(self):
         self.settings.set_value(
@@ -183,6 +211,59 @@ class TestAntiExfilViews(BaseTest):
 
 
 class TestAntiExfilReviewFlow(FlowTest):
+    def _run_invalid_review_case(self, mutation):
+        seed, _, package = make_round_one()
+        parsed = PSBT.parse(package.psbt)
+        mutation(parsed)
+        raw = parsed.serialize()
+        request = decode_message(package.message)
+        changed_request = ProtocolMessage(
+            request.network,
+            request.stage,
+            request.session_id,
+            hashlib.sha256(raw).digest(),
+            request.slots,
+        )
+        changed_package = AntiExfilTransportPackage(
+            changed_request.encode(), package.network, raw
+        )
+        from seedsigner.models.anti_exfil_state import AntiExfilFlowState
+
+        state = AntiExfilFlowState.from_package(changed_package)
+        self.settings.set_value(SettingsConstants.SETTING__NETWORK, SettingsConstants.REGTEST)
+        self.controller.anti_exfil_state = state
+        self.controller.psbt = state.request_psbt
+        self.controller.psbt_seed = seed
+
+        loading = Mock()
+        with patch(
+            "seedsigner.gui.screens.screen.LoadingScreenThread",
+            return_value=loading,
+        ):
+            destination = psbt_views.PSBTOverviewView().run()
+        loading.stop.assert_called_once()
+        return destination
+
+    def test_missing_utxo_stops_in_anti_exfil_view_before_stock_parser(self):
+        destination = self._run_invalid_review_case(
+            lambda value: setattr(value.inputs[0], "witness_utxo", None)
+        )
+        from seedsigner.views.anti_exfil_views import AntiExfilFailureView
+
+        assert destination.View_cls is AntiExfilFailureView
+        assert destination.view_args["error_code"] == "AE_SIGNATURE_SLOT_MISMATCH"
+        assert destination.view_args["security_failure"] is True
+
+    def test_broken_witness_script_stops_before_stock_multisig_parser(self):
+        destination = self._run_invalid_review_case(
+            lambda value: setattr(value.inputs[2], "witness_script", script.Script(b"\x51"))
+        )
+        from seedsigner.views.anti_exfil_views import AntiExfilFailureView
+
+        assert destination.View_cls is AntiExfilFailureView
+        assert destination.view_args["error_code"] == "AE_SIGNATURE_SLOT_MISMATCH"
+        assert destination.view_args["security_failure"] is True
+
     def test_round_one_complete_scan_cancel_returns_to_main_menu(self):
         seed, _, package = make_round_one()
         from seedsigner.models.anti_exfil_state import AntiExfilFlowState
