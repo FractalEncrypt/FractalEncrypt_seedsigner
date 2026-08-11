@@ -7,7 +7,8 @@ from seedsigner.models.psbt_parser import (PSBTInputOwnershipClaimError,
 from seedsigner.models.settings import SettingsConstants
 from seedsigner.gui.components import FontAwesomeIconConstants, GUIConstants, SeedSignerIconConstants
 from seedsigner.gui.screens.screen import (RET_CODE__BACK_BUTTON, ButtonListScreen, ButtonOption, LargeIconStatusScreen, WarningScreen, DireWarningScreen, QRDisplayScreen)
-from seedsigner.views.view import BackStackView, MainMenuView, View, Destination
+from seedsigner.views.view import BackStackView, MainMenuView, NotYetImplementedView, View, Destination
+from seedsigner.helpers.anti_exfil_protocol import AntiExfilProtocolCode, AntiExfilProtocolError
 
 
 
@@ -93,6 +94,7 @@ class PSBTOverviewView(View):
         super().__init__()
 
         self.loading_screen = None
+        self.anti_exfil_review_error = None
 
         if not self.controller.psbt_parser or self.controller.psbt_parser.seed != self.controller.psbt_seed:
             # The PSBTParser takes a while to read the PSBT. Run the loading screen while
@@ -102,6 +104,15 @@ class PSBTOverviewView(View):
             self.loading_screen.start()
                 
             try:
+                if self.controller.anti_exfil_state is not None:
+                    # Stock PSBTParser assumes input UTXO/script structure is
+                    # already coherent. Validate the protected request first so
+                    # hostile or damaged data reaches the anti-exfil error view,
+                    # never SeedSigner's generic system-error screen.
+                    self.controller.anti_exfil_state.validate_for_review(
+                        seed=self.controller.psbt_seed,
+                        network=self.settings.get_value(SettingsConstants.SETTING__NETWORK),
+                    )
                 self.controller.psbt_parser = PSBTParser(
                     self.controller.psbt,
                     seed=self.controller.psbt_seed,
@@ -112,38 +123,97 @@ class PSBTOverviewView(View):
             # Note that in almost every exception case, we set clear_history to disable
             # returning via BACK button in the Destination.
             except PSBTInputOwnershipClaimError:
-                self.set_redirect(Destination(PSBTInputOwnershipClaimFailedView, clear_history=True))
+                if self.controller.anti_exfil_state is not None:
+                    self.anti_exfil_review_error = AntiExfilProtocolError(
+                        AntiExfilProtocolCode.INVALID_MESSAGE,
+                        "protected transaction review rejected the request",
+                    )
+                else:
+                    self.set_redirect(Destination(PSBTInputOwnershipClaimFailedView, clear_history=True))
                 return
 
             except PSBTOutputOwnershipClaimError:
-                self.set_redirect(Destination(PSBTOutputOwnershipClaimFailedView, clear_history=True))
+                if self.controller.anti_exfil_state is not None:
+                    self.anti_exfil_review_error = AntiExfilProtocolError(
+                        AntiExfilProtocolCode.INVALID_MESSAGE,
+                        "protected transaction review rejected the request",
+                    )
+                else:
+                    self.set_redirect(Destination(PSBTOutputOwnershipClaimFailedView, clear_history=True))
                 return
 
             except PSBTSurplusDerivationPathsError:
-                self.set_redirect(Destination(PSBTSurplusDerivationPathsView, clear_history=True))
+                if self.controller.anti_exfil_state is not None:
+                    self.anti_exfil_review_error = AntiExfilProtocolError(
+                        AntiExfilProtocolCode.INVALID_MESSAGE,
+                        "protected transaction review rejected the request",
+                    )
+                else:
+                    self.set_redirect(Destination(PSBTSurplusDerivationPathsView, clear_history=True))
                 return
 
             except PSBTMixedDerivationPathTypesError:
-                self.set_redirect(Destination(PSBTMixedDerivationPathTypesView, clear_history=True))
+                if self.controller.anti_exfil_state is not None:
+                    self.anti_exfil_review_error = AntiExfilProtocolError(
+                        AntiExfilProtocolCode.INVALID_MESSAGE,
+                        "protected transaction review rejected the request",
+                    )
+                else:
+                    self.set_redirect(Destination(PSBTMixedDerivationPathTypesView, clear_history=True))
                 return
 
             except PSBTOutputOwnershipContradictionError:
-                self.set_redirect(Destination(PSBTOutputOwnershipContradictionView, clear_history=True))
+                if self.controller.anti_exfil_state is not None:
+                    self.anti_exfil_review_error = AntiExfilProtocolError(
+                        AntiExfilProtocolCode.INVALID_MESSAGE,
+                        "protected transaction review rejected the request",
+                    )
+                else:
+                    self.set_redirect(Destination(PSBTOutputOwnershipContradictionView, clear_history=True))
                 return
 
             except PSBTSeedCannotSignError:
-                # Not a suspicious psbt, just the wrong seed for it. Send the user back to
-                # pick another rather than clearing the flow.
-                self.controller.psbt_parser = None
-                self.controller.psbt_seed = None
-                self.set_redirect(Destination(PSBTSeedCannotSignView))
+                if self.controller.anti_exfil_state is not None:
+                    self.anti_exfil_review_error = AntiExfilProtocolError(
+                        AntiExfilProtocolCode.INVALID_MESSAGE,
+                        "protected transaction review rejected the request",
+                    )
+                else:
+                    # Not a suspicious psbt, just the wrong seed for it. Send the user
+                    # back to pick another rather than clearing the normal PSBT flow.
+                    self.controller.psbt_parser = None
+                    self.controller.psbt_seed = None
+                    self.set_redirect(Destination(PSBTSeedCannotSignView))
                 return
 
+            except AntiExfilProtocolError as e:
+                self.anti_exfil_review_error = e
+            except Exception as e:
+                if self.controller.anti_exfil_state is None:
+                    raise e
+                self.anti_exfil_review_error = AntiExfilProtocolError(
+                    AntiExfilProtocolCode.INVALID_MESSAGE,
+                    "protected transaction review could not parse the request",
+                )
             finally:
                 self.loading_screen.stop()
 
 
     def run(self):
+        if self.anti_exfil_review_error is not None:
+            from seedsigner.views.anti_exfil_views import AntiExfilFailureView
+
+            error = self.anti_exfil_review_error
+            return Destination(
+                AntiExfilFailureView,
+                view_args={
+                    "error_code": error.code.value,
+                    "error_message": error.message,
+                    "security_failure": True,
+                },
+                clear_history=True,
+            )
+
         from seedsigner.gui.screens.psbt_screens import PSBTOverviewScreen
         psbt_parser = self.controller.psbt_parser
 
