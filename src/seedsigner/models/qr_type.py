@@ -31,5 +31,6 @@ class QRType:
     OUTPUT__UR = "output__ur"
     ACCOUNT__UR = "account__ur"
     BYTES__UR = "bytes__ur"
+    ANTI_EXFIL__UR = "anti_exfil__ur"
 
     INVALID = "invalid"
