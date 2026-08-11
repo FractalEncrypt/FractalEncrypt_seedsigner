@@ -266,6 +266,11 @@ class ScanAntiExfilHostRevealView(ScanView):
     instructions_text = _mft("Scan host reveal")
     invalid_qr_type_message = _mft("Expected anti-exfil host reveal message 3")
     expected_anti_exfil_stage = Stage.HOST_REVEAL
+    # The shortcut is an uninterrupted continuation of the same ceremony. Keep
+    # the already selected signer so message 3 can proceed without asking the
+    # user to select it a second time. The ordinary main-menu Scan path remains
+    # stateless because the controller clears psbt_seed when returning there.
+    preserve_psbt_seed = True
 
     @property
     def is_valid_qr_type(self):

@@ -119,6 +119,23 @@ class TestAntiExfilViews(BaseTest):
         assert destination.View_cls is AntiExfilRequestView
         assert self.controller.anti_exfil_state.request_stage.name == "HOST_REVEAL"
 
+    def test_host_reveal_shortcut_preserves_selected_seed(self):
+        self.settings.set_value(
+            SettingsConstants.SETTING__ANTI_EXFIL,
+            SettingsConstants.OPTION__REQUIRED,
+        )
+        seed, package = make_round_two_request()
+        self.controller.psbt_seed = seed
+        view = ScanAntiExfilHostRevealView()
+        view.decoder = FakeCompletedDecoder(is_anti_exfil=True, package=package)
+        view.run_screen = Mock(return_value=None)
+        view.controller.reset_screensaver_timeout = Mock()
+
+        destination = view.run()
+
+        assert destination.View_cls is AntiExfilRequestView
+        assert self.controller.psbt_seed is seed
+
     def test_host_reveal_shortcut_rejects_message_one(self):
         self.settings.set_value(
             SettingsConstants.SETTING__ANTI_EXFIL,
