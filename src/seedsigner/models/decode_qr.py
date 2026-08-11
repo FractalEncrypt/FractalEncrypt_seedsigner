@@ -15,6 +15,7 @@ from urtypes.bytes import Bytes
 from base64 import b32encode, b32decode
 
 from seedsigner.helpers.ur2.ur_decoder import URDecoder
+from seedsigner.helpers.anti_exfil_transport import AntiExfilTransportPackage
 from seedsigner.models.qr_type import QRType
 from seedsigner.models.seed import Seed
 from seedsigner.models.settings import SettingsConstants
@@ -64,7 +65,7 @@ class DecodeQR:
         if self.qr_type == None:
             self.qr_type = qr_type
 
-            if self.qr_type in [QRType.PSBT__UR2, QRType.OUTPUT__UR, QRType.ACCOUNT__UR, QRType.BYTES__UR]:
+            if self.qr_type in [QRType.PSBT__UR2, QRType.OUTPUT__UR, QRType.ACCOUNT__UR, QRType.BYTES__UR, QRType.ANTI_EXFIL__UR]:
                 self.decoder = URDecoder() # BCUR Decoder
 
             elif self.qr_type == QRType.PSBT__SPECTER:
@@ -124,7 +125,7 @@ class DecodeQR:
             # it's already str data
             qr_str = data
 
-        if self.qr_type in [QRType.PSBT__UR2, QRType.OUTPUT__UR, QRType.ACCOUNT__UR, QRType.BYTES__UR]:
+        if self.qr_type in [QRType.PSBT__UR2, QRType.OUTPUT__UR, QRType.ACCOUNT__UR, QRType.BYTES__UR, QRType.ANTI_EXFIL__UR]:
             added_part = self.decoder.receive_part(qr_str)
             if self.decoder.is_complete():
                 self.complete = True
@@ -146,7 +147,7 @@ class DecodeQR:
     #   `get_data` and let each QRDecoder class return whatever it needs to as a
     #   str, tuple, dict, etc?
     def get_psbt(self):
-        if self.complete:
+        if self.complete and self.is_psbt:
             data = self.get_data_psbt()
             if data != None:
                 try:
@@ -178,6 +179,15 @@ class DecodeQR:
                 b64_psbt = b64_psbt[:-1]
 
             return b64_psbt.decode("utf-8")
+        return None
+
+
+    def get_anti_exfil_package(self, network: str):
+        if self.complete and self.qr_type == QRType.ANTI_EXFIL__UR:
+            return AntiExfilTransportPackage.from_cbor(
+                bytes(self.decoder.result_message().cbor),
+                expected_network=network,
+            )
         return None
 
 
@@ -231,7 +241,7 @@ class DecodeQR:
         if not self.decoder:
             return 0
 
-        if self.qr_type in [QRType.PSBT__UR2, QRType.OUTPUT__UR, QRType.ACCOUNT__UR, QRType.BYTES__UR]:
+        if self.qr_type in [QRType.PSBT__UR2, QRType.OUTPUT__UR, QRType.ACCOUNT__UR, QRType.BYTES__UR, QRType.ANTI_EXFIL__UR]:
             return int(self.decoder.estimated_percent_complete(weight_mixed_frames=weight_mixed_frames) * 100)
 
         elif self.qr_type in [QRType.PSBT__SPECTER, QRType.PSBT__BBQR]:
@@ -269,6 +279,11 @@ class DecodeQR:
             QRType.PSBT__BASE43,
             QRType.PSBT__BBQR,
         ]
+
+
+    @property
+    def is_anti_exfil(self) -> bool:
+        return self.qr_type == QRType.ANTI_EXFIL__UR
 
 
     @property
@@ -347,6 +362,9 @@ class DecodeQR:
             # PSBT
             if re.search("^UR:CRYPTO-PSBT/", s, re.IGNORECASE):
                 return QRType.PSBT__UR2
+
+            elif re.search("^UR:X-BTC-ANTI-EXFIL/", s, re.IGNORECASE):
+                return QRType.ANTI_EXFIL__UR
 
             elif re.search("^UR:CRYPTO-OUTPUT/", s, re.IGNORECASE):
                 return QRType.OUTPUT__UR

@@ -23,7 +23,7 @@ from seedsigner.models.settings_definition import SettingsConstants
 def get_standard_derivation_path(network: str = SettingsConstants.MAINNET, wallet_type: str = SettingsConstants.SINGLE_SIG, script_type: str = SettingsConstants.NATIVE_SEGWIT) -> str:
     if network == SettingsConstants.MAINNET:
         network_path = "0'"
-    elif network == SettingsConstants.TESTNET:
+    elif network in (SettingsConstants.TESTNET, SettingsConstants.TESTNET4, SettingsConstants.SIGNET):
         network_path = "1'"
     elif network == SettingsConstants.REGTEST:
         network_path = "1'"
@@ -117,6 +117,8 @@ def get_embit_network_name(settings_name):
     lookup = {
         SettingsConstants.MAINNET: "main",
         SettingsConstants.TESTNET: "test",
+        SettingsConstants.TESTNET4: "test",
+        SettingsConstants.SIGNET: "test",
         SettingsConstants.REGTEST: "regtest",
     }
     return lookup.get(settings_name)
@@ -149,7 +151,7 @@ def parse_derivation_path(derivation_path: str) -> dict:
         },
         "networks": {
             "0h": SettingsConstants.MAINNET,
-            "1h": [SettingsConstants.TESTNET, SettingsConstants.REGTEST],
+            "1h": [SettingsConstants.TESTNET, SettingsConstants.TESTNET4, SettingsConstants.SIGNET, SettingsConstants.REGTEST],
         }
     }
 

@@ -161,10 +161,12 @@ class PSBTParser():
     HIGH_FEES_WARNING_THRESHOLD = 25
 
 
-    def __init__(self, p: PSBT, seed: Seed, network: str = SettingsConstants.MAINNET):
+    def __init__(self, p: PSBT, seed: Seed, network: str = SettingsConstants.MAINNET, allow_mixed_inputs: bool = False):
         self.psbt: PSBT = p
         self.seed = seed
         self.network = network
+        self.allow_mixed_inputs = allow_mixed_inputs
+        self.mixed_input_policies = False
 
         self.policy = None
         self.spend_amount = 0
@@ -335,7 +337,11 @@ class PSBTParser():
                 self.policy = inp_policy
             else:
                 if self.policy != inp_policy:
-                    raise RuntimeError("Mixed inputs in the transaction")
+                    if not self.allow_mixed_inputs:
+                        raise RuntimeError("Mixed inputs in the transaction")
+                    # Anti-exfil validates each input separately. Retain the
+                    # first policy for conservative transaction display.
+                    self.mixed_input_policies = True
 
 
     def _parse_outputs(self, child_key_derivation_cache: dict):
@@ -1215,8 +1221,6 @@ class PSBTParser():
 
         for out in self.psbt.outputs:
             _fill_scope(out)
-
-
     def get_total_output_value(self, include_change: bool = False):
         """
             Returns the sum of all outputs (fee not included).

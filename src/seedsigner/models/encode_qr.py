@@ -13,6 +13,7 @@ from seedsigner.helpers.ur2.ur import UR
 from seedsigner.helpers.qr import QR
 from seedsigner.models.seed import Seed
 from seedsigner.models.settings import SettingsConstants
+from seedsigner.helpers.anti_exfil_transport import AntiExfilTransportPackage, UR_TYPE
 
 from urtypes.crypto import PSBT as UR_PSBT
 from urtypes.crypto import Account, HDKey, Output, Keypath, PathComponent, SCRIPT_EXPRESSION_TAG_MAP, CoinInfo
@@ -404,3 +405,20 @@ class UrPsbtQrEncoder(BaseFountainQrEncoder):
         super().__post_init__()
         qr_ur_bytes = UR("crypto-psbt", UR_PSBT(self.psbt.serialize()).to_cbor())
         self.ur2_encode = UREncoder(ur=qr_ur_bytes, max_fragment_len=self.qr_max_fragment_size)
+
+
+@dataclass
+class AntiExfilQrEncoder(BaseFountainQrEncoder):
+    package: AntiExfilTransportPackage = None
+
+    def __post_init__(self):
+        super().__post_init__()
+        if not isinstance(self.package, AntiExfilTransportPackage):
+            raise ValueError("anti-exfil QR encoder requires a transport package")
+        # SeedSigner's vendored FountainEncoder pads its final fragment in place and
+        # therefore requires a mutable bytearray. This does not change the wire bytes.
+        qr_ur_bytes = UR(UR_TYPE, bytearray(self.package.to_cbor()))
+        self.ur2_encode = UREncoder(
+            ur=qr_ur_bytes,
+            max_fragment_len=self.qr_max_fragment_size,
+        )
