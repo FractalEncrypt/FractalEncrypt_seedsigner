@@ -563,7 +563,10 @@ class SeedOptionsView(View):
         if self.controller.psbt:
             from seedsigner.models.psbt_parser import PSBTParser
             if PSBTParser.has_matching_input_fingerprint(self.controller.psbt, self.seed, network=self.settings.get_value(SettingsConstants.SETTING__NETWORK)):
-                if self.controller.resume_main_flow and self.controller.resume_main_flow == Controller.FLOW__PSBT:
+                if self.controller.resume_main_flow in {
+                    Controller.FLOW__PSBT,
+                    Controller.FLOW__ANTI_EXFIL,
+                }:
                     # Re-route us directly back to the start of the PSBT flow
                     self.controller.resume_main_flow = None
                     self.controller.psbt_seed = self.seed
@@ -2204,7 +2207,7 @@ class SeedSignMessageConfirmAddressView(View):
 
         if addr_format["network"] != SettingsConstants.MAINNET:
             # We're in either Testnet or Regtest or...?
-            if self.settings.get_value(SettingsConstants.SETTING__NETWORK) in [SettingsConstants.TESTNET, SettingsConstants.REGTEST]:
+            if self.settings.get_value(SettingsConstants.SETTING__NETWORK) in [SettingsConstants.TESTNET, SettingsConstants.TESTNET4, SettingsConstants.SIGNET, SettingsConstants.REGTEST]:
                 addr_format["network"] = self.settings.get_value(SettingsConstants.SETTING__NETWORK)
             else:
                 from seedsigner.views.view import NetworkMismatchErrorView

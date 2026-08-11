@@ -62,7 +62,10 @@ class PSBTSelectSeedView(View):
             return Destination(PSBTOverviewView)
         
         # The remaining flows are a sub-flow; resume PSBT flow once the seed is loaded.
-        self.controller.resume_main_flow = Controller.FLOW__PSBT
+        if self.controller.anti_exfil_state:
+            self.controller.resume_main_flow = Controller.FLOW__ANTI_EXFIL
+        else:
+            self.controller.resume_main_flow = Controller.FLOW__PSBT
 
         if button_data[selected_menu_num] == self.SCAN_SEED:
             from seedsigner.views.scan_views import ScanSeedQRView
@@ -99,7 +102,8 @@ class PSBTOverviewView(View):
                 self.controller.psbt_parser = PSBTParser(
                     self.controller.psbt,
                     seed=self.controller.psbt_seed,
-                    network=self.settings.get_value(SettingsConstants.SETTING__NETWORK)
+                    network=self.settings.get_value(SettingsConstants.SETTING__NETWORK),
+                    allow_mixed_inputs=self.controller.anti_exfil_state is not None,
                 )
             except Exception as e:
                 self.loading_screen.stop()
@@ -519,6 +523,10 @@ class PSBTFinalizeView(View):
 
     
     def run(self):
+        if self.controller.anti_exfil_state:
+            from seedsigner.views.anti_exfil_views import AntiExfilFinalizeView
+            return Destination(AntiExfilFinalizeView, skip_current_view=True)
+
         from embit.psbt import PSBT
         from seedsigner.gui.screens.psbt_screens import PSBTFinalizeScreen
 
