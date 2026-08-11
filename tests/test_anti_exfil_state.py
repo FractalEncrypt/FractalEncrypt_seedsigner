@@ -55,6 +55,17 @@ def test_response_cannot_be_reused_as_request_or_created_twice():
     assert repeated.value.code == AntiExfilProtocolCode.WRONG_STAGE
     with pytest.raises(AntiExfilProtocolError): AntiExfilFlowState.from_package(response)
 
+def test_truncated_psbt_is_a_controlled_protocol_error():
+    _, _, package = make_round_one()
+    truncated = AntiExfilTransportPackage(
+        package.message,
+        package.network,
+        package.psbt[:-1],
+    )
+    with pytest.raises(AntiExfilProtocolError) as failure:
+        AntiExfilFlowState.from_package(truncated)
+    assert failure.value.code == AntiExfilProtocolCode.INVALID_MESSAGE
+
 def test_both_response_stages_round_trip_as_anti_exfil_qr():
     seed, _, request = make_round_one()
     responses = [AntiExfilFlowState.from_package(request).create_response(seed=seed, network=SettingsConstants.REGTEST, backend=FakeNativeBackend()), make_round_two_response()]

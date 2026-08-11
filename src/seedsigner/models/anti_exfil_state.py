@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from enum import Enum
 import hashlib
 
-from embit.psbt import PSBT, PSBTError
+from embit.psbt import PSBT
 
 from seedsigner.helpers.anti_exfil import AntiExfilNativeBackend
 from seedsigner.helpers.anti_exfil_protocol import AntiExfilProtocolCode, AntiExfilProtocolError
@@ -46,7 +46,10 @@ class AntiExfilFlowState:
             )
         try:
             psbt = PSBT.parse(package.psbt)
-        except (PSBTError, ValueError, IndexError) as exc:
+        # embit can raise RuntimeError/EOF-style exceptions for truncated
+        # untrusted streams in addition to its documented PSBTError family.
+        # No parser exception may escape the controlled protocol-error path.
+        except Exception as exc:
             raise AntiExfilProtocolError(
                 AntiExfilProtocolCode.INVALID_MESSAGE,
                 f"invalid anti-exfil PSBT: {exc}",
@@ -115,3 +118,12 @@ class AntiExfilFlowState:
         self.response_package = response
         self.phase = AntiExfilFlowPhase.RESPONSE_READY
         return response
+
+    def validate_for_review(self, *, seed: Seed, network: str):
+        """Fail closed before the stock PSBT review parser sees the request."""
+
+        signer = AntiExfilSignerController(seed, network, backend=None)
+        return signer.validate_request(
+            self.request_package.message,
+            self.request_package.psbt,
+        )

@@ -24,6 +24,7 @@ class ScanView(View):
     instructions_text = _mft("Scan a QR code")
     invalid_qr_type_message = _mft("QRCode not recognized or not yet supported.")
     expected_anti_exfil_stage: Stage | None = None
+    preserve_psbt_seed = False
 
 
     def __init__(self):
@@ -152,10 +153,13 @@ class ScanView(View):
                         },
                         clear_history=True,
                     )
+                selected_seed = (
+                    self.controller.psbt_seed if self.preserve_psbt_seed else None
+                )
                 self.controller.anti_exfil_state = state
                 self.controller.psbt = state.request_psbt
                 self.controller.psbt_parser = None
-                self.controller.psbt_seed = None
+                self.controller.psbt_seed = selected_seed
                 return Destination(AntiExfilRequestView, skip_current_view=True)
 
             elif self.decoder.is_psbt:
@@ -249,16 +253,24 @@ class ScanView(View):
 class ScanPSBTView(ScanView):
     instructions_text = _mft("Scan Transaction")
     invalid_qr_type_message = _mft("Expected a transaction")
+    preserve_psbt_seed = True
 
     @property
     def is_valid_qr_type(self):
-        return self.decoder.is_psbt
+        # An anti-exfil host request is also a transaction QR. Let the common
+        # router enforce the Required/Disabled mode policy and decode it.
+        return self.decoder.is_psbt or self.decoder.is_anti_exfil
 
 
 class ScanAntiExfilHostRevealView(ScanView):
     instructions_text = _mft("Scan host reveal")
     invalid_qr_type_message = _mft("Expected anti-exfil host reveal message 3")
     expected_anti_exfil_stage = Stage.HOST_REVEAL
+    # The shortcut is an uninterrupted continuation of the same ceremony. Keep
+    # the already selected signer so message 3 can proceed without asking the
+    # user to select it a second time. The ordinary main-menu Scan path remains
+    # stateless because the controller clears psbt_seed when returning there.
+    preserve_psbt_seed = True
 
     @property
     def is_valid_qr_type(self):

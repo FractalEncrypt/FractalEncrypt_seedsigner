@@ -5,6 +5,7 @@ from seedsigner.models.settings import SettingsConstants
 from seedsigner.gui.components import FontAwesomeIconConstants, SeedSignerIconConstants
 from seedsigner.gui.screens.screen import (RET_CODE__BACK_BUTTON, ButtonListScreen, ButtonOption, WarningScreen, DireWarningScreen, QRDisplayScreen)
 from seedsigner.views.view import BackStackView, MainMenuView, NotYetImplementedView, View, Destination
+from seedsigner.helpers.anti_exfil_protocol import AntiExfilProtocolCode, AntiExfilProtocolError
 
 
 
@@ -90,6 +91,7 @@ class PSBTOverviewView(View):
         super().__init__()
 
         self.loading_screen = None
+        self.anti_exfil_review_error = None
 
         if not self.controller.psbt_parser or self.controller.psbt_parser.seed != self.controller.psbt_seed:
             # The PSBTParser takes a while to read the PSBT. Run the loading screen while
@@ -99,18 +101,49 @@ class PSBTOverviewView(View):
             self.loading_screen.start()
                 
             try:
+                if self.controller.anti_exfil_state is not None:
+                    # Stock PSBTParser assumes input UTXO/script structure is
+                    # already coherent. Validate the protected request first so
+                    # hostile or damaged data reaches the anti-exfil error view,
+                    # never SeedSigner's generic system-error screen.
+                    self.controller.anti_exfil_state.validate_for_review(
+                        seed=self.controller.psbt_seed,
+                        network=self.settings.get_value(SettingsConstants.SETTING__NETWORK),
+                    )
                 self.controller.psbt_parser = PSBTParser(
                     self.controller.psbt,
                     seed=self.controller.psbt_seed,
                     network=self.settings.get_value(SettingsConstants.SETTING__NETWORK),
                     allow_mixed_inputs=self.controller.anti_exfil_state is not None,
                 )
+            except AntiExfilProtocolError as e:
+                self.loading_screen.stop()
+                self.anti_exfil_review_error = e
             except Exception as e:
                 self.loading_screen.stop()
-                raise e
+                if self.controller.anti_exfil_state is None:
+                    raise e
+                self.anti_exfil_review_error = AntiExfilProtocolError(
+                    AntiExfilProtocolCode.INVALID_MESSAGE,
+                    "protected transaction review could not parse the request",
+                )
 
 
     def run(self):
+        if self.anti_exfil_review_error is not None:
+            from seedsigner.views.anti_exfil_views import AntiExfilFailureView
+
+            error = self.anti_exfil_review_error
+            return Destination(
+                AntiExfilFailureView,
+                view_args={
+                    "error_code": error.code.value,
+                    "error_message": error.message,
+                    "security_failure": True,
+                },
+                clear_history=True,
+            )
+
         from seedsigner.gui.screens.psbt_screens import PSBTOverviewScreen
         psbt_parser = self.controller.psbt_parser
 
