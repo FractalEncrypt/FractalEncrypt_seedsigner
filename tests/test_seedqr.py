@@ -1,9 +1,36 @@
 import os
+from unittest.mock import Mock, patch
+
 from embit import bip39
 from seedsigner.helpers.qr import QR
 from seedsigner.models.decode_qr import DecodeQR, DecodeQRStatus
 from seedsigner.models.encode_qr import SeedQrEncoder, CompactSeedQrEncoder
 from seedsigner.models.qr_type import QRType
+
+
+def test_qrimage_io_fallback_preserves_background_color():
+    """The python-qrcode fallback must retain interactive QR brightness."""
+    qr = QR()
+    expected_image = object()
+    qr.qrimage = Mock(return_value=expected_image)
+
+    with patch("seedsigner.helpers.qr.subprocess.call", return_value=1):
+        image = qr.qrimage_io(
+            data="brightness-test",
+            width=240,
+            height=240,
+            border=2,
+            background_color="5d5d5d",
+        )
+
+    assert image is expected_image
+    qr.qrimage.assert_called_once_with(
+        "brightness-test",
+        240,
+        240,
+        2,
+        background_color="#5d5d5d",
+    )
 
 
 
