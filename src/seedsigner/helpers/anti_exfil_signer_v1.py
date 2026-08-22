@@ -89,7 +89,9 @@ def derive_signing_contexts(psbt_bytes: bytes, seed: Seed, network: str):
             derived = root.derive(origin.derivation)
             if derived.key.get_public_key().sec() != encoded: _slot_fail(index, "derivation does not reproduce public key")
             if pub in scope.partial_sigs: _fail(AntiExfilProtocolCode.SIGNING_MODE_MISMATCH, f"input {index} already has a controlled signature")
-            if scope.final_scriptsig is not None or scope.final_scriptwitness is not None: continue
+            if scope.final_scriptsig is not None or scope.final_scriptwitness is not None:
+                _fail(AntiExfilProtocolCode.SIGNING_MODE_MISMATCH,
+                      f"input {index} is finalized for a controlled key")
             contexts.append(SigningContext(index, encoded, digest, derived.key.secret,
                 root.my_fingerprint.hex(), _format_derivation(origin.derivation), kind,
                 input_amount, spend_amount, fee_amount))

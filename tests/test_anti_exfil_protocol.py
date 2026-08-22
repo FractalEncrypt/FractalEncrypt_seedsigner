@@ -145,6 +145,23 @@ def test_preexisting_controlled_signature_fails(fixture_context):
         derive_signing_contexts(psbt.serialize(), Seed(MNEMONIC.split()), SettingsConstants.REGTEST)
     assert raised.value.code == AntiExfilProtocolCode.SIGNING_MODE_MISMATCH
 
+def test_finalized_input_attributable_to_controlled_key_fails(fixture_context):
+    psbt, _, _, _, _ = fixture_context
+    pub = next(iter(psbt.inputs[0].bip32_derivations))
+    psbt.inputs[0].final_scriptwitness = script.Witness([b"ordinary-signature", pub.sec()])
+    with pytest.raises(AntiExfilProtocolError) as raised:
+        derive_signing_contexts(psbt.serialize(), Seed(MNEMONIC.split()), SettingsConstants.REGTEST)
+    assert raised.value.code == AntiExfilProtocolCode.SIGNING_MODE_MISMATCH
+
+    origin = psbt.inputs[0].bip32_derivations[pub]
+    psbt.inputs[0].bip32_derivations[pub] = DerivationPath(
+        bytes.fromhex("deadbeef"), origin.derivation
+    )
+    _, contexts = derive_signing_contexts(
+        psbt.serialize(), Seed(MNEMONIC.split()), SettingsConstants.REGTEST
+    )
+    assert [context.input_index for context in contexts] == [1, 2, 2, 3]
+
 @pytest.mark.skipif(not NATIVE_LIBRARY or not Path(NATIVE_LIBRARY).is_file(), reason="native library unavailable")
 def test_real_native_backend(fixture_context):
     from seedsigner.helpers.anti_exfil import AntiExfilNativeBackend
