@@ -141,13 +141,24 @@ class PSBTParser():
                     signed_input_indexes.append(i)
                     break
             else:
-                # Check Taproot: final_scriptwitness present and fingerprint in
-                # taproot_bip32_derivations means this seed already signed.
-                if inp.final_scriptwitness:
-                    for pubkey, (leaf_hashes, derivation_path_obj) in inp.taproot_bip32_derivations.items():
-                        if hexlify(derivation_path_obj.fingerprint).decode() == fingerprint_hex:
-                            signed_input_indexes.append(i)
-                            break
+                # Check non-finalized Taproot script-path signatures first.
+                for pubkey, _leaf_hash in inp.taproot_sigs.keys():
+                    derivation_data = inp.taproot_bip32_derivations.get(pubkey)
+                    if derivation_data is None:
+                        continue
+                    _leaf_hashes, derivation_path_obj = derivation_data
+                    if hexlify(derivation_path_obj.fingerprint).decode() == fingerprint_hex:
+                        signed_input_indexes.append(i)
+                        break
+                else:
+                    # A finalized key-path witness no longer identifies its signer.
+                    # Treat matching derivation metadata only as a coordinator claim;
+                    # the UI deliberately labels it that way.
+                    if inp.final_scriptwitness:
+                        for pubkey, (leaf_hashes, derivation_path_obj) in inp.taproot_bip32_derivations.items():
+                            if hexlify(derivation_path_obj.fingerprint).decode() == fingerprint_hex:
+                                signed_input_indexes.append(i)
+                                break
 
         return signed_input_indexes
 

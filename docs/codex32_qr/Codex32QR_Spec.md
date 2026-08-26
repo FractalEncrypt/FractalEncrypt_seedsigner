@@ -96,6 +96,16 @@ A payload MUST satisfy all of the following:
 
 Any validation failure MUST be treated as invalid codex32 input.
 
+### 3.4 Payload padding compatibility
+
+A 128-bit payload occupies 26 five-bit symbols and therefore has two trailing
+padding bits. BIP-93 valid vectors demonstrate that those padding bits are not
+required to be zero. Decoders ignore them when recovering the 16 seed bytes.
+
+Consequently, two distinct valid-checksum strings can decode to the same seed
+bytes if they differ only in those padding bits. SeedSigner preserves and
+re-exports the exact validated Codex32 string rather than silently rewriting it.
+
 ---
 
 ## 4) QR encoding profile and sizing rationale
