@@ -27,6 +27,46 @@ class MissingInputUtxoError(RuntimeError):
 
 
 class PSBTParser():
+    """
+    Reads a psbt on behalf of one seed and works out everything the signing flow shows the
+    user before they approve: the wallet policy (script type, plus m-of-n and the
+    cosigners for multisig), the amount coming in, what is being spent, what comes back as
+    change, the fee, where the spend is going, and any OP_RETURN payload.
+
+    Constructing it with a seed parses immediately.
+
+    The parse fully processes the psbt, validates what it can, then stores the organized
+    results in the instance attributes (spend_amount, fee_amount, destination_addresses,
+    etc.). Note that change_data and change_amount cover EVERY output coming back to this
+    seed, including self-transfers to a receive address. The view layer tells the two
+    apart by the branch index in the derivation path.
+
+    A psbt is written by an untrusted coordinator. The metadata it carries about keys
+    (fingerprints, derivation paths, xpubs) is a claim, not a fact. The onus is on us to
+    verify by re-deriving from the signing seed. For multisig, verification depends on the
+    user providing a "known good" descriptor (i.e. can be trusted) from which we can
+    verify the outputs by deriving from the cosigners' xpubs.
+
+    This class makes the difference visible in its own names:
+
+      claimed_...   coordinator-supplied metadata (fingerprints, derivation paths, xpubs).
+                    Safe to read and display; never safe to make a decision on.
+      verified_...  a fact this device proved by re-deriving from the signing seed and
+                    matching real key material. Only assigned by code that performed that
+                    derivation.
+
+    Invariant: no verified_ value is ever assigned from a claimed_ value without an
+    intervening re-derivation from self.root or from a user-supplied "known good"
+    descriptor.
+    """
+
+    # Upper bound on how many levels of derivation a single parse will cache. 1000 is
+    # just slightly under a 3-of-5 multisig consolidating 200 inputs, which costs roughly
+    # 650 kilobytes. A psbt that needs more levels than that still parses correctly; it
+    # just stops getting cache hits once the cache is full.
+    MAX_CACHED_DERIVATIONS = 1000
+
+
     def __init__(self, p: PSBT, seed: Seed, network: str = SettingsConstants.MAINNET):
         self.psbt: PSBT = p
         self.seed = seed
@@ -113,6 +153,26 @@ class PSBTParser():
 
 
     def parse(self):
+        """
+        Parsing traverses a derivation path down to an individual address one level at a
+        time, over and over, and where that traversal begins depends on the wallet.
+
+        Single-sig traverses the full path down from our own master key, on every OUTPUT
+        the PSBT claims is ours.
+
+        Multisig instead traverses just the last two levels down from each cosigner's
+        account xpub — once per cosigner, on every INPUT and on every OUTPUT carrying the
+        multisig script.
+
+        Deriving each level costs a hash and an elliptic curve operation, and these
+        traversals overlap heavily: everything in one account shares the same opening
+        levels, differing only in the address at the end.
+
+        So every level derived during this parse is kept in a cache and reused. See
+        _derive_with_cache.
+
+        Note that the cache is only useful within a single parse so it is not preserved.
+        """
         if self.psbt is None:
             logger.info(f"self.psbt is None!!")
             return False
@@ -127,21 +187,25 @@ class PSBTParser():
 
         self._set_root()
 
-        # Try to fix missing fingerprints before parsing
-        self.filled_missing_fingerprint_count = self._fill_missing_fingerprints()
+        child_key_derivation_cache = {}
 
-        rt = self._parse_inputs()
+        # Try to fix missing fingerprints before parsing
+        self.filled_missing_fingerprint_count = self._fill_missing_fingerprints(
+            child_key_derivation_cache
+        )
+
+        rt = self._parse_inputs(child_key_derivation_cache)
         if rt == False:
             return False
 
-        rt = self._parse_outputs()
+        rt = self._parse_outputs(child_key_derivation_cache)
         if rt == False:
             return False
 
         return True
 
 
-    def _parse_inputs(self):
+    def _parse_inputs(self, child_key_derivation_cache: dict):
         self.input_amount = 0
         self.num_inputs = len(self.psbt.inputs)
         for inp in self.psbt.inputs:
@@ -152,22 +216,28 @@ class PSBTParser():
                 self.input_amount += inp.utxo.value
                 script_pubkey = inp.script_pubkey
 
-            inp_policy = PSBTParser._get_policy(inp, script_pubkey, self.psbt.xpubs)
+            inp_policy = PSBTParser._get_policy(inp, script_pubkey, self.psbt.xpubs, child_key_derivation_cache)
             if self.policy == None:
                 self.policy = inp_policy
             else:
                 if self.policy != inp_policy:
                     raise RuntimeError("Mixed inputs in the transaction")
 
-    def _parse_outputs(self):
+    def _parse_outputs(self, child_key_derivation_cache: dict):
         self.spend_amount = 0
         self.change_amount = 0
         self.change_data = []
         self.fee_amount = 0
         self.destination_addresses = []
         self.destination_amounts = []
+
+        # Asking the PSBT for its transaction rebuilds that entire transaction from
+        # scratch on every single request. The outputs are consulted a dozen times
+        # over the course of the loop below, so grab them once now.
+        vout = self.psbt.tx.vout
+
         for i, out in enumerate(self.psbt.outputs):
-            out_policy = PSBTParser._get_policy(out, self.psbt.tx.vout[i].script_pubkey, self.psbt.xpubs)
+            out_policy = PSBTParser._get_policy(out, vout[i].script_pubkey, self.psbt.xpubs, child_key_derivation_cache)
             is_change = False
 
             # if policy is the same - probably change
@@ -181,10 +251,6 @@ class PSBTParser():
 
                 # empty script by default
                 sc = script.Script(b"")
-
-                # if older multisig, just use existing script
-                if self.policy["type"] == "p2sh":
-                    sc = script.p2sh(out.redeem_script)
 
                 # multisig, we know witness script
                 if self.policy["type"] == "p2wsh":
@@ -204,7 +270,7 @@ class PSBTParser():
                     # should be one or zero for single-key addresses
                     if len(out.bip32_derivations.values()) > 0:
                         der = list(out.bip32_derivations.values())[0].derivation
-                        my_pubkey = self.root.derive(der)
+                        my_pubkey = PSBTParser._derive_with_cache(self.root, der, child_key_derivation_cache)
 
                     if self.policy["type"] == "p2pkh" and my_pubkey is not None:
                         sc = script.p2pkh(my_pubkey)
@@ -215,7 +281,7 @@ class PSBTParser():
                     elif self.policy["type"] == "p2wpkh" and my_pubkey is not None:
                         sc = script.p2wpkh(my_pubkey)
 
-                    if sc.data == self.psbt.tx.vout[i].script_pubkey.data:
+                    if sc.data == vout[i].script_pubkey.data:
                         is_change = True
 
                 elif "p2tr" in self.policy["type"]:
@@ -225,50 +291,50 @@ class PSBTParser():
                         # TODO: Support keys in taptree leaves
                         leaf_hashes, derivation = list(out.taproot_bip32_derivations.values())[0]
                         der = derivation.derivation
-                        my_pubkey = self.root.derive(der)
+                        my_pubkey = PSBTParser._derive_with_cache(self.root, der, child_key_derivation_cache)
                         sc = script.p2tr(my_pubkey)
 
-                    if sc.data == self.psbt.tx.vout[i].script_pubkey.data:
+                    if sc.data == vout[i].script_pubkey.data:
                         is_change = True
 
-                if sc.data == self.psbt.tx.vout[i].script_pubkey.data:
+                if sc.data == vout[i].script_pubkey.data:
                     is_change = True
 
-            if self.psbt.tx.vout[i].script_pubkey.data[0] == OPCODES.OP_RETURN:
+            if vout[i].script_pubkey.data[0] == OPCODES.OP_RETURN:
                 # The data is written as: OP_RETURN + OP_PUSHDATA1 + len(payload) + payload
-                self.op_return_data = self.psbt.tx.vout[i].script_pubkey.data[3:]
+                self.op_return_data = vout[i].script_pubkey.data[3:]
 
             elif is_change:
-                addr = self.psbt.tx.vout[i].script_pubkey.address(NETWORKS[SettingsConstants.map_network_to_embit(self.network)])
-                fingerprints = []
-                derivation_paths = []
+                addr = vout[i].script_pubkey.address(NETWORKS[SettingsConstants.map_network_to_embit(self.network)])
+                claimed_fingerprints = []
+                claimed_derivation_paths = []
 
                 # extract info from non-taproot outputs
                 if len(self.psbt.outputs[i].bip32_derivations) > 0:
                     for d, derivation_path in self.psbt.outputs[i].bip32_derivations.items():
-                        fingerprints.append(hexlify(derivation_path.fingerprint).decode())
-                        derivation_paths.append(bip32.path_to_str(derivation_path.derivation))
+                        claimed_fingerprints.append(hexlify(derivation_path.fingerprint).decode())
+                        claimed_derivation_paths.append(bip32.path_to_str(derivation_path.derivation))
 
                 # extract info from taproot outputs
                 if len(self.psbt.outputs[i].taproot_bip32_derivations) > 0:
                     for d, (leaf_hashes, derivation) in self.psbt.outputs[i].taproot_bip32_derivations.items():
-                        fingerprints.append(hexlify(derivation.fingerprint).decode())
-                        derivation_paths.append(bip32.path_to_str(derivation.derivation))
+                        claimed_fingerprints.append(hexlify(derivation.fingerprint).decode())
+                        claimed_derivation_paths.append(bip32.path_to_str(derivation.derivation))
 
                 self.change_data.append({
                     "output_index": i,
                     "address": addr,
-                    "amount": self.psbt.tx.vout[i].value,
-                    "fingerprint": fingerprints,
-                    "derivation_path": derivation_paths,
+                    "amount": vout[i].value,
+                    "claimed_fingerprints": claimed_fingerprints,
+                    "claimed_derivation_paths": claimed_derivation_paths,
                 })
-                self.change_amount += self.psbt.tx.vout[i].value
+                self.change_amount += vout[i].value
 
             else:
-                addr = self.psbt.tx.vout[i].script_pubkey.address(NETWORKS[SettingsConstants.map_network_to_embit(self.network)])
+                addr = vout[i].script_pubkey.address(NETWORKS[SettingsConstants.map_network_to_embit(self.network)])
                 self.destination_addresses.append(addr)
-                self.destination_amounts.append(self.psbt.tx.vout[i].value)
-                self.spend_amount += self.psbt.tx.vout[i].value
+                self.destination_amounts.append(vout[i].value)
+                self.spend_amount += vout[i].value
 
         self.fee_amount = self.psbt.fee()
         return True
@@ -303,7 +369,7 @@ class PSBTParser():
 
 
     @staticmethod
-    def _get_policy(scope, scriptpubkey, xpubs):
+    def _get_policy(scope, scriptpubkey, xpubs, child_key_derivation_cache: dict | None):
         """Parse scope and get policy"""
         # we don't know the policy yet, let's parse it
         script_type = scriptpubkey.script_type()
@@ -333,7 +399,7 @@ class PSBTParser():
             
                 # check pubkeys are derived from cosigners
                 try:
-                    cosigners = PSBTParser._get_cosigners(pubkeys, scope.bip32_derivations, xpubs)
+                    cosigners = PSBTParser._get_cosigners(pubkeys, scope.bip32_derivations, xpubs, child_key_derivation_cache)
                     policy.update({"m": m, "n": n, "cosigners": cosigners})
                 except:
                     policy.update({"m": m, "n": n})
@@ -371,7 +437,58 @@ class PSBTParser():
 
 
     @staticmethod
-    def _get_cosigners(pubkeys, derivations, xpubs):
+    def _derive_with_cache(parent_key: bip32.HDKey, derivation_path: List[int], child_key_derivation_cache: dict | None = None) -> bip32.HDKey:
+        """
+        Derives the key that sits at the given derivation path below parent_key, reusing
+        any levels along the way that have already been derived during this parse.
+
+        A derivation path is traversed one level at a time, and two derivation paths that
+        begin the same way share those opening levels. Each level reached is stored in the
+        cache, so a later derivation running through that level picks it up instead of
+        deriving it a second time.
+
+        Entries are keyed on (id(parent_key), derivation_path_so_far) — the path traversed
+        down from that parent to reach this point. id() is the Python built-in for an
+        object's identity; the parent belongs in the key because a multisig parse runs
+        these same derivations below each cosigner's xpub in turn.
+
+        Each entry also holds on to the parent it was derived from. id() is only the
+        object's address, which Python is free to hand to a new object once the original
+        is released. Keeping the parent means its address cannot be reused for as long as
+        the entry it belongs to is alive.
+
+        Keying on the parent's fingerprint was rejected: four bytes is small enough for a
+        malicious coordinator to grind a deliberate collision, and the cosigner xpubs come
+        from the psbt.
+
+        The cache stops accepting new levels at MAX_CACHED_DERIVATIONS.
+        """
+        if child_key_derivation_cache is None:
+            return parent_key.derive(derivation_path)
+
+        derived_key = parent_key
+        derivation_path_so_far = ()
+
+        # Traverse the derivation path...
+        for index in derivation_path:
+            derivation_path_so_far += (index,)
+            cache_key = (id(parent_key), derivation_path_so_far)
+            cached_entry = child_key_derivation_cache.get(cache_key)
+            if cached_entry is None:
+                # First time deriving this level. Do the work to derive this level's child
+                # and store it in the cache.
+                already_derived = derived_key.child(index)
+                if len(child_key_derivation_cache) < PSBTParser.MAX_CACHED_DERIVATIONS:
+                    # Parent must also be stored to keep its id() from being reused
+                    child_key_derivation_cache[cache_key] = (parent_key, already_derived)
+            else:
+                cached_parent, already_derived = cached_entry
+            derived_key = already_derived
+        return derived_key
+
+
+    @staticmethod
+    def _get_cosigners(pubkeys, derivations, xpubs, child_key_derivation_cache: dict | None):
         """Returns xpubs used to derive pubkeys using global xpub field from psbt"""
         cosigners = []
         for i, pubkey in enumerate(pubkeys):
@@ -385,7 +502,9 @@ class PSBTParser():
                     # check derivation - last two indexes give pub from xpub
                     if origin_der.derivation == der.derivation[:-2]:
                         # check that it derives to pubkey actually
-                        if xpub.derive(der.derivation[-2:]).key == pubkey:
+                        derived_key = PSBTParser._derive_with_cache(
+                            xpub, der.derivation[-2:], child_key_derivation_cache)
+                        if derived_key.key == pubkey:
                             # append strings so they can be sorted and compared
                             cosigners.append(xpub.to_base58())
                             break
@@ -419,8 +538,13 @@ class PSBTParser():
     @staticmethod
     def has_matching_input_fingerprint(psbt: PSBT, seed: Seed, network: str = SettingsConstants.MAINNET):
         """
-            Extracts the fingerprint from each psbt input utxo. Returns True if any match
-            the current seed.
+            Extracts the claimed fingerprint from each psbt input. Returns True if any
+            match the provided seed.
+
+            This is merely a routing hint to help the user select a seed that looks like
+            it should be able to sign the psbt; it verifies nothing. Actual verification
+            only begins once a seed has been selected and passed into a PSBTParser
+            instance.
         """
         seed_fingerprint = seed.get_fingerprint(network)
         
@@ -465,7 +589,7 @@ class PSBTParser():
         return is_owner
 
 
-    def _fill_missing_fingerprints(self) -> int:
+    def _fill_missing_fingerprints(self, child_key_derivation_cache: dict) -> int:
         """
         Fix for when fingerprint is missing (defaults to all zeros). Happens when the user
         creates a new wallet in an external coordinator but only provides the xpub
@@ -480,12 +604,11 @@ class PSBTParser():
             return 0
 
         filled_count = 0
-        
+
         def _fill_scope(scope: InputScope | OutputScope):
             """Helper function to fill missing fingerprints in a scope (input/output)"""
             nonlocal filled_count
-            signing_seed_fingerprint = self.root.child(0).fingerprint
-            
+
             # Helper function to check and fix fingerprint
             def _get_updated_fingerprint(public_key: PublicKey, derivation_path_obj: DerivationPath) -> DerivationPath | None:
                 if derivation_path_obj.fingerprint != b"\x00\x00\x00\x00":
@@ -497,9 +620,10 @@ class PSBTParser():
                 # is owned by the signing seed. In that case we populate the missing (zero) 
                 # fingerprint with the signing seed's master fingerprint so downstream 
                 # parsing/signing can treat it as owned by this seed.
-                derived_key = self.root.derive(derivation_path_obj.derivation)
+                derived_key = PSBTParser._derive_with_cache(
+                    self.root, derivation_path_obj.derivation, child_key_derivation_cache)
                 if derived_key.key.sec() == public_key.sec():
-                    return DerivationPath(signing_seed_fingerprint, derivation_path_obj.derivation)
+                    return DerivationPath(self.root.my_fingerprint, derivation_path_obj.derivation)
                 return None
             
             # Handle regular BIP32 derivations
