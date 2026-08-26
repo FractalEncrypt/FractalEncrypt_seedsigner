@@ -11,7 +11,8 @@ from embit.networks import NETWORKS
 from embit.psbt import PSBT, DerivationPath, OutputScope
 from embit.descriptor import Descriptor
 
-from seedsigner.models.psbt_parser import (PSBTInputOwnershipClaimError,
+from seedsigner.models.psbt_parser import (MissingInputUtxoError,
+    PSBTInputOwnershipClaimError,
     PSBTMixedDerivationPathTypesError, PSBTOutputOwnershipClaimError,
     PSBTOutputOwnershipContradictionError, PSBTParser, PSBTSeedCannotSignError,
     PSBTSurplusDerivationPathsError)
@@ -27,7 +28,12 @@ class TestPSBTParser:
     """
     Exhaustively test all supported script input and output types.
     """
-    seed = PSBTTestData.seed
+    seed_words = "model ensure search plunge galaxy firm exclude brain satoshi meadow cable roast".split()
+
+    def setup_method(self):
+        # Use a fresh seed per test to avoid shared-state mutation from other tests
+        # that may wipe transient signing seeds.
+        self.seed = Seed(self.seed_words.copy())
 
     def run_basic_test(self, psbt_base64: str, change_data: str, self_transfer_data: str):
         """
@@ -165,7 +171,7 @@ class TestPSBTParser:
         wrong_seed = Seed(["bacon"] * 24)
         for input in PSBTTestData.ALL_INPUTS:
             psbt = PSBT.parse(a2b_base64(input))
-            assert PSBTParser.has_matching_input_fingerprint(psbt, PSBTTestData.seed)
+            assert PSBTParser.has_matching_input_fingerprint(psbt, self.seed)
             assert PSBTParser.has_matching_input_fingerprint(psbt, wrong_seed) == False
 
         # The other keys in the multisig inputs should also match        
@@ -201,14 +207,15 @@ class TestPSBTParser:
             # Test that has_matching_input_fingerprint can correctly identify that an input 
             # from the psbt does belong to the provided seed, even when the fingerprints 
             # (in the inputs' bip32 derivations) have been zeroed out.
-            assert PSBTParser.has_matching_input_fingerprint(psbt, PSBTTestData.seed, SettingsConstants.REGTEST)
+            assert PSBTParser.has_matching_input_fingerprint(psbt, self.seed, SettingsConstants.REGTEST)
             
             # Test that it correctly rejects wrong seeds
             wrong_seed = Seed(["bacon"] * 24)
             assert not PSBTParser.has_matching_input_fingerprint(psbt, wrong_seed, SettingsConstants.REGTEST)
             
             # Test the PSBTParser's ability to fill missing fingerprints during parsing
-            parser = PSBTParser(p=psbt, seed=PSBTTestData.seed, network=SettingsConstants.REGTEST)
+            parser = PSBTParser(p=psbt, seed=self.seed, network=SettingsConstants.REGTEST)
+            assert parser.filled_missing_fingerprint_count > 0
             
             # Verify fingerprints were correctly filled after parsing
             seed_fingerprint = parser.seed.get_fingerprint(SettingsConstants.REGTEST)
@@ -231,7 +238,6 @@ class TestPSBTParser:
                 for pub, (leaf_hashes, derivation) in inp.taproot_bip32_derivations.items():
                     from binascii import hexlify
                     fingerprint_hex = hexlify(derivation.fingerprint).decode()
-                    
                     # Check if this public key derives from the current seed. A psbt
                     # carries a taproot key as its bare 32-byte x coordinate, and embit
                     # rebuilds a full key from it by just assuming even parity. The real
@@ -291,6 +297,47 @@ class TestPSBTParser:
         assert parser.verified_input_derivation_paths == [[filled_derivation]]
 
 
+    def test_filled_missing_fingerprint_count_zero_when_no_patch_needed(self):
+        psbt = PSBT.parse(a2b_base64(PSBTTestData.SINGLE_SIG_NATIVE_SEGWIT_1_INPUT))
+        parser = PSBTParser(p=psbt, seed=self.seed, network=SettingsConstants.REGTEST)
+
+        assert parser.filled_missing_fingerprint_count == 0
+
+
+    def test_get_inputs_missing_utxo(self):
+        psbt = PSBT.parse(a2b_base64(PSBTTestData.SINGLE_SIG_NATIVE_SEGWIT_1_INPUT))
+
+        assert PSBTParser.get_inputs_missing_utxo(psbt) == []
+
+        for inp in psbt.inputs:
+            inp.witness_utxo = None
+            inp.non_witness_utxo = None
+
+        assert PSBTParser.get_inputs_missing_utxo(psbt) == [0]
+
+
+    def test_parse_raises_missing_input_utxo_error(self):
+        psbt = PSBT.parse(a2b_base64(PSBTTestData.SINGLE_SIG_NATIVE_SEGWIT_1_INPUT))
+        psbt.inputs[0].witness_utxo = None
+        psbt.inputs[0].non_witness_utxo = None
+
+        with pytest.raises(MissingInputUtxoError) as exc_info:
+            PSBTParser(p=psbt, seed=self.seed, network=SettingsConstants.REGTEST)
+
+        assert exc_info.value.missing_input_indexes == [0]
+
+
+    def test_get_inputs_signed_by_fingerprint(self):
+        psbt = PSBT.parse(a2b_base64(PSBTTestData.MULTISIG_NATIVE_SEGWIT_1_INPUT))
+        psbt.sign_with(bip32.HDKey.from_seed(PSBTTestData.multisig_key_2.seed_bytes))
+
+        multisig_key_2_fingerprint = PSBTTestData.multisig_key_2.get_fingerprint(SettingsConstants.REGTEST)
+        multisig_key_3_fingerprint = PSBTTestData.multisig_key_3.get_fingerprint(SettingsConstants.REGTEST)
+
+        assert PSBTParser.get_inputs_signed_by_fingerprint(psbt, multisig_key_2_fingerprint) == [0]
+        assert PSBTParser.get_inputs_signed_by_fingerprint(psbt, multisig_key_3_fingerprint) == []
+
+
     def test_trim_and_sig_count(self):
         """
         PSBTParser should correctly trim a psbt of all unnecessary data and count the number of
@@ -312,6 +359,15 @@ class TestPSBTParser:
 
                 psbt.sign_with(bip32.HDKey.from_seed(PSBTTestData.multisig_key_3.seed_bytes))
                 assert PSBTParser.sig_count(psbt) == 3
+
+
+    def test_trim_removes_input_utxo_metadata(self):
+        psbt = PSBT.parse(a2b_base64(PSBTTestData.SINGLE_SIG_NATIVE_SEGWIT_1_INPUT))
+        trimmed_psbt = PSBTParser.trim(psbt)
+
+        for inp in trimmed_psbt.inputs:
+            assert inp.witness_utxo is None
+            assert inp.non_witness_utxo is None
 
 
     def test_verify_multisig_output(self):
@@ -756,7 +812,8 @@ class TestPSBTParserOptimizations:
 
         # Instantiating the parser with the psbt will automatically fill in the zeroed
         # fingerprints.
-        PSBTParser(psbt, self.seed, network=SettingsConstants.MAINNET)
+        parser = PSBTParser(psbt, self.seed, network=SettingsConstants.MAINNET)
+        assert parser.filled_missing_fingerprint_count == len(psbt.inputs)
 
         # All 10 inputs share the one derivation path, so each of its levels should have
         # been derived exactly once between them, rather than once per input.
@@ -948,9 +1005,6 @@ class TestPSBTParserOptimizations:
         # than the capped cache's max.
         assert max(unconstrained_sizes) > cap
         assert max(capped_sizes) == cap
-
-
-
 class PSBTParserOwnershipTestBase:
     """
     Base class for the two ownership test classes below. Provides:

@@ -18,6 +18,13 @@ class OPCODES:
     OP_PUSHDATA1 = 76
 
 
+class MissingInputUtxoError(RuntimeError):
+    def __init__(self, missing_input_indexes: List[int]):
+        self.missing_input_indexes = missing_input_indexes
+        super().__init__(
+            f"Missing UTXO data for PSBT input(s): {', '.join(str(i) for i in missing_input_indexes)}"
+        )
+
 
 class PSBTVerificationError(Exception):
     """
@@ -176,6 +183,7 @@ class PSBTParser():
         self.destination_addresses = []
         self.destination_amounts = []
         self.op_return_data: bytes = None
+        self.filled_missing_fingerprint_count = 0
 
         # Whether the fee is high relative to what is being sent; see has_high_fee().
         # Computed once at the end of parse() so the views can read it without each
@@ -220,6 +228,41 @@ class PSBTParser():
 
     def _set_root(self):
         self.root = bip32.HDKey.from_seed(self.seed.seed_bytes, version=NETWORKS[SettingsConstants.map_network_to_embit(self.network)]["xprv"])
+
+
+    @staticmethod
+    def get_inputs_missing_utxo(psbt_obj: PSBT) -> List[int]:
+        missing_input_indexes = []
+        for i, inp in enumerate(psbt_obj.inputs):
+            if inp.witness_utxo is None and inp.non_witness_utxo is None:
+                missing_input_indexes.append(i)
+
+        return missing_input_indexes
+
+
+    @staticmethod
+    def get_inputs_signed_by_fingerprint(psbt_obj: PSBT, fingerprint_hex: str) -> List[int]:
+        signed_input_indexes = []
+        for i, inp in enumerate(psbt_obj.inputs):
+            # Check legacy/segwit partial signatures
+            for pubkey in inp.partial_sigs.keys():
+                derivation_path_obj = inp.bip32_derivations.get(pubkey)
+                if not derivation_path_obj:
+                    continue
+
+                if hexlify(derivation_path_obj.fingerprint).decode() == fingerprint_hex:
+                    signed_input_indexes.append(i)
+                    break
+            else:
+                # Check Taproot: final_scriptwitness present and fingerprint in
+                # taproot_bip32_derivations means this seed already signed.
+                if inp.final_scriptwitness:
+                    for pubkey, (leaf_hashes, derivation_path_obj) in inp.taproot_bip32_derivations.items():
+                        if hexlify(derivation_path_obj.fingerprint).decode() == fingerprint_hex:
+                            signed_input_indexes.append(i)
+                            break
+
+        return signed_input_indexes
 
 
     def parse(self):
@@ -289,12 +332,18 @@ class PSBTParser():
             logger.info("self.seed is None!")
             return False
 
+        missing_input_indexes = PSBTParser.get_inputs_missing_utxo(self.psbt)
+        if missing_input_indexes:
+            raise MissingInputUtxoError(missing_input_indexes)
+
         self._set_root()
 
         child_key_derivation_cache = {}
 
         # Try to fix missing fingerprints before parsing
-        self._fill_missing_fingerprints(child_key_derivation_cache)
+        self.filled_missing_fingerprint_count = self._fill_missing_fingerprints(
+            child_key_derivation_cache
+        )
 
         # Work out what this seed actually owns before anything below reads the psbt's
         # claims about it.
@@ -1165,7 +1214,7 @@ class PSBTParser():
         return is_owner
 
 
-    def _fill_missing_fingerprints(self, child_key_derivation_cache: dict):
+    def _fill_missing_fingerprints(self, child_key_derivation_cache: dict) -> int:
         """
         Fix for when fingerprint is missing (defaults to all zeros). Happens when the user
         creates a new wallet in an external coordinator but only provides the xpub
@@ -1179,8 +1228,11 @@ class PSBTParser():
         if not self.root:
             return 0
 
+        filled_count = 0
+
         def _fill_scope(scope: InputScope | OutputScope):
             """Helper function to fill missing fingerprints in a scope (input/output)"""
+            nonlocal filled_count
 
             # Helper function to check and fix fingerprint
             def _get_updated_fingerprint(public_key: PublicKey, derivation_path_obj: DerivationPath, is_taproot: bool) -> DerivationPath | None:
@@ -1201,6 +1253,7 @@ class PSBTParser():
                 new_derivation = _get_updated_fingerprint(public_key, derivation_path_obj, is_taproot=False)
                 if new_derivation:
                     scope.bip32_derivations[public_key] = new_derivation
+                    filled_count += 1
                     logger.debug(f"Filled missing fingerprint for pubkey {public_key.sec().hex()} derivation {bip32.path_to_str(derivation_path_obj.derivation)}")
 
             # Handle Taproot derivations
@@ -1208,6 +1261,7 @@ class PSBTParser():
                 new_derivation = _get_updated_fingerprint(public_key, derivation_path_obj, is_taproot=True)
                 if new_derivation:
                     scope.taproot_bip32_derivations[public_key] = (leaf_hashes, new_derivation)
+                    filled_count += 1
                     logger.debug(f"Filled missing fingerprint for pubkey {public_key.sec().hex()} derivation {bip32.path_to_str(derivation_path_obj.derivation)}")
 
         for inp in self.psbt.inputs:
@@ -1216,6 +1270,7 @@ class PSBTParser():
         for out in self.psbt.outputs:
             _fill_scope(out)
 
+        return filled_count
 
     def get_total_output_value(self, include_change: bool = False):
         """
