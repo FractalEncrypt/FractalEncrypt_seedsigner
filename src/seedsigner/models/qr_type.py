@@ -10,6 +10,7 @@ class QRType:
 
     SEED__SEEDQR = "seed__seedqr"
     SEED__COMPACTSEEDQR = "seed__compactseedqr"
+    SEED__CODEX32 = "seed__codex32"
     SEED__UR2 = "seed__ur2"
     SEED__MNEMONIC = "seed__mnemonic"
     SEED__FOUR_LETTER_MNEMONIC = "seed__four_letter_mnemonic"

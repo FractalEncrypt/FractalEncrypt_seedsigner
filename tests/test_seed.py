@@ -1,7 +1,14 @@
 import pytest
-from seedsigner.models.seed import InvalidSeedException, Seed, ElectrumSeed
+from seedsigner.models.seed import Codex32Seed, InvalidSeedException, Seed, ElectrumSeed
+from seedsigner.models.seed_storage import SeedStorage
+from seedsigner.models import codex32 as codex32_model
+from seedsigner.models import codex32_min
 
 from seedsigner.models.settings import SettingsConstants
+
+
+CODEX32_TEST_SECRET = "MS12NAMES6XQGUZTTXKEQNJSJZV4JV3NZ5K3KWGSPHUH6EVW"
+CODEX32_TEST_SEED_BYTES = bytes.fromhex("d1808e096b35b209ca12132b264662a5")
 
 
 # TODO: Change TAB indents to SPACE
@@ -83,3 +90,394 @@ def test_electrum_seed_rejects_most_bip39_mnemonics():
 	mnemonic = "only gain spot output unknown craft simple cram absorb suggest ridge famous".split()
 	Seed(mnemonic)
 	ElectrumSeed(mnemonic)
+
+
+def test_codex32_seed_metadata_optional():
+	seed_bytes = CODEX32_TEST_SEED_BYTES
+	codex32_share = CODEX32_TEST_SECRET
+
+	seed = Codex32Seed(seed_bytes=seed_bytes, codex32_master_share=codex32_share)
+	assert seed.codex32_master_share == codex32_share
+	assert seed.codex32_export_shares is None
+	assert seed.codex32_share_sources is None
+
+	seed_without_share = Codex32Seed(seed_bytes=seed_bytes)
+	assert seed_without_share.codex32_master_share is None
+	assert seed_without_share.codex32_export_shares is None
+	assert seed_without_share.codex32_share_sources is None
+
+
+def test_codex32_seed_export_metadata_optional():
+	seed_bytes = CODEX32_TEST_SEED_BYTES
+	share_map = {
+		"a": "MS12NAMEA320ZYXWVUTSRQPNMLKJHGFEDCAXRPP870HKKQRM",
+		"s": CODEX32_TEST_SECRET,
+	}
+	source_map = {"a": "entered", "s": "derived"}
+
+	seed = Codex32Seed(
+		seed_bytes=seed_bytes,
+		codex32_master_share=share_map["s"],
+		codex32_export_shares=share_map,
+		codex32_share_sources=source_map,
+	)
+
+	assert seed.codex32_export_shares == share_map
+	assert seed.codex32_share_sources == source_map
+
+
+def test_codex32_seed_rejects_backup_metadata_for_different_seed():
+	with pytest.raises(InvalidSeedException, match="does not match the active seed"):
+		Codex32Seed(
+			seed_bytes=bytes.fromhex("00112233445566778899aabbccddeeff"),
+			codex32_master_share=CODEX32_TEST_SECRET,
+		)
+
+
+def test_codex32_seed_rejects_split_metadata_that_does_not_reconstruct_s():
+	share_a, secret_share, share_c = _build_codex32_split_fixture()
+	conflicting_share_c = _build_conflicting_share_same_index(share_c)
+
+	with pytest.raises(InvalidSeedException, match="do not reconstruct"):
+		Codex32Seed(
+			seed_bytes=secret_share.data,
+			codex32_master_share=secret_share.s,
+			codex32_export_shares={
+				"s": secret_share.s,
+				"a": share_a.s,
+				"c": conflicting_share_c.s,
+			},
+		)
+
+
+def test_seed_storage_preserves_richer_codex32_metadata_on_duplicate():
+	seed_bytes = CODEX32_TEST_SEED_BYTES
+	storage = SeedStorage()
+
+	storage.set_pending_seed(Codex32Seed(seed_bytes=seed_bytes))
+	first_seed = storage.finalize_pending_seed()
+
+	storage.set_pending_seed(
+		Codex32Seed(
+			seed_bytes=seed_bytes,
+			codex32_master_share=CODEX32_TEST_SECRET,
+		)
+	)
+	second_seed = storage.finalize_pending_seed()
+
+	assert first_seed is not second_seed
+	assert second_seed is storage.seeds[0]
+	assert isinstance(second_seed, Codex32Seed)
+	assert second_seed.codex32_master_share == CODEX32_TEST_SECRET
+	assert first_seed.seed_bytes is None
+	assert first_seed.codex32_master_share is None
+
+
+def test_seed_storage_preserves_codex32_export_metadata_on_duplicate():
+	seed_bytes = CODEX32_TEST_SEED_BYTES
+	storage = SeedStorage()
+
+	storage.set_pending_seed(Codex32Seed(seed_bytes=seed_bytes))
+	first_seed = storage.finalize_pending_seed()
+
+	share_map = {
+		"a": "MS12NAMEA320ZYXWVUTSRQPNMLKJHGFEDCAXRPP870HKKQRM",
+		"s": CODEX32_TEST_SECRET,
+	}
+	source_map = {"a": "entered", "s": "derived"}
+
+	storage.set_pending_seed(
+		Codex32Seed(
+			seed_bytes=seed_bytes,
+			codex32_master_share=share_map["s"],
+			codex32_export_shares=share_map,
+			codex32_share_sources=source_map,
+		)
+	)
+	second_seed = storage.finalize_pending_seed()
+
+	assert first_seed is not second_seed
+	assert second_seed is storage.seeds[0]
+	assert second_seed.codex32_export_shares == share_map
+	assert second_seed.codex32_share_sources == source_map
+	assert first_seed.seed_bytes is None
+
+
+def test_seed_storage_wipes_unused_duplicate_pending_seed():
+	storage = SeedStorage()
+	stored_seed = Codex32Seed(
+		seed_bytes=CODEX32_TEST_SEED_BYTES,
+		codex32_master_share=CODEX32_TEST_SECRET,
+	)
+	storage.set_pending_seed(stored_seed)
+	storage.finalize_pending_seed()
+
+	unused_duplicate = Codex32Seed(seed_bytes=CODEX32_TEST_SEED_BYTES)
+	storage.set_pending_seed(unused_duplicate)
+	result = storage.finalize_pending_seed()
+
+	assert result is stored_seed
+	assert unused_duplicate.seed_bytes is None
+	assert unused_duplicate.mnemonic_list == []
+
+
+def test_seed_storage_clear_pending_seed_wipes_pending_seed():
+	storage = SeedStorage()
+	pending_seed = Seed(mnemonic="obscure bone gas open exotic abuse virus bunker shuffle nasty ship dash".split())
+
+	storage.set_pending_seed(pending_seed)
+	storage.clear_pending_seed()
+
+	assert storage.pending_seed is None
+	assert pending_seed.seed_bytes is None
+	assert pending_seed.mnemonic_list == []
+	assert pending_seed.passphrase == ""
+
+
+def test_codex32_qr_profile_constants():
+	assert codex32_model.CODEX32_QR_CANONICAL_PREFIX == "MS1"
+	assert codex32_model.CODEX32_QR_CANONICAL_LENGTH == 48
+	assert codex32_model.CODEX32_QR_MODULE_TARGET == 29
+	assert codex32_model.CODEX32_QR_EC_LEVEL == "L"
+
+
+def test_codex32_qr_normalization_strips_whitespace_and_uppercases():
+	raw_share = "ms10abcdsqqq qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq"
+	expected = "MS10ABCDSQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ"
+	assert codex32_model.normalize_codex32_display(raw_share) == expected
+
+
+def test_codex32_qr_normalization_rejects_hyphens():
+	import pytest
+	raw_share = "ms10-abcdsqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq"
+	with pytest.raises(codex32_model.Codex32InputError):
+		codex32_model.normalize_codex32_display(raw_share)
+
+
+def _build_codex32_split_fixture():
+	share_a = codex32_model.parse_codex32_share("MS12NAMEA320ZYXWVUTSRQPNMLKJHGFEDCAXRPP870HKKQRM")
+	secret_share = codex32_model.parse_codex32_share("MS12NAMES6XQGUZTTXKEQNJSJZV4JV3NZ5K3KWGSPHUH6EVW")
+	share_c = codex32_model.Codex32String.interpolate_at([share_a, secret_share], target="c")
+	return share_a, secret_share, share_c
+
+
+def _build_conflicting_share_same_index(share):
+	data_values = share.data_part_values
+	# Flip one payload symbol and recompute checksum while preserving k/ident/share_idx.
+	data_values[6] = (data_values[6] + 1) % 32
+	mutated_share = codex32_min.ms32_encode(data_values)
+	if share.case == "upper":
+		mutated_share = mutated_share.upper()
+	return codex32_model.parse_codex32_share(mutated_share)
+
+
+def test_codex32_share_collection_ready_for_export_requires_recoverability():
+	share_a, secret_share, share_c = _build_codex32_split_fixture()
+	collection = codex32_model.Codex32ShareCollection.from_first_share(share_a)
+
+	assert collection.ready is False
+	assert collection.ready_for_export is False
+	assert collection.recovered_secret_share() is None
+
+	assert collection.add_share(share_c) == "added"
+	assert collection.ready is True
+	assert collection.ready_for_export is True
+	assert collection.recovered_secret_share().s == secret_share.s
+
+
+def test_codex32_share_collection_duplicate_identical_share_is_idempotent():
+	share_a, _, _ = _build_codex32_split_fixture()
+	collection = codex32_model.Codex32ShareCollection.from_first_share(share_a)
+
+	assert collection.add_share(share_a) == "unchanged"
+	assert len(collection.shares) == 1
+
+
+def test_codex32_share_collection_conflicting_duplicate_requires_confirmation():
+	share_a, _, _ = _build_codex32_split_fixture()
+	conflicting_share = _build_conflicting_share_same_index(share_a)
+	collection = codex32_model.Codex32ShareCollection.from_first_share(share_a)
+
+	with pytest.raises(codex32_model.Codex32InputError, match="Conflicting share index entered"):
+		collection.add_share(conflicting_share)
+
+
+def test_codex32_share_collection_conflicting_duplicate_can_replace_after_confirmation():
+	share_a, _, _ = _build_codex32_split_fixture()
+	conflicting_share = _build_conflicting_share_same_index(share_a)
+	collection = codex32_model.Codex32ShareCollection.from_first_share(share_a)
+
+	assert collection.add_share(conflicting_share, replace_existing=True) == "replaced"
+	assert collection.get_share("a").s == conflicting_share.s
+
+
+def test_codex32_share_collection_enforces_max_split_shares():
+	share_a, secret_share, _ = _build_codex32_split_fixture()
+	collection = codex32_model.Codex32ShareCollection.from_first_share(share_a)
+
+	for target_idx in ["c", "d", "e", "f"]:
+		derived_share = codex32_model.Codex32String.interpolate_at([share_a, secret_share], target=target_idx)
+		assert collection.add_share(derived_share) == "added"
+
+	assert collection.split_share_count == codex32_model.CODEX32_MAX_SPLIT_SHARES
+
+	overflow_share = codex32_model.Codex32String.interpolate_at([share_a, secret_share], target="g")
+	with pytest.raises(codex32_model.Codex32InputError, match="maximum of"):
+		collection.add_share(overflow_share)
+
+
+def test_codex32_share_collection_export_shares_includes_derived_s_and_sources():
+	share_a, secret_share, share_c = _build_codex32_split_fixture()
+	collection = codex32_model.Codex32ShareCollection.from_first_share(share_a)
+	collection.add_share(share_c)
+
+	share_map, source_map = collection.export_shares()
+
+	assert share_map["a"] == share_a.s
+	assert share_map["c"] == share_c.s
+	assert share_map["s"] == secret_share.s
+	assert source_map["a"] == "entered"
+	assert source_map["c"] == "entered"
+	assert source_map["s"] == "derived"
+
+
+def test_codex32_share_collection_export_order_lists_s_then_split_indices():
+	share_map = {"d": "x", "s": "y", "a": "z", "c": "w"}
+	assert codex32_model.Codex32ShareCollection.ordered_share_indices(share_map) == ["s", "a", "c", "d"]
+
+
+def test_codex32_share_collection_export_shares_preserves_entered_s_source():
+	entered_s = codex32_model.parse_codex32_share("MS12NAMES6XQGUZTTXKEQNJSJZV4JV3NZ5K3KWGSPHUH6EVW")
+	collection = codex32_model.Codex32ShareCollection.from_first_share(entered_s)
+
+	share_map, source_map = collection.export_shares()
+
+	assert share_map == {"s": entered_s.s}
+	assert source_map == {"s": "entered"}
+
+
+def test_codex32_seed_derives_correct_fingerprint_and_xpub():
+	"""
+	Codex32Seed uses raw 16-byte entropy directly for BIP32 derivation (no BIP39 PBKDF2).
+
+	Reference vector source:
+	- BIP32 test vector seed: 000102030405060708090a0b0c0d0e0f
+	- Expected xpub at m/: xpub661MyMwAqRbcFtXgS5sYJABqqG9YLmC4Q1Rdap9gSE8NqtwybGhePY2gZ29ESFjqJoCu1Rupje8YtGqsefD265TMg7usUDFdp6W1EGMcet8
+	"""
+	seed = Codex32Seed(seed_bytes=bytes.fromhex("000102030405060708090a0b0c0d0e0f"))
+
+	assert seed.get_fingerprint(SettingsConstants.MAINNET) == "3442193e"
+	assert str(seed.get_xpub(wallet_path="m/", network=SettingsConstants.MAINNET)) == (
+		"xpub661MyMwAqRbcFtXgS5sYJABqqG9YLmC4Q1Rdap9gSE8NqtwybGhePY2gZ29ESFjqJoCu1Rupje8YtGqsefD265TMg7usUDFdp6W1EGMcet8"
+	)
+
+
+def test_seed_wipe_clears_sensitive_fields():
+	seed = Seed(mnemonic="obscure bone gas open exotic abuse virus bunker shuffle nasty ship dash".split())
+
+	assert seed.seed_bytes is not None
+	assert len(seed.mnemonic_list) == 12
+
+	seed.wipe()
+
+	assert seed.seed_bytes is None
+	assert seed.mnemonic_list == []
+	assert seed.passphrase == ""
+
+
+def test_codex32_seed_wipe_clears_seed_and_metadata_fields():
+	seed = Codex32Seed(
+		seed_bytes=CODEX32_TEST_SEED_BYTES,
+		codex32_master_share=CODEX32_TEST_SECRET,
+		codex32_export_shares={"s": CODEX32_TEST_SECRET},
+		codex32_share_sources={"s": "entered"},
+	)
+
+	seed.wipe()
+
+	assert seed.seed_bytes is None
+	assert seed.mnemonic_list == []
+	assert seed.passphrase == ""
+	assert seed.codex32_master_share is None
+	assert seed.codex32_export_shares is None
+	assert seed.codex32_share_sources is None
+
+
+def test_codex32_share_collection_wipe_clears_collection_and_share_buffers():
+	share_a, _, share_c = _build_codex32_split_fixture()
+	collection = codex32_model.Codex32ShareCollection.from_first_share(share_a)
+	collection.add_share(share_c)
+
+	collection.wipe()
+
+	assert collection.shares == []
+	assert collection.threshold == 0
+	assert collection.ident == ""
+	assert collection.case == "lower"
+	assert share_a.data == b""
+	assert share_c.data == b""
+
+
+# --- Adversarial input tests ---
+
+
+def test_codex32_parse_rejects_valid_prefix_with_garbage_payload():
+	"""Malformed input with valid MS1 prefix but garbage after it."""
+	with pytest.raises(codex32_model.Codex32InputError):
+		codex32_model.parse_codex32_share("MS1" + "!" * 45)
+
+
+def test_codex32_parse_rejects_wrong_length():
+	"""Input that is too short (only prefix + threshold + ident)."""
+	with pytest.raises(codex32_model.Codex32InputError, match="Expected 48"):
+		codex32_model.parse_codex32_share("MS12NAMES")
+
+
+def test_codex32_parse_rejects_extremely_long_input():
+	"""Input far exceeding the expected 48-character length."""
+	long_input = "MS12NAMES" + "Q" * 200
+	with pytest.raises(codex32_model.Codex32InputError, match="Expected 48"):
+		codex32_model.parse_codex32_share(long_input)
+
+
+def test_codex32_parse_rejects_corrupted_checksum():
+	"""Valid share with one character flipped in the checksum region."""
+	valid = "MS12NAMEA320ZYXWVUTSRQPNMLKJHGFEDCAXRPP870HKKQRM"
+	# Flip last character to corrupt checksum
+	corrupted = valid[:-1] + ("N" if valid[-1] != "N" else "P")
+	with pytest.raises(codex32_model.Codex32InputError):
+		codex32_model.parse_codex32_share(corrupted)
+
+
+def test_codex32_parse_rejects_mixed_case():
+	"""Mixed case input should be rejected."""
+	with pytest.raises(codex32_model.Codex32InputError, match="single-case"):
+		codex32_model.parse_codex32_share("Ms12NAMEA320ZYXWVUTSRQPNMLKJHGFEDCAXRPP870HKKQRM")
+
+
+def test_codex32_parse_rejects_wrong_hrp():
+	"""Input with valid structure but wrong human-readable part."""
+	# 48 chars starting with something other than ms1
+	bad_hrp = "BC12NAMEA320ZYXWVUTSRQPNMLKJHGFEDCAXRPP870HKKQRM"
+	with pytest.raises(codex32_model.Codex32InputError):
+		codex32_model.parse_codex32_share(bad_hrp)
+
+
+def test_codex32_sanitize_rejects_none_gracefully():
+	"""None input returns empty string, not an error."""
+	assert codex32_model.sanitize_codex32_input(None) == ""
+
+
+def test_codex32_sanitize_rejects_empty_string():
+	"""Empty string sanitizes to empty, parse_codex32_share raises."""
+	assert codex32_model.sanitize_codex32_input("") == ""
+	with pytest.raises(codex32_model.Codex32InputError, match="empty"):
+		codex32_model.parse_codex32_share("")
+
+
+def test_codex32_recovered_secret_share_returns_none_on_bad_recovery():
+	"""recovered_secret_share returns None (not raises) when recovery fails."""
+	share_a, _, _ = _build_codex32_split_fixture()
+	collection = codex32_model.Codex32ShareCollection.from_first_share(share_a)
+	# Only one share, cannot recover (needs threshold=2)
+	assert collection.recovered_secret_share() is None

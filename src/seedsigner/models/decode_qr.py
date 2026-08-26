@@ -15,6 +15,12 @@ from urtypes.bytes import Bytes
 from base64 import b32encode, b32decode
 
 from seedsigner.helpers.ur2.ur_decoder import URDecoder
+from seedsigner.models.codex32 import (
+    CODEX32_QR_CANONICAL_LENGTH,
+    Codex32InputError,
+    normalize_codex32_display,
+    parse_codex32_share,
+)
 from seedsigner.models.qr_type import QRType
 from seedsigner.models.seed import Seed
 from seedsigner.models.settings import SettingsConstants
@@ -79,6 +85,9 @@ class DecodeQR:
             elif self.qr_type == QRType.PSBT__BBQR:
                 self.decoder = BBQRPsbtQrDecoder() # BBQr Decoder
 
+            elif self.qr_type == QRType.SEED__CODEX32:
+                self.decoder = Codex32QrDecoder()
+
             elif self.qr_type in [QRType.SEED__SEEDQR, QRType.SEED__COMPACTSEEDQR, QRType.SEED__MNEMONIC, QRType.SEED__FOUR_LETTER_MNEMONIC, QRType.SEED__UR2]:
                 self.decoder = SeedQrDecoder(wordlist_language_code=self.wordlist_language_code)          
 
@@ -109,7 +118,10 @@ class DecodeQR:
 
         # Process the binary formats first
         if self.qr_type == QRType.SEED__COMPACTSEEDQR:
-            rt = self.decoder.add(data, QRType.SEED__COMPACTSEEDQR)
+            compact_seedqr_data = DecodeQR.normalize_compact_seedqr_bytes(data)
+            if compact_seedqr_data is None:
+                compact_seedqr_data = data
+            rt = self.decoder.add(compact_seedqr_data, QRType.SEED__COMPACTSEEDQR)
             if rt == DecodeQRStatus.COMPLETE:
                 self.complete = True
             return rt
@@ -184,6 +196,11 @@ class DecodeQR:
     def get_seed_phrase(self):
         if self.is_seed:
             return self.decoder.get_seed_phrase()
+
+
+    def get_codex32_share(self):
+        if self.is_codex32 and self.complete:
+            return self.decoder.get_share()
 
 
     def get_settings_data(self):
@@ -276,10 +293,16 @@ class DecodeQR:
         return self.qr_type in [
             QRType.SEED__SEEDQR,
             QRType.SEED__COMPACTSEEDQR,
+            QRType.SEED__CODEX32,
             QRType.SEED__UR2,
             QRType.SEED__MNEMONIC, 
             QRType.SEED__FOUR_LETTER_MNEMONIC,
         ]
+
+
+    @property
+    def is_codex32(self):
+        return self.qr_type == QRType.SEED__CODEX32
     
 
     @property
@@ -332,6 +355,11 @@ class DecodeQR:
 
     @staticmethod
     def detect_segment_type(s, wordlist_language_code=None):
+
+        if wordlist_language_code is None:
+            wordlist_language_code = SettingsConstants.WORDLIST_LANGUAGE__ENGLISH
+
+        original_byte_data = s if isinstance(s, bytes) else None
 
         try:
             # Convert to str data
@@ -417,25 +445,33 @@ class DecodeQR:
             elif DecodeQR.is_base43_psbt(s):
                 return QRType.PSBT__BASE43
 
+            elif DecodeQR.is_codex32_share(s):
+                return QRType.SEED__CODEX32
+
+            elif DecodeQR.is_potential_codex32_share(s):
+                return QRType.INVALID
+
         except UnicodeDecodeError:
             # Probably this isn't meant to be string data; check if it's valid byte data
             # below.
             pass
 
         # Is it byte data?
-        if not isinstance(s, bytes):
+        byte_data = original_byte_data if original_byte_data is not None else s
+        if not isinstance(byte_data, bytes):
             try:
                 # TODO: remove this check & conversion once above cast to str is removed
-                s = s.encode()
+                byte_data = byte_data.encode()
             except UnicodeError:
                 # Couldn't convert back to bytes; shouldn't happen
                 raise Exception("Conversion to bytes failed")
 
         # 32 bytes for 24-word CompactSeedQR; 16 bytes for 12-word CompactSeedQR
-        if len(s) == 32 or len(s) == 16:
+        compact_seedqr_data = DecodeQR.normalize_compact_seedqr_bytes(byte_data)
+        if compact_seedqr_data is not None:
             try:
                 bitstream = ""
-                for b in s:
+                for b in compact_seedqr_data:
                     bitstream += bin(b).lstrip('0b').zfill(8)
                 # print(bitstream)
 
@@ -472,6 +508,15 @@ class DecodeQR:
             psbt.PSBT.parse(DecodeQR.base43_decode(s))
             return True
         except Exception:
+            return False
+
+
+    @staticmethod
+    def is_codex32_share(s):
+        try:
+            parse_codex32_share(s, expected_len=CODEX32_QR_CANONICAL_LENGTH)
+            return True
+        except Codex32InputError:
             return False
 
 
@@ -514,12 +559,53 @@ class DecodeQR:
 
     @staticmethod
     def is_bitcoin_address(s):
+        if DecodeQR.is_potential_codex32_share(s):
+            return False
         if re.search(r'^bitcoin\:.*', s, re.IGNORECASE):
             return True
-        elif re.search(r'^((bc1|tb1|bcr|[123]|[mn])[a-zA-HJ-NP-Z0-9]{25,62})$', s, re.IGNORECASE):
+        elif re.search(r'^((bc1|tb1|bcrt1)[a-zA-HJ-NP-Z0-9]{11,71}|([123]|[mn])[1-9A-HJ-NP-Za-km-z]{25,34})$', s, re.IGNORECASE):
             return True
         else:
             return False
+
+
+    @staticmethod
+    def is_potential_codex32_share(s):
+        if not isinstance(s, str):
+            return False
+        compact = "".join(s.split()).replace("-", "")
+        return compact[:3].lower() == "ms1"
+
+
+    @staticmethod
+    def normalize_compact_seedqr_bytes(data):
+        if not isinstance(data, bytes):
+            return None
+
+        if len(data) in [16, 32]:
+            return data
+
+        # Some scanners return CompactSeedQR byte payloads as UTF-8 expanded bytes.
+        # Round-tripping through latin-1 recovers the common path.
+        try:
+            normalized = data.decode("utf-8").encode("latin-1")
+        except (UnicodeDecodeError, UnicodeEncodeError):
+            normalized = None
+
+        if normalized is not None and len(normalized) in [16, 32]:
+            return normalized
+
+        # Some scanner stacks decode QR byte mode as CP932 text and then re-encode as
+        # UTF-8. Normalize that path as well.
+        try:
+            normalized = data.decode("utf-8").replace("\u203e", "~").encode("cp932")
+        except (UnicodeDecodeError, UnicodeEncodeError):
+            return None
+
+        if len(normalized) in [16, 32]:
+            return normalized
+
+        return None
 
 
     @staticmethod
@@ -924,6 +1010,35 @@ class SeedQrDecoder(BaseSingleFrameQrDecoder):
         if len(self.seed_phrase) in (12, 24):
             return True
         return False
+
+
+class Codex32QrDecoder(BaseSingleFrameQrDecoder):
+    def __init__(self):
+        super().__init__()
+        self.share = None
+        self.error_type = None
+
+
+    def add(self, segment, qr_type=QRType.SEED__CODEX32):
+        if qr_type != QRType.SEED__CODEX32:
+            return DecodeQRStatus.INVALID
+
+        try:
+            parse_codex32_share(segment, expected_len=CODEX32_QR_CANONICAL_LENGTH)
+        except Codex32InputError as exc:
+            self.error_type = exc.error_type
+            return DecodeQRStatus.INVALID
+
+        self.share = normalize_codex32_display(segment)
+        self.complete = True
+        self.collected_segments = 1
+        return DecodeQRStatus.COMPLETE
+
+
+    def get_share(self):
+        if self.complete:
+            return self.share
+        return None
 
 
 

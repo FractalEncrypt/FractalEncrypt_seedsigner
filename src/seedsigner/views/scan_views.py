@@ -24,7 +24,12 @@ class ScanView(View):
     invalid_qr_type_message = _mft("QRCode not recognized or not yet supported.")
 
 
-    def __init__(self):
+    def __init__(
+        self,
+        codex32_collect_mode: bool = False,
+        codex32_share_num: int = 1,
+        codex32_share_collection=None,
+    ):
         from seedsigner.models.decode_qr import DecodeQR
 
         super().__init__()
@@ -32,6 +37,9 @@ class ScanView(View):
         # checks and so we can inject data into it in the test suite's `before_run()`.
         self.wordlist_language_code = self.settings.get_value(SettingsConstants.SETTING__WORDLIST_LANGUAGE)
         self.decoder: DecodeQR = DecodeQR(wordlist_language_code=self.wordlist_language_code)
+        self.codex32_collect_mode = codex32_collect_mode
+        self.codex32_share_num = codex32_share_num
+        self.codex32_share_collection = codex32_share_collection
 
 
     @property
@@ -68,6 +76,54 @@ class ScanView(View):
                     button_text="Back",
                     next_destination=Destination(BackStackView, skip_current_view=True),
                 ))
+
+            if self.decoder.is_codex32:
+                from seedsigner.models import codex32 as codex32_model
+                from seedsigner.models.seed import Codex32Seed
+                from .seed_views import Codex32EntryView, Codex32MasterShareSuccessView
+
+                codex32_share = codex32_model.normalize_codex32_display(self.decoder.get_codex32_share())
+
+                if self.codex32_collect_mode:
+                    prefill = "MS1"
+                    if self.codex32_share_collection is not None:
+                        prefill = self.codex32_share_collection.prefix()
+                    return Destination(
+                        Codex32EntryView,
+                        view_args={
+                            "share_num": self.codex32_share_num,
+                            "prefill": prefill,
+                            "share_data": codex32_share,
+                            "share_collection": self.codex32_share_collection,
+                            "auto_submit_share_data": True,
+                            "entry_method": "scan",
+                        },
+                    )
+
+                codex = codex32_model.parse_codex32_share(codex32_share)
+
+                if codex.share_idx.lower() != "s":
+                    return Destination(
+                        Codex32EntryView,
+                        view_args={
+                            "share_num": 1,
+                            "prefill": codex32_model.CODEX32_QR_CANONICAL_PREFIX,
+                            "share_data": codex32_share,
+                            "auto_submit_share_data": True,
+                            "entry_method": "scan",
+                        },
+                    )
+
+                codex = codex32_model.validate_codex32_s_share(codex32_share)
+                self.controller.storage.set_pending_seed(
+                    Codex32Seed(
+                        seed_bytes=codex.data,
+                        codex32_master_share=codex32_share,
+                        codex32_export_shares={"s": codex32_share},
+                        codex32_share_sources={"s": "entered"},
+                    )
+                )
+                return Destination(Codex32MasterShareSuccessView)
 
             if self.decoder.is_seed:
                 seed_mnemonic = self.decoder.get_seed_phrase()
@@ -187,6 +243,22 @@ class ScanSeedQRView(ScanView):
     @property
     def is_valid_qr_type(self):
         return self.decoder.is_seed
+
+
+class ScanCodex32ShareView(ScanView):
+    instructions_text = _mft("Scan codex32 share")
+    invalid_qr_type_message = _mft("Expected a codex32 share")
+
+    def __init__(self, share_num: int = 1, share_collection=None):
+        super().__init__(
+            codex32_collect_mode=True,
+            codex32_share_num=share_num,
+            codex32_share_collection=share_collection,
+        )
+
+    @property
+    def is_valid_qr_type(self):
+        return self.decoder.is_codex32
 
 
 

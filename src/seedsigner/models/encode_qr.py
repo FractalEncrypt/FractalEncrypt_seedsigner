@@ -11,6 +11,7 @@ from embit.psbt import PSBT
 from seedsigner.helpers.ur2.ur_encoder import UREncoder
 from seedsigner.helpers.ur2.ur import UR
 from seedsigner.helpers.qr import QR
+from seedsigner.models.codex32 import normalize_codex32_display
 from seedsigner.models.seed import Seed
 from seedsigner.models.settings import SettingsConstants
 
@@ -133,6 +134,15 @@ class CompactSeedQrEncoder(SeedQrEncoder):
         
         # Must return data as `bytes` for `qrcode` to properly recognize it as byte data
         return bytes(as_bytes)
+
+
+
+@dataclass
+class Codex32QrEncoder(BaseStaticQrEncoder):
+    share: str = None
+
+    def next_part(self):
+        return normalize_codex32_display(self.share)
 
 
 

@@ -72,6 +72,44 @@ class ScanScreen(BaseScreen):
         ))
 
 
+    def _render(self):
+        if not self.renderer.is_screenshot_generator:
+            return
+
+        frame = Image.new(
+            "RGB",
+            (self.renderer.canvas_width, self.renderer.canvas_height),
+            "#1f1f1f",
+        )
+        draw = ImageDraw.Draw(frame)
+
+        grid_color = "#2a2a2a"
+        step = 24
+        for x in range(0, self.renderer.canvas_width, step):
+            draw.line((x, 0, x, self.renderer.canvas_height), fill=grid_color)
+        for y in range(0, self.renderer.canvas_height, step):
+            draw.line((0, y, self.renderer.canvas_width, y), fill=grid_color)
+
+        title_font = Fonts.get_font(GUIConstants.get_body_font_name(), GUIConstants.get_button_font_size())
+        draw.text(
+            (int(self.renderer.canvas_width / 2), int(self.renderer.canvas_height / 2) - GUIConstants.COMPONENT_PADDING),
+            _("Camera Preview"),
+            fill=GUIConstants.BODY_FONT_COLOR,
+            font=title_font,
+            anchor="ms",
+        )
+
+        draw.text(
+            (int(self.renderer.canvas_width / 2), self.renderer.canvas_height - GUIConstants.EDGE_PADDING),
+            self.instructions_text,
+            fill=GUIConstants.BODY_FONT_COLOR,
+            font=title_font,
+            anchor="ms",
+        )
+
+        self.renderer.show_image(frame)
+
+
     class LivePreviewThread(BaseThread):
         def __init__(self, decoder: DecodeQR, renderer: renderer.Renderer, instructions_text: str, render_rect: tuple[int,int,int,int], frame_decode_status: ThreadsafeCounter):
             from seedsigner.hardware.camera import Camera

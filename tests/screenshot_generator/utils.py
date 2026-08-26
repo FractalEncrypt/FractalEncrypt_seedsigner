@@ -1,6 +1,7 @@
 import os
 from contextlib import contextmanager
 from dataclasses import dataclass
+from typing import Callable
 from PIL import Image, ImageDraw
 
 from seedsigner.gui.renderer import Renderer
@@ -32,9 +33,20 @@ class ScreenshotRenderer(Renderer):
         renderer = cls.__new__(cls)
         cls._instance = renderer
 
-        # Hard-coding output values for now
-        renderer.canvas_width = 240
-        renderer.canvas_height = 240
+        # Hard-coding output values for now (override via env var)
+        canvas_width = 240
+        canvas_height = 240
+        screenshot_size = os.getenv("SEEDSIGNER_SCREENSHOT_SIZE")
+        if screenshot_size:
+            try:
+                width_str, height_str = screenshot_size.lower().split("x")
+                canvas_width = int(width_str)
+                canvas_height = int(height_str)
+            except (ValueError, AttributeError):
+                pass
+
+        renderer.canvas_width = canvas_width
+        renderer.canvas_height = canvas_height
 
         renderer.canvas = Image.new('RGB', (renderer.canvas_width, renderer.canvas_height))
         renderer.draw = ImageDraw.Draw(renderer.canvas)
@@ -92,6 +104,8 @@ class ScreenshotConfig:
     view_kwargs: dict = None
     screenshot_name: str = None
     toast_thread: BaseToastOverlayManagerThread = None
+    run_before: Callable[[], None] = None
+    run_after: Callable[[], None] = None
     mock_context_manager: callable = default_mock_context_manager
 
 
@@ -100,3 +114,13 @@ class ScreenshotConfig:
             self.view_kwargs = {}
         if not self.screenshot_name:
             self.screenshot_name = self.View_cls.__name__
+
+
+    def run_callback_before(self):
+        if self.run_before:
+            self.run_before()
+
+
+    def run_callback_after(self):
+        if self.run_after:
+            self.run_after()
