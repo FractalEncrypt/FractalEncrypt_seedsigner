@@ -1,6 +1,6 @@
 from gettext import gettext as _
 
-from seedsigner.models.psbt_parser import PSBTParser
+from seedsigner.models.psbt_parser import MissingInputUtxoError, PSBTParser
 from seedsigner.models.settings import SettingsConstants
 from seedsigner.gui.components import FontAwesomeIconConstants, SeedSignerIconConstants
 from seedsigner.gui.screens.screen import (RET_CODE__BACK_BUTTON, ButtonListScreen, ButtonOption, WarningScreen, DireWarningScreen, QRDisplayScreen)
@@ -12,6 +12,7 @@ class PSBTSelectSeedView(View):
     SCAN_SEED = ButtonOption("Scan a seed", SeedSignerIconConstants.QRCODE)
     TYPE_12WORD = ButtonOption("Enter 12-word seed", FontAwesomeIconConstants.KEYBOARD)
     TYPE_24WORD = ButtonOption("Enter 24-word seed", FontAwesomeIconConstants.KEYBOARD)
+    TYPE_CODEX32 = ButtonOption("Enter Codex32 Seed", FontAwesomeIconConstants.KEYBOARD)
     TYPE_ELECTRUM = ButtonOption("Enter Electrum seed", FontAwesomeIconConstants.KEYBOARD)
 
 
@@ -43,6 +44,7 @@ class PSBTSelectSeedView(View):
         button_data.append(self.SCAN_SEED)
         button_data.append(self.TYPE_12WORD)
         button_data.append(self.TYPE_24WORD)
+        button_data.append(self.TYPE_CODEX32)
         if self.settings.get_value(SettingsConstants.SETTING__ELECTRUM_SEEDS) == SettingsConstants.OPTION__ENABLED:
             button_data.append(self.TYPE_ELECTRUM)
 
@@ -76,6 +78,10 @@ class PSBTSelectSeedView(View):
                 self.controller.storage.init_pending_mnemonic(num_words=24)
             return Destination(SeedMnemonicEntryView)
 
+        elif button_data[selected_menu_num] == self.TYPE_CODEX32:
+            from seedsigner.views.seed_views import Codex32EntryView
+            return Destination(Codex32EntryView)
+
         elif button_data[selected_menu_num] == self.TYPE_ELECTRUM:
             from seedsigner.views.seed_views import SeedElectrumMnemonicStartView
             return Destination(SeedElectrumMnemonicStartView)
@@ -87,6 +93,7 @@ class PSBTOverviewView(View):
         super().__init__()
 
         self.loading_screen = None
+        self.missing_utxo_input_indexes = []
 
         if not self.controller.psbt_parser or self.controller.psbt_parser.seed != self.controller.psbt_seed:
             # The PSBTParser takes a while to read the PSBT. Run the loading screen while
@@ -101,6 +108,10 @@ class PSBTOverviewView(View):
                     seed=self.controller.psbt_seed,
                     network=self.settings.get_value(SettingsConstants.SETTING__NETWORK)
                 )
+            except MissingInputUtxoError as e:
+                self.loading_screen.stop()
+                self.missing_utxo_input_indexes = e.missing_input_indexes
+                self.controller.psbt_parser = None
             except Exception as e:
                 self.loading_screen.stop()
                 raise e
@@ -108,6 +119,13 @@ class PSBTOverviewView(View):
 
     def run(self):
         from seedsigner.gui.screens.psbt_screens import PSBTOverviewScreen
+
+        if self.missing_utxo_input_indexes:
+            return Destination(
+                PSBTMissingInputUtxoWarningView,
+                view_args={"missing_input_indexes": self.missing_utxo_input_indexes},
+            )
+
         psbt_parser = self.controller.psbt_parser
 
         change_data = psbt_parser.change_data
@@ -160,6 +178,28 @@ class PSBTOverviewView(View):
 
         else:
             return Destination(PSBTMathView)
+
+
+
+class PSBTMissingInputUtxoWarningView(View):
+    def __init__(self, missing_input_indexes: list[int]):
+        super().__init__()
+        self.missing_input_indexes = missing_input_indexes
+
+
+    def run(self):
+        missing_inputs = ", ".join(str(i + 1) for i in self.missing_input_indexes)
+
+        self.run_screen(
+            DireWarningScreen,
+            title=_("Incomplete Transaction"),
+            status_headline=_("Missing Input Data"),
+            text=_("PSBT input(s) {} are missing UTXO data. Re-export from your coordinator with full previous transaction data.").format(missing_inputs),
+            button_data=[ButtonOption("Discard transaction")],
+            show_back_button=False,
+        )
+
+        return Destination(MainMenuView, clear_history=True)
 
 
 
@@ -540,16 +580,31 @@ class PSBTFinalizeView(View):
             # Sign PSBT
             sig_cnt = PSBTParser.sig_count(psbt)
             psbt.sign_with(psbt_parser.root)
-            trimmed_psbt = PSBTParser.trim(psbt)
 
-            if sig_cnt == PSBTParser.sig_count(trimmed_psbt):
-                # Signing failed / didn't do anything
-                # TODO: Reserved for Nick. Are there different failure scenarios that we can detect?
-                # Would be nice to alter the message on the next screen w/more detail.
-                return Destination(PSBTSigningErrorView)
+            if sig_cnt == PSBTParser.sig_count(psbt):
+                signer_fingerprint = self.controller.psbt_seed.get_fingerprint(
+                    self.settings.get_value(SettingsConstants.SETTING__NETWORK)
+                )
+                already_signed_input_indexes = PSBTParser.get_inputs_signed_by_fingerprint(
+                    psbt,
+                    signer_fingerprint,
+                )
+                return Destination(
+                    PSBTSigningErrorView,
+                    view_args={
+                        "already_signed_input_indexes": already_signed_input_indexes,
+                        "signer_fingerprint": signer_fingerprint,
+                    },
+                )
             
             else:
-                self.controller.psbt = trimmed_psbt
+                # Some coordinators may reject re-import if non-signature PSBT metadata
+                # changes. When we synthesized missing fingerprints for parsing, export a
+                # signatures-only PSBT payload to maximize merge compatibility.
+                if psbt_parser.filled_missing_fingerprint_count > 0:
+                    self.controller.psbt = PSBTParser.trim(psbt)
+                else:
+                    self.controller.psbt = psbt
                 return Destination(PSBTSignedQRDisplayView)
 
 
@@ -572,6 +627,15 @@ class PSBTSignedQRDisplayView(View):
 
 class PSBTSigningErrorView(View):
     SELECT_DIFF_SEED = ButtonOption("Select different seed")
+
+    def __init__(
+        self,
+        already_signed_input_indexes: list[int] | None = None,
+        signer_fingerprint: str | None = None,
+    ):
+        super().__init__()
+        self.already_signed_input_indexes = already_signed_input_indexes or []
+        self.signer_fingerprint = signer_fingerprint
     
     def run(self):
         psbt_parser: PSBTParser = self.controller.psbt_parser
@@ -580,12 +644,21 @@ class PSBTSigningErrorView(View):
             return Destination(MainMenuView)
 
         # Just a WarningScreen here; only use DireWarningScreen for true security risks.
+        if self.already_signed_input_indexes and self.signer_fingerprint:
+            signed_inputs = ", ".join(str(i + 1) for i in self.already_signed_input_indexes)
+            warning_text = _("This PSBT contains signature data associated with the claimed key {} on input(s) {}. Select a different seed.").format(
+                self.signer_fingerprint,
+                signed_inputs,
+            )
+        else:
+            warning_text = _("Signing with this seed did not add a valid signature.")
+
         selected_menu_num = self.run_screen(
             WarningScreen,
             title=_("Transaction Error"),
             status_icon_name=SeedSignerIconConstants.WARNING,
             status_headline=_("Signing Failed"),
-            text=_("Signing with this seed did not add a valid signature."),
+            text=warning_text,
             button_data=[self.SELECT_DIFF_SEED]
         )
 
