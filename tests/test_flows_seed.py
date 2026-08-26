@@ -14,6 +14,23 @@ from seedsigner.models.seed import Codex32Seed, ElectrumSeed, Seed
 from seedsigner.views.view import MainMenuView, OptionDisabledView, View, NetworkMismatchErrorView
 from seedsigner.views import seed_views, scan_views, settings_views
 
+CODEX32_TEST_SECRET = "MS12NAMES6XQGUZTTXKEQNJSJZV4JV3NZ5K3KWGSPHUH6EVW"
+CODEX32_TEST_SEED_BYTES = bytes.fromhex("d1808e096b35b209ca12132b264662a5")
+
+
+def _set_corrupt_codex32_metadata_for_boundary_test(
+    seed: Codex32Seed,
+    *,
+    master_share: str | None,
+    export_shares: dict[str, str] | None = None,
+    share_sources: dict[str, str] | None = None,
+):
+    """Bypass the constructor only to exercise fail-closed view boundaries."""
+    seed._codex32_master_share = master_share
+    seed._codex32_export_shares = dict(export_shares) if export_shares else None
+    seed._codex32_share_sources = dict(share_sources) if share_sources else None
+    return seed
+
 
 def load_seed_into_decoder(view: scan_views.ScanView):
     view.decoder.add_data("0000" * 11 + "0003")
@@ -635,11 +652,14 @@ class TestSeedFlows(FlowTest):
             ]
         )
 
+        assert seed.seed_bytes is None
+        assert seed.mnemonic_list == []
+
 
     def test_codex32_backup_shows_only_codex32_actions(self):
         seed = Codex32Seed(
-            seed_bytes=bytes.fromhex("00112233445566778899aabbccddeeff"),
-            codex32_master_share="MS10ABCDSQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ",
+            seed_bytes=CODEX32_TEST_SEED_BYTES,
+            codex32_master_share=CODEX32_TEST_SECRET,
         )
         self.controller.storage.set_pending_seed(seed)
         self.controller.storage.finalize_pending_seed()
@@ -666,7 +686,7 @@ class TestSeedFlows(FlowTest):
     def test_codex32_backup_routes_to_secret_display_warning(self):
         secret_share = "MS12NAMES6XQGUZTTXKEQNJSJZV4JV3NZ5K3KWGSPHUH6EVW"
         seed = Codex32Seed(
-            seed_bytes=bytes.fromhex("00112233445566778899aabbccddeeff"),
+            seed_bytes=CODEX32_TEST_SEED_BYTES,
             codex32_master_share=secret_share,
         )
         self.controller.storage.set_pending_seed(seed)
@@ -683,7 +703,7 @@ class TestSeedFlows(FlowTest):
 
 
     def test_codex32_backup_missing_metadata_routes_to_unavailable_error(self):
-        seed = Codex32Seed(seed_bytes=bytes.fromhex("00112233445566778899aabbccddeeff"))
+        seed = Codex32Seed(seed_bytes=CODEX32_TEST_SEED_BYTES)
         self.controller.storage.set_pending_seed(seed)
         self.controller.storage.finalize_pending_seed()
 
@@ -698,9 +718,9 @@ class TestSeedFlows(FlowTest):
 
 
     def test_codex32_backup_export_invalid_canonical_s_routes_to_unavailable(self):
-        seed = Codex32Seed(
-            seed_bytes=bytes.fromhex("ffeeddccbbaa99887766554433221100"),
-            codex32_master_share="NOT_A_VALID_CODEX32_SHARE",
+        seed = _set_corrupt_codex32_metadata_for_boundary_test(
+            Codex32Seed(seed_bytes=CODEX32_TEST_SEED_BYTES),
+            master_share="NOT_A_VALID_CODEX32_SHARE",
         )
         self.controller.storage.set_pending_seed(seed)
         self.controller.storage.finalize_pending_seed()
@@ -720,11 +740,11 @@ class TestSeedFlows(FlowTest):
         conflicting_values = secret_share.data_part_values
         conflicting_values[6] = (conflicting_values[6] + 1) % 32
         conflicting_share = codex32_min.ms32_encode(conflicting_values).upper()
-        seed = Codex32Seed(
-            seed_bytes=bytes.fromhex("ffeeddccbbaa99887766554433221100"),
-            codex32_master_share=secret_share.s,
-            codex32_export_shares={"s": conflicting_share},
-            codex32_share_sources={"s": "entered"},
+        seed = _set_corrupt_codex32_metadata_for_boundary_test(
+            Codex32Seed(seed_bytes=secret_share.data, codex32_master_share=secret_share.s),
+            master_share=secret_share.s,
+            export_shares={"s": conflicting_share},
+            share_sources={"s": "entered"},
         )
         self.controller.storage.set_pending_seed(seed)
         self.controller.storage.finalize_pending_seed()
@@ -744,11 +764,11 @@ class TestSeedFlows(FlowTest):
         conflicting_values = secret_share.data_part_values
         conflicting_values[6] = (conflicting_values[6] + 1) % 32
         conflicting_share = codex32_min.ms32_encode(conflicting_values).upper()
-        seed = Codex32Seed(
-            seed_bytes=bytes.fromhex("ffeeddccbbaa99887766554433221100"),
-            codex32_master_share=secret_share.s,
-            codex32_export_shares={"s": conflicting_share},
-            codex32_share_sources={"s": "entered"},
+        seed = _set_corrupt_codex32_metadata_for_boundary_test(
+            Codex32Seed(seed_bytes=secret_share.data, codex32_master_share=secret_share.s),
+            master_share=secret_share.s,
+            export_shares={"s": conflicting_share},
+            share_sources={"s": "entered"},
         )
         self.controller.storage.set_pending_seed(seed)
         self.controller.storage.finalize_pending_seed()
@@ -766,7 +786,7 @@ class TestSeedFlows(FlowTest):
     def test_codex32_backup_secret_display_done_returns_to_seed_options(self):
         secret_share = "MS12NAMES6XQGUZTTXKEQNJSJZV4JV3NZ5K3KWGSPHUH6EVW"
         seed = Codex32Seed(
-            seed_bytes=bytes.fromhex("00112233445566778899aabbccddeeff"),
+            seed_bytes=CODEX32_TEST_SEED_BYTES,
             codex32_master_share=secret_share,
         )
         self.controller.storage.set_pending_seed(seed)
@@ -786,10 +806,30 @@ class TestSeedFlows(FlowTest):
         )
 
 
+    def test_codex32_master_secret_back_from_first_page_clears_temp_share(self):
+        view = seed_views.Codex32MasterSecretDisplayView(page_index=0)
+        view.controller.codex32_temp_share = CODEX32_TEST_SECRET
+
+        with patch.object(view, "run_screen", return_value=RET_CODE__BACK_BUTTON):
+            view.run()
+
+        assert view.controller.codex32_temp_share is None
+
+
+    def test_codex32_master_secret_back_from_second_page_retains_for_first_page(self):
+        view = seed_views.Codex32MasterSecretDisplayView(page_index=1)
+        view.controller.codex32_temp_share = CODEX32_TEST_SECRET
+
+        with patch.object(view, "run_screen", return_value=RET_CODE__BACK_BUTTON):
+            view.run()
+
+        assert view.controller.codex32_temp_share == CODEX32_TEST_SECRET
+
+
     def test_codex32_backup_menu_includes_export_as_codex32qr(self):
         codex32_share = "MS12NAMES6XQGUZTTXKEQNJSJZV4JV3NZ5K3KWGSPHUH6EVW"
         seed = Codex32Seed(
-            seed_bytes=bytes.fromhex("ffeeddccbbaa99887766554433221100"),
+            seed_bytes=CODEX32_TEST_SEED_BYTES,
             codex32_master_share=codex32_share,
         )
         self.controller.storage.set_pending_seed(seed)
@@ -807,11 +847,11 @@ class TestSeedFlows(FlowTest):
 
     def test_codex32_backup_export_invalid_non_s_metadata_warns_and_exports_s_only(self):
         secret_share = "MS12NAMES6XQGUZTTXKEQNJSJZV4JV3NZ5K3KWGSPHUH6EVW"
-        seed = Codex32Seed(
-            seed_bytes=bytes.fromhex("ffeeddccbbaa99887766554433221100"),
-            codex32_master_share=secret_share,
-            codex32_export_shares={"s": secret_share, "a": "NOT_A_VALID_CODEX32_SHARE"},
-            codex32_share_sources={"s": "entered", "a": "entered"},
+        seed = _set_corrupt_codex32_metadata_for_boundary_test(
+            Codex32Seed(seed_bytes=CODEX32_TEST_SEED_BYTES, codex32_master_share=secret_share),
+            master_share=secret_share,
+            export_shares={"s": secret_share, "a": "NOT_A_VALID_CODEX32_SHARE"},
+            share_sources={"s": "entered", "a": "entered"},
         )
         self.controller.storage.set_pending_seed(seed)
         self.controller.storage.finalize_pending_seed()
@@ -833,11 +873,11 @@ class TestSeedFlows(FlowTest):
     def test_codex32_backup_export_index_key_mismatch_warns_and_exports_s_only(self):
         secret_share = "MS12NAMES6XQGUZTTXKEQNJSJZV4JV3NZ5K3KWGSPHUH6EVW"
         valid_non_s_share = "MS12NAMEA320ZYXWVUTSRQPNMLKJHGFEDCAXRPP870HKKQRM"
-        seed = Codex32Seed(
-            seed_bytes=bytes.fromhex("ffeeddccbbaa99887766554433221100"),
-            codex32_master_share=secret_share,
-            codex32_export_shares={"s": secret_share, "b": valid_non_s_share},
-            codex32_share_sources={"s": "entered", "b": "entered"},
+        seed = _set_corrupt_codex32_metadata_for_boundary_test(
+            Codex32Seed(seed_bytes=CODEX32_TEST_SEED_BYTES, codex32_master_share=secret_share),
+            master_share=secret_share,
+            export_shares={"s": secret_share, "b": valid_non_s_share},
+            share_sources={"s": "entered", "b": "entered"},
         )
         self.controller.storage.set_pending_seed(seed)
         self.controller.storage.finalize_pending_seed()
@@ -858,11 +898,11 @@ class TestSeedFlows(FlowTest):
 
     def test_codex32_backup_display_invalid_non_s_metadata_warns_and_displays_s_only(self):
         secret_share = "MS12NAMES6XQGUZTTXKEQNJSJZV4JV3NZ5K3KWGSPHUH6EVW"
-        seed = Codex32Seed(
-            seed_bytes=bytes.fromhex("ffeeddccbbaa99887766554433221100"),
-            codex32_master_share=secret_share,
-            codex32_export_shares={"s": secret_share, "a": "NOT_A_VALID_CODEX32_SHARE"},
-            codex32_share_sources={"s": "entered", "a": "entered"},
+        seed = _set_corrupt_codex32_metadata_for_boundary_test(
+            Codex32Seed(seed_bytes=CODEX32_TEST_SEED_BYTES, codex32_master_share=secret_share),
+            master_share=secret_share,
+            export_shares={"s": secret_share, "a": "NOT_A_VALID_CODEX32_SHARE"},
+            share_sources={"s": "entered", "a": "entered"},
         )
         self.controller.storage.set_pending_seed(seed)
         self.controller.storage.finalize_pending_seed()
@@ -887,11 +927,11 @@ class TestSeedFlows(FlowTest):
         mismatched_non_s_values = share_a.data_part_values
         mismatched_non_s_values[0] = codex32_min.CHARSET_MAP["3"]
         mismatched_non_s = codex32_min.ms32_encode(mismatched_non_s_values).upper()
-        seed = Codex32Seed(
-            seed_bytes=bytes.fromhex("00112233445566778899aabbccddeeff"),
-            codex32_master_share=canonical_secret,
-            codex32_export_shares={"s": canonical_secret, "a": mismatched_non_s},
-            codex32_share_sources={"s": "entered", "a": "entered"},
+        seed = _set_corrupt_codex32_metadata_for_boundary_test(
+            Codex32Seed(seed_bytes=CODEX32_TEST_SEED_BYTES, codex32_master_share=canonical_secret),
+            master_share=canonical_secret,
+            export_shares={"s": canonical_secret, "a": mismatched_non_s},
+            share_sources={"s": "entered", "a": "entered"},
         )
         self.controller.storage.set_pending_seed(seed)
         self.controller.storage.finalize_pending_seed()
@@ -911,9 +951,9 @@ class TestSeedFlows(FlowTest):
 
 
     def test_codex32_backup_view_secret_invalid_canonical_s_routes_to_unavailable(self):
-        seed = Codex32Seed(
-            seed_bytes=bytes.fromhex("ffeeddccbbaa99887766554433221100"),
-            codex32_master_share="NOT_A_VALID_CODEX32_SHARE",
+        seed = _set_corrupt_codex32_metadata_for_boundary_test(
+            Codex32Seed(seed_bytes=CODEX32_TEST_SEED_BYTES),
+            master_share="NOT_A_VALID_CODEX32_SHARE",
         )
         self.controller.storage.set_pending_seed(seed)
         self.controller.storage.finalize_pending_seed()
@@ -936,7 +976,7 @@ class TestSeedFlows(FlowTest):
         }
         source_map = {"a": "entered", "c": "entered", "s": "derived"}
         seed = Codex32Seed(
-            seed_bytes=bytes.fromhex("ffeeddccbbaa99887766554433221100"),
+            seed_bytes=CODEX32_TEST_SEED_BYTES,
             codex32_master_share=share_map["s"],
             codex32_export_shares=share_map,
             codex32_share_sources=source_map,
@@ -962,7 +1002,7 @@ class TestSeedFlows(FlowTest):
         }
         source_map = {"a": "entered", "c": "entered", "s": "derived"}
         seed = Codex32Seed(
-            seed_bytes=bytes.fromhex("ffeeddccbbaa99887766554433221100"),
+            seed_bytes=CODEX32_TEST_SEED_BYTES,
             codex32_master_share=share_map["s"],
             codex32_export_shares=share_map,
             codex32_share_sources=source_map,
@@ -994,7 +1034,7 @@ class TestSeedFlows(FlowTest):
         }
         source_map = {"a": "entered", "s": "derived"}
         seed = Codex32Seed(
-            seed_bytes=bytes.fromhex("ffeeddccbbaa99887766554433221100"),
+            seed_bytes=CODEX32_TEST_SEED_BYTES,
             codex32_master_share=share_map["s"],
             codex32_export_shares=share_map,
             codex32_share_sources=source_map,
@@ -1025,7 +1065,7 @@ class TestSeedFlows(FlowTest):
             "s": "MS12NAMES6XQGUZTTXKEQNJSJZV4JV3NZ5K3KWGSPHUH6EVW",
         }
         seed = Codex32Seed(
-            seed_bytes=bytes.fromhex("ffeeddccbbaa99887766554433221100"),
+            seed_bytes=CODEX32_TEST_SEED_BYTES,
             codex32_master_share=share_map["s"],
             codex32_export_shares=share_map,
             codex32_share_sources={},
@@ -1063,11 +1103,11 @@ class TestSeedFlows(FlowTest):
             "h": overflow_share_h.s,
         }
         source_map = {idx: "entered" for idx in share_map.keys()}
-        seed = Codex32Seed(
-            seed_bytes=secret_share.data,
-            codex32_master_share=secret_share.s,
-            codex32_export_shares=share_map,
-            codex32_share_sources=source_map,
+        seed = _set_corrupt_codex32_metadata_for_boundary_test(
+            Codex32Seed(seed_bytes=secret_share.data, codex32_master_share=secret_share.s),
+            master_share=secret_share.s,
+            export_shares=share_map,
+            share_sources=source_map,
         )
         self.controller.storage.set_pending_seed(seed)
         self.controller.storage.finalize_pending_seed()
@@ -1086,7 +1126,7 @@ class TestSeedFlows(FlowTest):
         codex32_share = "MS12NAMES6XQGUZTTXKEQNJSJZV4JV3NZ5K3KWGSPHUH6EVW"
         wrong_but_valid_share = "MS12NAMEA320ZYXWVUTSRQPNMLKJHGFEDCAXRPP870HKKQRM"
         seed = Codex32Seed(
-            seed_bytes=bytes.fromhex("ffeeddccbbaa99887766554433221100"),
+            seed_bytes=CODEX32_TEST_SEED_BYTES,
             codex32_master_share=codex32_share,
         )
         self.controller.storage.set_pending_seed(seed)

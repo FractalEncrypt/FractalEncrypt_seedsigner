@@ -1,10 +1,14 @@
 from binascii import a2b_base64
+from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
+
 from embit.psbt import PSBT
 
 from base import FlowTest, FlowStep
 
 from seedsigner.controller import Controller
 from seedsigner.models.seed import Seed
+from seedsigner.models.psbt_parser import PSBTParser
 from seedsigner.views.view import MainMenuView
 from seedsigner.views import scan_views, seed_views, psbt_views
 from seedsigner.models.settings import SettingsConstants
@@ -13,6 +17,44 @@ from psbt_testing_util import PSBTTestData
 
 
 class TestPSBTFlows(FlowTest):
+
+    def test_finalize_trims_only_when_missing_fingerprints_were_repaired(self, monkeypatch):
+        trimmed_psbt = object()
+        monkeypatch.setattr(PSBTParser, "trim", staticmethod(lambda psbt: trimmed_psbt))
+
+        for repair_count in (0, 1):
+            psbt = MagicMock()
+            parser = SimpleNamespace(root=object(), filled_missing_fingerprint_count=repair_count)
+            self.controller.psbt = psbt
+            self.controller.psbt_parser = parser
+            signature_counts = iter((0, 1))
+            monkeypatch.setattr(
+                PSBTParser,
+                "sig_count",
+                staticmethod(lambda candidate: next(signature_counts)),
+            )
+
+            view = psbt_views.PSBTFinalizeView()
+            with patch.object(view, "run_screen", return_value=0):
+                destination = view.run()
+
+            assert destination.View_cls is psbt_views.PSBTSignedQRDisplayView
+            assert self.controller.psbt is (trimmed_psbt if repair_count else psbt)
+
+
+    def test_signing_error_describes_coordinator_fingerprint_as_claimed(self):
+        self.controller.psbt_parser = SimpleNamespace()
+        view = psbt_views.PSBTSigningErrorView(
+            already_signed_input_indexes=[0],
+            signer_fingerprint="deadbeef",
+        )
+
+        with patch.object(view, "run_screen", return_value=0) as run_screen:
+            view.run()
+
+        warning_text = run_screen.call_args.kwargs["text"]
+        assert "claimed key deadbeef" in warning_text
+        assert "was already signed by key" not in warning_text
 
     def test_scan_psbt_first_then_correct_seedqr_flow(self):
         """

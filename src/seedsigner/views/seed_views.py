@@ -861,6 +861,8 @@ class Codex32MasterSecretDisplayView(View):
         )
 
         if selected_menu_num == RET_CODE__BACK_BUTTON:
+            if self.page_index == 0:
+                self.controller.codex32_temp_share = None
             return Destination(BackStackView)
 
         if button_data[selected_menu_num] == self.CONTINUE:
@@ -1527,6 +1529,9 @@ class SeedBackupView(View):
             return {}, {}, False
 
         if canonical_s_display is None or canonical_s is None:
+            return {}, {}, False
+
+        if canonical_s.data != self.seed.seed_bytes:
             return {}, {}, False
 
         share_map["s"] = canonical_s_display

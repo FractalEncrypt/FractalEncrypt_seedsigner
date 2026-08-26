@@ -63,7 +63,7 @@ Compatibility note:
 
 1. From your worksheet, copy each share exactly as written.
 2. If needed, pre-stage each share on printable cards so manual entry is easier:
-   - `Seedsigner_Codex32/Printable Codex32 Share backup cards/`
+   - [`printable_templates/Seedsigner_Codex32_Printable_Page_SeedCards.pdf`](printable_templates/Seedsigner_Codex32_Printable_Page_SeedCards.pdf)
    - Box numbering matches worksheet/SeedSigner box numbering.
 3. If you have not done worksheet checksum verification yet, continue anyway: SeedSigner can verify by validating the full share string during entry.
    - If verification fails in the seedsigner of a share that you've not verified manually, then you'll need to go back to the worksheet and recompute the share.

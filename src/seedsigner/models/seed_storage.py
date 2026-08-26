@@ -44,7 +44,11 @@ class SeedStorage:
                 )
             ):
                 self.seeds[index] = seed
+                if existing_seed is not seed:
+                    existing_seed.wipe()
             else:
+                if seed is not existing_seed:
+                    seed.wipe()
                 seed = existing_seed
         else:
             self.seeds.append(seed)

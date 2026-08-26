@@ -646,7 +646,7 @@ class PSBTSigningErrorView(View):
         # Just a WarningScreen here; only use DireWarningScreen for true security risks.
         if self.already_signed_input_indexes and self.signer_fingerprint:
             signed_inputs = ", ".join(str(i + 1) for i in self.already_signed_input_indexes)
-            warning_text = _("This PSBT was already signed by key {} on input(s) {}. Select a different seed.").format(
+            warning_text = _("This PSBT contains signature data associated with the claimed key {} on input(s) {}. Select a different seed.").format(
                 self.signer_fingerprint,
                 signed_inputs,
             )

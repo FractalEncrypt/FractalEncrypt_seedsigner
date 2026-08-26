@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from itertools import combinations
 from dataclasses import dataclass, field
 
 from .codex32_min import Codex32String, CodexError, _is_single_case
@@ -176,9 +177,24 @@ def recover_secret_share(shares: list[Codex32String]) -> Codex32String:
     """Recover the secret share (index 's') from a set of codex32 shares."""
     if not shares:
         raise Codex32InputError("No shares provided for recovery", ERROR_DATA)
+
+    first_share = shares[0]
+    threshold = _parse_threshold(first_share.k)
+    if len(shares) != threshold:
+        raise Codex32InputError(
+            f"Recovery requires exactly {threshold} shares, got {len(shares)}",
+            ERROR_DATA,
+        )
+
     indices = {s.share_idx.lower() for s in shares}
     if len(indices) != len(shares):
         raise Codex32InputError("Duplicate share indices detected", ERROR_DATA)
+    for share in shares:
+        if share.k != first_share.k or share.ident != first_share.ident:
+            raise Codex32InputError(
+                "Shares must have matching thresholds and identifiers",
+                ERROR_HEADER,
+            )
     try:
         return Codex32String.interpolate_at(shares, target="s")
     except CodexError as exc:
@@ -192,6 +208,11 @@ def _parse_threshold(value: str) -> int:
         raise Codex32InputError("Invalid threshold value in share header.", ERROR_HEADER) from exc
     if threshold < 2:
         raise Codex32InputError("Threshold must be >= 2 for split shares.", ERROR_HEADER)
+    if threshold > CODEX32_MAX_SPLIT_SHARES:
+        raise Codex32InputError(
+            f"Thresholds above {CODEX32_MAX_SPLIT_SHARES} are not supported.",
+            ERROR_HEADER,
+        )
     return threshold
 
 
@@ -217,7 +238,7 @@ class Codex32ShareCollection:
 
     @property
     def ready(self) -> bool:
-        return len(self.shares) >= self.threshold
+        return self.get_share("s") is not None or len(self.shares) >= self.threshold
 
     @property
     def ready_for_export(self) -> bool:
@@ -250,9 +271,33 @@ class Codex32ShareCollection:
     def recovered_secret_share(self) -> Codex32String | None:
         if not self.ready:
             return None
+
         try:
-            secret_share = recover_secret_share(self.shares)
-            return validate_codex32_s_share(secret_share.s, expected_len=CODEX32_QR_CANONICAL_LENGTH)
+            entered_secret = self.get_share("s")
+            if entered_secret is not None:
+                canonical_secret = validate_codex32_s_share(
+                    entered_secret.s,
+                    expected_len=CODEX32_QR_CANONICAL_LENGTH,
+                )
+            else:
+                canonical_secret = None
+
+            split_shares = [share for share in self.shares if share.share_idx.lower() != "s"]
+            if len(split_shares) >= self.threshold:
+                for share_subset in combinations(split_shares, self.threshold):
+                    recovered = validate_codex32_s_share(
+                        recover_secret_share(list(share_subset)).s,
+                        expected_len=CODEX32_QR_CANONICAL_LENGTH,
+                    )
+                    if canonical_secret is None:
+                        canonical_secret = recovered
+                    elif recovered.data != canonical_secret.data:
+                        raise Codex32InputError(
+                            "Share set does not reconstruct the entered secret.",
+                            ERROR_DATA,
+                        )
+
+            return canonical_secret
         except Codex32InputError as e:
             logger.debug("Secret share recovery failed: %s", e)
             return None
@@ -321,3 +366,87 @@ class Codex32ShareCollection:
         self.threshold = 0
         self.ident = ""
         self.case = "lower"
+
+
+def validate_codex32_seed_metadata(
+    seed_bytes: bytes,
+    master_share: str | None = None,
+    export_shares: dict[str, str] | None = None,
+) -> None:
+    """Validate that Codex32 backup metadata represents ``seed_bytes``.
+
+    Metadata is optional, but when present it must contain one unambiguous,
+    canonical ``S`` share. Every exported split share must belong to that set;
+    when enough split shares are present, every threshold-sized subset must
+    reconstruct the same ``S``.
+    """
+    if master_share is None and not export_shares:
+        return
+
+    parsed_export_shares: dict[str, Codex32String] = {}
+    s_candidates: list[Codex32String] = []
+
+    if master_share is not None:
+        s_candidates.append(validate_codex32_s_share(master_share))
+
+    for share_idx_raw, share_value in (export_shares or {}).items():
+        share_idx = str(share_idx_raw).lower()
+        parsed_share = parse_codex32_share(share_value)
+        if parsed_share.share_idx.lower() != share_idx:
+            raise Codex32InputError(
+                f"Export metadata key '{share_idx_raw}' does not match share index "
+                f"'{parsed_share.share_idx}'.",
+                ERROR_HEADER,
+            )
+        parsed_export_shares[share_idx] = parsed_share
+        if share_idx == "s":
+            s_candidates.append(validate_codex32_s_share(share_value))
+
+    if not s_candidates:
+        raise Codex32InputError(
+            "Codex32 backup metadata must include a canonical S share.",
+            ERROR_DATA,
+        )
+
+    canonical_s = s_candidates[0]
+    for candidate in s_candidates[1:]:
+        if candidate.s.lower() != canonical_s.s.lower():
+            raise Codex32InputError(
+                "Conflicting canonical S shares in backup metadata.",
+                ERROR_DATA,
+            )
+
+    if canonical_s.data != seed_bytes:
+        raise Codex32InputError(
+            "Codex32 backup metadata does not match the active seed.",
+            ERROR_DATA,
+        )
+
+    split_shares = [
+        share for share_idx, share in parsed_export_shares.items() if share_idx != "s"
+    ]
+    if len(split_shares) > CODEX32_MAX_SPLIT_SHARES:
+        raise Codex32InputError(
+            f"A maximum of {CODEX32_MAX_SPLIT_SHARES} split shares is supported.",
+            ERROR_HEADER,
+        )
+
+    if not split_shares:
+        return
+
+    threshold = _parse_threshold(canonical_s.k)
+    for share in split_shares:
+        if share.k != canonical_s.k or share.ident != canonical_s.ident:
+            raise Codex32InputError(
+                "Export shares must match the canonical S threshold and identifier.",
+                ERROR_HEADER,
+            )
+
+    if len(split_shares) >= threshold:
+        for share_subset in combinations(split_shares, threshold):
+            recovered = recover_secret_share(list(share_subset))
+            if recovered.data != canonical_s.data:
+                raise Codex32InputError(
+                    "Export shares do not reconstruct the canonical S share.",
+                    ERROR_DATA,
+                )

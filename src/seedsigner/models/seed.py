@@ -212,6 +212,18 @@ class Codex32Seed(Seed):
             raise InvalidSeedException(
                 f"Expected 16 bytes for a Codex32 master seed, got {len(seed_bytes)}"
             )
+
+        from seedsigner.models import codex32 as codex32_model
+
+        try:
+            codex32_model.validate_codex32_seed_metadata(
+                seed_bytes,
+                master_share=codex32_master_share,
+                export_shares=codex32_export_shares,
+            )
+        except codex32_model.Codex32InputError as exc:
+            raise InvalidSeedException(str(exc)) from exc
+
         # Store raw 16-byte codex32 entropy before super().__init__() calls
         # _generate_seed(). Must be set first since _generate_seed() reads it.
         self._codex32_entropy = seed_bytes

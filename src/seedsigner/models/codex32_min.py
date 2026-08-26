@@ -204,6 +204,14 @@ class Codex32String:
         self.ident = "".join(data_part_chars[1:5])
         self.share_idx = data_part_chars[5]
         self._payload_values = data_part_values[6:]
+        payload_bit_length = len(self._payload_values) * 5
+        if payload_bit_length % 8 > 4:
+            raise CodexError(
+                "Codex32 payload has an invalid incomplete byte group"
+            )
+        payload_byte_length = payload_bit_length // 8
+        if not 16 <= payload_byte_length <= 64:
+            raise CodexError("Codex32 payload must encode 16 to 64 bytes")
         self.data = _payload_to_bytes(self._payload_values)
 
     @property
@@ -226,13 +234,29 @@ class Codex32String:
         if target_val is None:
             raise CodexError(f"Invalid target share index '{target}'")
 
-        base_len = len(shares[0]._data_part_values)
+        first_share = shares[0]
+        if first_share.k == "0":
+            raise CodexError("An unshared secret cannot be used for interpolation")
+
+        threshold = int(first_share.k)
+        if len(shares) != threshold:
+            raise CodexError(
+                f"Interpolation requires exactly {threshold} shares, got {len(shares)}"
+            )
+
+        indices = [share.share_idx.lower() for share in shares]
+        if len(set(indices)) != len(indices):
+            raise CodexError("Duplicate share indices detected")
+
+        base_len = len(first_share._data_part_values)
         for share in shares:
             if len(share._data_part_values) != base_len:
                 raise CodexError("Shares must be the same length for interpolation")
+            if share.k != first_share.k or share.ident != first_share.ident:
+                raise CodexError("Shares must have matching thresholds and identifiers")
 
         interpolated = ms32_interpolate([s._data_part_values for s in shares], target_val)
         encoded = ms32_encode(interpolated)
-        if shares[0].case == "upper":
+        if first_share.case == "upper":
             encoded = encoded.upper()
         return Codex32String(encoded)

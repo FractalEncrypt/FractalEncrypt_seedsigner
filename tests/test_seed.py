@@ -7,6 +7,10 @@ from seedsigner.models import codex32_min
 from seedsigner.models.settings import SettingsConstants
 
 
+CODEX32_TEST_SECRET = "MS12NAMES6XQGUZTTXKEQNJSJZV4JV3NZ5K3KWGSPHUH6EVW"
+CODEX32_TEST_SEED_BYTES = bytes.fromhex("d1808e096b35b209ca12132b264662a5")
+
+
 # TODO: Change TAB indents to SPACE
 
 def test_seed():
@@ -89,8 +93,8 @@ def test_electrum_seed_rejects_most_bip39_mnemonics():
 
 
 def test_codex32_seed_metadata_optional():
-	seed_bytes = bytes.fromhex("00112233445566778899aabbccddeeff")
-	codex32_share = "MS10ABCDSQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ"
+	seed_bytes = CODEX32_TEST_SEED_BYTES
+	codex32_share = CODEX32_TEST_SECRET
 
 	seed = Codex32Seed(seed_bytes=seed_bytes, codex32_master_share=codex32_share)
 	assert seed.codex32_master_share == codex32_share
@@ -104,10 +108,10 @@ def test_codex32_seed_metadata_optional():
 
 
 def test_codex32_seed_export_metadata_optional():
-	seed_bytes = bytes.fromhex("00112233445566778899aabbccddeeff")
+	seed_bytes = CODEX32_TEST_SEED_BYTES
 	share_map = {
 		"a": "MS12NAMEA320ZYXWVUTSRQPNMLKJHGFEDCAXRPP870HKKQRM",
-		"s": "MS12NAMES6XQGUZTTXKEQNJSJZV4JV3NZ5K3KWGSPHUH6EVW",
+		"s": CODEX32_TEST_SECRET,
 	}
 	source_map = {"a": "entered", "s": "derived"}
 
@@ -122,8 +126,32 @@ def test_codex32_seed_export_metadata_optional():
 	assert seed.codex32_share_sources == source_map
 
 
+def test_codex32_seed_rejects_backup_metadata_for_different_seed():
+	with pytest.raises(InvalidSeedException, match="does not match the active seed"):
+		Codex32Seed(
+			seed_bytes=bytes.fromhex("00112233445566778899aabbccddeeff"),
+			codex32_master_share=CODEX32_TEST_SECRET,
+		)
+
+
+def test_codex32_seed_rejects_split_metadata_that_does_not_reconstruct_s():
+	share_a, secret_share, share_c = _build_codex32_split_fixture()
+	conflicting_share_c = _build_conflicting_share_same_index(share_c)
+
+	with pytest.raises(InvalidSeedException, match="do not reconstruct"):
+		Codex32Seed(
+			seed_bytes=secret_share.data,
+			codex32_master_share=secret_share.s,
+			codex32_export_shares={
+				"s": secret_share.s,
+				"a": share_a.s,
+				"c": conflicting_share_c.s,
+			},
+		)
+
+
 def test_seed_storage_preserves_richer_codex32_metadata_on_duplicate():
-	seed_bytes = bytes.fromhex("00112233445566778899aabbccddeeff")
+	seed_bytes = CODEX32_TEST_SEED_BYTES
 	storage = SeedStorage()
 
 	storage.set_pending_seed(Codex32Seed(seed_bytes=seed_bytes))
@@ -132,19 +160,21 @@ def test_seed_storage_preserves_richer_codex32_metadata_on_duplicate():
 	storage.set_pending_seed(
 		Codex32Seed(
 			seed_bytes=seed_bytes,
-			codex32_master_share="MS10ABCDSQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ",
+			codex32_master_share=CODEX32_TEST_SECRET,
 		)
 	)
 	second_seed = storage.finalize_pending_seed()
 
-	assert first_seed == second_seed
+	assert first_seed is not second_seed
 	assert second_seed is storage.seeds[0]
 	assert isinstance(second_seed, Codex32Seed)
-	assert second_seed.codex32_master_share == "MS10ABCDSQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ"
+	assert second_seed.codex32_master_share == CODEX32_TEST_SECRET
+	assert first_seed.seed_bytes is None
+	assert first_seed.codex32_master_share is None
 
 
 def test_seed_storage_preserves_codex32_export_metadata_on_duplicate():
-	seed_bytes = bytes.fromhex("00112233445566778899aabbccddeeff")
+	seed_bytes = CODEX32_TEST_SEED_BYTES
 	storage = SeedStorage()
 
 	storage.set_pending_seed(Codex32Seed(seed_bytes=seed_bytes))
@@ -152,7 +182,7 @@ def test_seed_storage_preserves_codex32_export_metadata_on_duplicate():
 
 	share_map = {
 		"a": "MS12NAMEA320ZYXWVUTSRQPNMLKJHGFEDCAXRPP870HKKQRM",
-		"s": "MS12NAMES6XQGUZTTXKEQNJSJZV4JV3NZ5K3KWGSPHUH6EVW",
+		"s": CODEX32_TEST_SECRET,
 	}
 	source_map = {"a": "entered", "s": "derived"}
 
@@ -166,10 +196,29 @@ def test_seed_storage_preserves_codex32_export_metadata_on_duplicate():
 	)
 	second_seed = storage.finalize_pending_seed()
 
-	assert first_seed == second_seed
+	assert first_seed is not second_seed
 	assert second_seed is storage.seeds[0]
 	assert second_seed.codex32_export_shares == share_map
 	assert second_seed.codex32_share_sources == source_map
+	assert first_seed.seed_bytes is None
+
+
+def test_seed_storage_wipes_unused_duplicate_pending_seed():
+	storage = SeedStorage()
+	stored_seed = Codex32Seed(
+		seed_bytes=CODEX32_TEST_SEED_BYTES,
+		codex32_master_share=CODEX32_TEST_SECRET,
+	)
+	storage.set_pending_seed(stored_seed)
+	storage.finalize_pending_seed()
+
+	unused_duplicate = Codex32Seed(seed_bytes=CODEX32_TEST_SEED_BYTES)
+	storage.set_pending_seed(unused_duplicate)
+	result = storage.finalize_pending_seed()
+
+	assert result is stored_seed
+	assert unused_duplicate.seed_bytes is None
+	assert unused_duplicate.mnemonic_list == []
 
 
 def test_seed_storage_clear_pending_seed_wipes_pending_seed():
@@ -338,9 +387,9 @@ def test_seed_wipe_clears_sensitive_fields():
 
 def test_codex32_seed_wipe_clears_seed_and_metadata_fields():
 	seed = Codex32Seed(
-		seed_bytes=bytes.fromhex("00112233445566778899aabbccddeeff"),
-		codex32_master_share="MS12NAMES6XQGUZTTXKEQNJSJZV4JV3NZ5K3KWGSPHUH6EVW",
-		codex32_export_shares={"s": "MS12NAMES6XQGUZTTXKEQNJSJZV4JV3NZ5K3KWGSPHUH6EVW"},
+		seed_bytes=CODEX32_TEST_SEED_BYTES,
+		codex32_master_share=CODEX32_TEST_SECRET,
+		codex32_export_shares={"s": CODEX32_TEST_SECRET},
 		codex32_share_sources={"s": "entered"},
 	)
 

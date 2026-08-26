@@ -220,6 +220,7 @@ class Controller(Singleton):
 
     def discard_seed(self, seed: Seed):
         self.storage.seeds.remove(seed)
+        seed.wipe()
 
 
     def pop_prev_from_back_stack(self):

@@ -118,22 +118,22 @@ In practice, this means SeedQR and codex32QR remain separate wire formats while 
 
 #### Core Domain & Validation Layer
 
-- **[src/seedsigner/models/codex32.py](cci:7://file:///c:/Users/FractalEncrypt/Documents/Windsurf/SeedSigner/src/seedsigner/models/codex32.py:0:0-0:0)**
+- **[src/seedsigner/models/codex32.py](../../src/seedsigner/models/codex32.py)**
   - Defines codex32 parsing/normalization and strict input validation.
   - Locks the codex32QR profile contract (canonical `MS1` prefix, fixed-length share payload, and QR profile constants).
   - Implements `Codex32ShareCollection`, which manages split-share collection, conflict handling, recoverability checks, and export metadata generation.
 
-- **[src/seedsigner/models/seed.py](cci:7://file:///c:/Users/FractalEncrypt/Documents/Windsurf/SeedSigner/src/seedsigner/models/seed.py:0:0-0:0)**
-  - Adds [Codex32Seed](cci:2://file:///c:/Users/FractalEncrypt/Documents/Windsurf/SeedSigner/src/seedsigner/models/seed.py:179:0-232:48) as a seed type backed by the recovered 16-byte entropy.
+- **[src/seedsigner/models/seed.py](../../src/seedsigner/models/seed.py)**
+  - Adds `Codex32Seed` as a seed type backed by the recovered 16-byte entropy.
   - Preserves codex32-specific metadata needed for backup/export UX (`master_share`, export-share map, source map).
   - Explicitly keeps codex32 seeds passphrase-free to match the codex32 model.
   - Adds best-effort `wipe()` handling for `Seed` and `Codex32Seed` fields to reduce in-memory secret residency before references are dropped.
 
-- **[src/seedsigner/models/seed_storage.py](cci:7://file:///c:/Users/FractalEncrypt/Documents/Windsurf/SeedSigner/src/seedsigner/models/seed_storage.py:0:0-0:0)**
+- **[src/seedsigner/models/seed_storage.py](../../src/seedsigner/models/seed_storage.py)**
   - Updates duplicate-seed handling so reloading an equivalent codex32 seed can enrich existing stored metadata instead of discarding it.
   - Clears pending seeds via explicit best-effort wipe before nulling references (`clear_pending_seed`).
 
-- **[src/seedsigner/controller.py](cci:7://file:///c:/Users/FractalEncrypt/Documents/Windsurf/SeedSigner/src/seedsigner/controller.py:0:0-0:0)**
+- **[src/seedsigner/controller.py](../../src/seedsigner/controller.py)**
   - Adds Home-reset lifecycle hardening to clear transient codex32/PSBT state consistently.
   - Uses a guarded `psbt_seed` wipe policy: wipe transient seeds, but avoid wiping onboard stored seeds that remain loaded intentionally.
 
@@ -142,21 +142,21 @@ In practice, this means SeedQR and codex32QR remain separate wire formats while 
 - **`src/seedsigner/models/qr_type.py`**
   - Introduces a dedicated codex32 QR type used consistently by decoder and routing logic.
 
-- **[src/seedsigner/models/decode_qr.py](cci:7://file:///c:/Users/FractalEncrypt/Documents/Windsurf/SeedSigner/src/seedsigner/models/decode_qr.py:0:0-0:0)**
+- **[src/seedsigner/models/decode_qr.py](../../src/seedsigner/models/decode_qr.py)**
   - Adds codex32 detection and canonical decode output through a dedicated codex32 decoder path.
   - Enforces fail-closed behavior for invalid codex32-like payloads (prevents accidental fallback into unrelated QR types such as bitcoin address parsing).
 
-- **[src/seedsigner/models/encode_qr.py](cci:7://file:///c:/Users/FractalEncrypt/Documents/Windsurf/SeedSigner/src/seedsigner/models/encode_qr.py:0:0-0:0)**
+- **[src/seedsigner/models/encode_qr.py](../../src/seedsigner/models/encode_qr.py)**
   - Adds `Codex32QrEncoder` to produce deterministic, canonical codex32 share payloads for display/export.
 
 #### UX and Flow Wiring (Views)
 
-- **[src/seedsigner/views/scan_views.py](cci:7://file:///c:/Users/FractalEncrypt/Documents/Windsurf/SeedSigner/src/seedsigner/views/scan_views.py:0:0-0:0)**
+- **[src/seedsigner/views/scan_views.py](../../src/seedsigner/views/scan_views.py)**
   - Extends scan routing so codex32 shares can enter either direct success flow (`S` share) or multi-share collection flow (non-`S` shares).
   - Adds a dedicated collection scan view for iterative share intake.
   - Normalizes scanned codex32 payloads to canonical display format early and avoids passing redundant master-share payload args downstream when pending seed metadata already carries canonical share data.
 
-- **[src/seedsigner/views/seed_views.py](cci:7://file:///c:/Users/FractalEncrypt/Documents/Windsurf/SeedSigner/src/seedsigner/views/seed_views.py:0:0-0:0)**
+- **[src/seedsigner/views/seed_views.py](../../src/seedsigner/views/seed_views.py)**
   - Extends load-seed menu with codex32 entry/scan options.
   - Implements codex32 manual entry flow, share conflict confirmation, and collection progression.
   - Specializes backup UX for codex32 with:
@@ -171,23 +171,23 @@ In practice, this means SeedQR and codex32QR remain separate wire formats while 
 
 #### PSBT Robustness (Supporting Work in Same Branch)
 
-- **[src/seedsigner/models/psbt_parser.py](cci:7://file:///c:/Users/FractalEncrypt/Documents/Windsurf/SeedSigner/src/seedsigner/models/psbt_parser.py:0:0-0:0)**
+- **[src/seedsigner/models/psbt_parser.py](../../src/seedsigner/models/psbt_parser.py)**
   - Adds explicit missing-UTXO detection and dedicated parser error signaling.
 
-- **[src/seedsigner/views/psbt_views.py](cci:7://file:///c:/Users/FractalEncrypt/Documents/Windsurf/SeedSigner/src/seedsigner/views/psbt_views.py:0:0-0:0)**
+- **[src/seedsigner/views/psbt_views.py](../../src/seedsigner/views/psbt_views.py)**
   - Routes missing-UTXO parse failures to user-facing warning flow.
   - Finalize/sign path preserves PSBT metadata by default and only trims to a signatures-only payload when missing fingerprints were synthesized during parsing (to maximize coordinator merge compatibility).
 
 #### Regression & Integration Test Coverage
 
-- **[tests/test_decodepsbtqr.py](cci:7://file:///c:/Users/FractalEncrypt/Documents/Windsurf/SeedSigner/tests/test_decodepsbtqr.py:0:0-0:0)**: codex32 decode canonicalization, invalid checksum handling, and precedence regressions.
-- **[tests/test_scan_views.py](cci:7://file:///c:/Users/FractalEncrypt/Documents/Windsurf/SeedSigner/tests/test_scan_views.py:0:0-0:0)**: non-`S` scan routing into collection-mode entry.
-- **[tests/test_seed.py](cci:7://file:///c:/Users/FractalEncrypt/Documents/Windsurf/SeedSigner/tests/test_seed.py:0:0-0:0)**: codex32 constants/metadata plus zeroization regressions (`Seed.wipe`, `Codex32Seed.wipe`, share-collection wipe, and pending-seed clear wipe).
-- **[tests/test_flows_seed.py](cci:7://file:///c:/Users/FractalEncrypt/Documents/Windsurf/SeedSigner/tests/test_flows_seed.py:0:0-0:0)**: end-to-end collection, conflict replacement, backup/export menus, share selection, confirm-scan roundtrip, and discard-all wipe lifecycle checks.
-- **[tests/test_flows_tools.py](cci:7://file:///c:/Users/FractalEncrypt/Documents/Windsurf/SeedSigner/tests/test_flows_tools.py:0:0-0:0)**: codex32 sideflow routing with canonical share resolution in address-explorer entry paths.
-- **[tests/test_seedqr.py](cci:7://file:///c:/Users/FractalEncrypt/Documents/Windsurf/SeedSigner/tests/test_seedqr.py:0:0-0:0)**: codex32 QR rendering profile expectations.
-- **[tests/test_psbt_parser.py](cci:7://file:///c:/Users/FractalEncrypt/Documents/Windsurf/SeedSigner/tests/test_psbt_parser.py:0:0-0:0) + [tests/test_flows_psbt.py](cci:7://file:///c:/Users/FractalEncrypt/Documents/Windsurf/SeedSigner/tests/test_flows_psbt.py:0:0-0:0)**: missing-UTXO detection and warning flow coverage.
-- **[tests/test_controller.py](cci:7://file:///c:/Users/FractalEncrypt/Documents/Windsurf/SeedSigner/tests/test_controller.py:0:0-0:0)**: MainMenu reset lifecycle coverage for transient `psbt_seed` wipe vs onboard-seed preservation.
+- **[tests/test_decodepsbtqr.py](../../tests/test_decodepsbtqr.py)**: codex32 decode canonicalization, invalid checksum handling, and precedence regressions.
+- **[tests/test_scan_views.py](../../tests/test_scan_views.py)**: non-`S` scan routing into collection-mode entry.
+- **[tests/test_seed.py](../../tests/test_seed.py)**: codex32 constants/metadata plus wipe regressions (`Seed.wipe`, `Codex32Seed.wipe`, share-collection wipe, and pending-seed cleanup).
+- **[tests/test_flows_seed.py](../../tests/test_flows_seed.py)**: end-to-end collection, conflict replacement, backup/export menus, share selection, confirm-scan roundtrip, and discard lifecycle checks.
+- **[tests/test_flows_tools.py](../../tests/test_flows_tools.py)**: codex32 sideflow routing with canonical share resolution in address-explorer entry paths.
+- **[tests/test_seedqr.py](../../tests/test_seedqr.py)**: codex32 QR rendering profile expectations.
+- **[tests/test_psbt_parser.py](../../tests/test_psbt_parser.py) + [tests/test_flows_psbt.py](../../tests/test_flows_psbt.py)**: missing-UTXO detection and warning flow coverage.
+- **[tests/test_controller.py](../../tests/test_controller.py)**: MainMenu reset lifecycle coverage for transient `psbt_seed` wipe vs onboard-seed preservation.
 
 ### 4.6. Scope Boundaries: Practical Subset of BIP93
 
