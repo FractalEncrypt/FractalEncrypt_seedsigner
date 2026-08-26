@@ -93,6 +93,11 @@ class Seed:
         return unicodedata.normalize("NFC", self._passphrase)
 
 
+    @property
+    def passphrase_supported(self) -> bool:
+        return True
+
+
     def set_passphrase(self, passphrase: str, regenerate_seed: bool = True):
         if passphrase:
             self._passphrase = unicodedata.normalize("NFKD", passphrase)
@@ -162,6 +167,29 @@ class Seed:
 
         # TODO: Support other BIP-39 wordlist languages!
         return bip85.derive_mnemonic(root, bip85_num_words, bip85_index)
+
+
+    def wipe(self) -> None:
+        """
+        Best-effort wipe of sensitive in-memory fields.
+
+        Python object lifecycles and immutable strings/bytes prevent a hard guarantee,
+        but this minimizes resident secret material before references are dropped.
+        """
+        if self.seed_bytes is not None:
+            wipe_buf = bytearray(self.seed_bytes)
+            for i in range(len(wipe_buf)):
+                wipe_buf[i] = 0
+        self.seed_bytes = None
+
+        if self._mnemonic is not None:
+            for i in range(len(self._mnemonic)):
+                self._mnemonic[i] = ""
+            self._mnemonic = []
+
+        if self._passphrase:
+            self._passphrase = "\x00" * len(self._passphrase)
+        self._passphrase = ""
         
 
     ### override operators    
@@ -169,6 +197,109 @@ class Seed:
         if isinstance(other, Seed):
             return self.seed_bytes == other.seed_bytes
         return False
+
+
+
+class Codex32Seed(Seed):
+    def __init__(
+        self,
+        seed_bytes: bytes,
+        codex32_master_share: str | None = None,
+        codex32_export_shares: dict[str, str] | None = None,
+        codex32_share_sources: dict[str, str] | None = None,
+    ) -> None:
+        if len(seed_bytes) != 16:
+            raise InvalidSeedException(
+                f"Expected 16 bytes for a Codex32 master seed, got {len(seed_bytes)}"
+            )
+
+        from seedsigner.models import codex32 as codex32_model
+
+        try:
+            codex32_model.validate_codex32_seed_metadata(
+                seed_bytes,
+                master_share=codex32_master_share,
+                export_shares=codex32_export_shares,
+            )
+        except codex32_model.Codex32InputError as exc:
+            raise InvalidSeedException(str(exc)) from exc
+
+        # Store raw 16-byte codex32 entropy before super().__init__() calls
+        # _generate_seed(). Must be set first since _generate_seed() reads it.
+        self._codex32_entropy = seed_bytes
+
+        # Derive BIP39 mnemonic from raw entropy, then delegate to parent.
+        mnemonic = unicodedata.normalize("NFKD", bip39.mnemonic_from_bytes(seed_bytes)).split()
+        super().__init__(mnemonic=mnemonic, passphrase="")
+
+        self._codex32_master_share = codex32_master_share
+        self._codex32_export_shares = dict(codex32_export_shares) if codex32_export_shares else None
+        self._codex32_share_sources = dict(codex32_share_sources) if codex32_share_sources else None
+
+
+    def _generate_seed(self):
+        # Codex32 stores the raw 16-byte entropy as seed_bytes, not the
+        # 64-byte PBKDF2 output that BIP39 normally produces. This matches
+        # the codex32 spec where the secret IS the master seed entropy.
+        self.seed_bytes = self._codex32_entropy
+
+
+    def set_passphrase(self, passphrase: str, regenerate_seed: bool = True):
+        if passphrase:
+            raise InvalidSeedException("Codex32 seeds do not support passphrases")
+        self._passphrase = ""
+
+
+    @property
+    def passphrase_supported(self) -> bool:
+        return False
+
+
+    @property
+    def codex32_master_share(self) -> str | None:
+        return self._codex32_master_share
+
+
+    @property
+    def codex32_export_shares(self) -> dict[str, str] | None:
+        if self._codex32_export_shares is None:
+            return None
+        return dict(self._codex32_export_shares)
+
+
+    @property
+    def codex32_share_sources(self) -> dict[str, str] | None:
+        if self._codex32_share_sources is None:
+            return None
+        return dict(self._codex32_share_sources)
+
+
+    def wipe(self) -> None:
+        super().wipe()
+
+        if self._codex32_entropy is not None:
+            wipe_buf = bytearray(self._codex32_entropy)
+            for i in range(len(wipe_buf)):
+                wipe_buf[i] = 0
+        self._codex32_entropy = None
+
+        if self._codex32_master_share:
+            self._codex32_master_share = "\x00" * len(self._codex32_master_share)
+        self._codex32_master_share = None
+
+        if self._codex32_export_shares:
+            for share_idx, share in list(self._codex32_export_shares.items()):
+                if isinstance(share, str):
+                    self._codex32_export_shares[share_idx] = "\x00" * len(share)
+            self._codex32_export_shares.clear()
+        self._codex32_export_shares = None
+
+        if self._codex32_share_sources:
+            for share_idx, source in list(self._codex32_share_sources.items()):
+                if isinstance(source, str):
+                    self._codex32_share_sources[share_idx] = "\x00" * len(source)
+            self._codex32_share_sources.clear()
+        self._codex32_share_sources = None
 
 
 

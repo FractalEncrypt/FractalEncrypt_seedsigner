@@ -1,15 +1,17 @@
-import embit
-import os
-import pathlib
-import pytest
-import random
-import sys
-import time
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
-from PIL import ImageFont
+
+import embit
+import pathlib
+import pytest
+import os
+import random
+import sys
+import types
+import time
 from unittest.mock import Mock, patch, MagicMock
+from PIL import ImageFont
 
 from embit import compact
 from embit.psbt import PSBT, OutputScope
@@ -24,10 +26,49 @@ sys.modules['seedsigner.hardware.displays.ili9341'] = MagicMock()
 sys.modules['seedsigner.views.screensaver.ScreensaverScreen'] = MagicMock()
 sys.modules['RPi'] = MagicMock()
 sys.modules['RPi.GPIO'] = MagicMock()
-sys.modules['seedsigner.hardware.camera.Camera'] = MagicMock()
+
+_camera_module = types.ModuleType("seedsigner.hardware.camera")
+
+
+class _MockCameraConnectionError(Exception):
+    pass
+
+
+class _MockCamera:
+    _instance = MagicMock()
+
+    @classmethod
+    def get_instance(cls):
+        return cls._instance
+
+
+_camera_module.Camera = _MockCamera
+_camera_module.CameraConnectionError = _MockCameraConnectionError
+sys.modules['seedsigner.hardware.camera'] = _camera_module
 sys.modules['seedsigner.hardware.microsd'] = MagicMock()
 
+# Stub pyzbar to avoid native DLL loading during screenshot generation if not available.
+try:
+    import pyzbar.pyzbar
+except (ImportError, OSError):
+    _pyzbar_module = types.ModuleType("pyzbar")
+    _pyzbar_pyzbar_module = types.ModuleType("pyzbar.pyzbar")
+
+    def _noop_decode(*args, **kwargs):
+        return []
+
+    class _ZBarSymbol:
+        QRCODE = None
+
+    _pyzbar_pyzbar_module.decode = _noop_decode
+    _pyzbar_pyzbar_module.ZBarSymbol = _ZBarSymbol
+    _pyzbar_module.pyzbar = _pyzbar_pyzbar_module
+
+    sys.modules['pyzbar'] = _pyzbar_module
+    sys.modules['pyzbar.pyzbar'] = _pyzbar_pyzbar_module
+
 from seedsigner.controller import Controller
+from seedsigner.gui.components import GUIConstants
 from seedsigner.gui.renderer import Renderer
 from seedsigner.gui.screens.screen import BaseScreen
 from seedsigner.gui.screens.seed_screens import SeedAddPassphraseScreen
@@ -36,10 +77,11 @@ from seedsigner.gui.toast import DefaultToast, InfoToast, SuccessToast, WarningT
 from seedsigner.hardware.microsd import MicroSD
 from seedsigner.helpers import embit_utils
 from seedsigner.models.decode_qr import DecodeQR
+from seedsigner.models import codex32 as codex32_model
 from seedsigner.models.encode_qr import BaseQrEncoder
 from seedsigner.models.psbt_parser import OPCODES, PSBTParser
 from seedsigner.models.qr_type import QRType
-from seedsigner.models.seed import Seed
+from seedsigner.models.seed import Seed, Codex32Seed
 from seedsigner.models.settings import Settings
 from seedsigner.models.settings_definition import SettingsConstants, SettingsDefinition
 from seedsigner.views import (MainMenuView, PowerOptionsView, RestartView, RemoveMicroSDWarningView, NotYetImplementedView, UnhandledExceptionView, 
@@ -114,6 +156,13 @@ mnemonic_24 = "attack pizza motion avocado network gather crop fresh patrol unus
 seed_12 = Seed(mnemonic=mnemonic_12, passphrase="cap*BRACKET3stove", wordlist_language_code=SettingsConstants.WORDLIST_LANGUAGE__ENGLISH)
 seed_24 = Seed(mnemonic=mnemonic_24, passphrase="some-PASS*phrase9", wordlist_language_code=SettingsConstants.WORDLIST_LANGUAGE__ENGLISH)
 seed_24_w_passphrase = Seed(mnemonic=mnemonic_24, passphrase="some-PASS*phrase9", wordlist_language_code=SettingsConstants.WORDLIST_LANGUAGE__ENGLISH)
+CODEX32_MASTER_SHARE = "MS12SEEDSAEFE4J44NR4FRNEZ7ZKEPA46XMJ4J2YXYJTC9YC"
+codex32_seed = Codex32Seed(
+    codex32_model.codex32_to_seed_bytes(CODEX32_MASTER_SHARE),
+    codex32_master_share=CODEX32_MASTER_SHARE,
+    codex32_export_shares={"s": CODEX32_MASTER_SHARE},
+    codex32_share_sources={"s": "entered"},
+)
 
 MULTISIG_WALLET_DESCRIPTOR = """wsh(sortedmulti(1,[22bde1a9/48h/1h/0h/2h]tpubDFfsBrmpj226ZYiRszYi2qK6iGvh2vkkghfGB2YiRUVY4rqqedHCFEgw12FwDkm7rUoVtq9wLTKc6BN2sxswvQeQgp7m8st4FP8WtP8go76/{0,1}/*,[73c5da0a/48h/1h/0h/2h]tpubDFH9dgzveyD8zTbPUFuLrGmCydNvxehyNdUXKJAQN8x4aZ4j6UZqGfnqFrD4NqyaTVGKbvEW54tsvPTK2UoSbCC1PJY8iCNiwTL3RWZEheQ/{0,1}/*))#3jhtf6yx"""
 
@@ -181,6 +230,7 @@ def generate_screenshots(locale):
         controller.storage.seeds.append(seed_12)
         controller.storage.seeds.append(seed_12b)
         controller.storage.seeds.append(seed_24)
+        controller.storage.seeds.append(codex32_seed)
         controller.storage.set_pending_seed(seed_24_w_passphrase)
 
         # Pending mnemonic for ToolsCalcFinalWordShowFinalWordView
@@ -262,15 +312,16 @@ def generate_screenshots(locale):
         # might need.
         @contextmanager
         def mock_load_psbt(base64_psbt: str, seed: Seed = seed_12b):
-            """
-            Reusable utility for other context managers to mock loading a PSBT into the
-            Controller.
-            """
+            """Temporarily load a PSBT and its associated controller state."""
             decoder = DecodeQR()
             decoder.add_data(base64_psbt)
-            with patch.object(controller, 'psbt', decoder.get_psbt()):
-                with patch.object(controller, 'psbt_seed', seed):
-                    with patch.object(controller, 'psbt_parser', PSBTParser(p=controller.psbt, seed=seed)):
+            with patch.object(controller, "psbt", decoder.get_psbt()):
+                with patch.object(controller, "psbt_seed", seed):
+                    with patch.object(
+                        controller,
+                        "psbt_parser",
+                        PSBTParser(p=controller.psbt, seed=seed),
+                    ):
                         yield
 
 
@@ -288,7 +339,8 @@ def generate_screenshots(locale):
 
         @contextmanager
         def mock_multisig_wallet_descriptor_loaded():
-            with patch.object(controller, 'multisig_wallet_descriptor', embit.descriptor.Descriptor.from_string(MULTISIG_WALLET_DESCRIPTOR)):
+            descriptor = embit.descriptor.Descriptor.from_string(MULTISIG_WALLET_DESCRIPTOR)
+            with patch.object(controller, "multisig_wallet_descriptor", descriptor):
                 yield
 
 
@@ -311,14 +363,14 @@ def generate_screenshots(locale):
                 verified_index=5,
                 verified_index_is_change=False
             )
-            with patch.object(controller, 'unverified_address', fake_addr_verification_data):
+            with patch.object(controller, "unverified_address", fake_addr_verification_data):
                 yield
 
 
         @contextmanager
         def mock_controller_psbt_seed_empty():
             # Have to ensure this is cleared out in order to get the seed selection screen
-            with patch.object(controller, 'psbt_seed', None):
+            with patch.object(controller, "psbt_seed", None):
                 yield
 
 
@@ -371,6 +423,65 @@ def generate_screenshots(locale):
             "Seed Views": [
                 ScreenshotConfig(seed_views.SeedsMenuView),
                 ScreenshotConfig(seed_views.LoadSeedView),
+                ScreenshotConfig(seed_views.Codex32EntryView, screenshot_name="Codex32EntryView"),
+                ScreenshotConfig(seed_views.Codex32ShareInvalidView, screenshot_name="Codex32ShareInvalidView"),
+                ScreenshotConfig(
+                    seed_views.Codex32ShareConflictConfirmView,
+                    dict(
+                        share_num=2,
+                        prefill="MS12NAME",
+                        share_data="MS12NAMEC6XQGUZTTXKEQNJSJZV4JV3NZ5K3KWGSPHUH6EVW",
+                        share_collection=None,
+                    ),
+                    screenshot_name="Codex32ShareConflictConfirmView",
+                ),
+                ScreenshotConfig(seed_views.Codex32DiscardAllSharesConfirmView, screenshot_name="Codex32DiscardAllSharesConfirmView"),
+                ScreenshotConfig(
+                    seed_views.Codex32ShareSuccessView,
+                    dict(entered_shares=2, total_shares=3, share_num=2),
+                    screenshot_name="Codex32ShareSuccessView",
+                ),
+                ScreenshotConfig(seed_views.Codex32MasterShareSuccessView, dict(share_data=CODEX32_MASTER_SHARE), screenshot_name="Codex32MasterShareSuccessView"),
+                ScreenshotConfig(seed_views.Codex32MasterSecretWarningView, dict(share_data=CODEX32_MASTER_SHARE), screenshot_name="Codex32MasterSecretWarningView"),
+                ScreenshotConfig(
+                    seed_views.Codex32MasterSecretDisplayView,
+                    dict(page_index=0, share_data=CODEX32_MASTER_SHARE),
+                    screenshot_name="Codex32MasterSecretDisplayView_1",
+                ),
+                ScreenshotConfig(
+                    seed_views.Codex32MasterSecretDisplayView,
+                    dict(page_index=1, share_data=CODEX32_MASTER_SHARE),
+                    screenshot_name="Codex32MasterSecretDisplayView_2",
+                ),
+                ScreenshotConfig(
+                    seed_views.Codex32BackupConfirmPromptView,
+                    dict(seed=codex32_seed, expected_share=CODEX32_MASTER_SHARE),
+                    screenshot_name="Codex32BackupConfirmPromptView",
+                ),
+                ScreenshotConfig(
+                    seed_views.Codex32BackupConfirmInvalidView,
+                    dict(seed=codex32_seed, expected_share=CODEX32_MASTER_SHARE, share_data="MS12SEEDSAEFE4J44NR4FRNEZ7ZKEPA46XMJ4J2YXYJTC9YX"),
+                    screenshot_name="Codex32BackupConfirmInvalidView",
+                ),
+                ScreenshotConfig(
+                    seed_views.Codex32BackupConfirmSuccessView,
+                    dict(seed=codex32_seed),
+                    screenshot_name="Codex32BackupConfirmSuccessView",
+                ),
+                ScreenshotConfig(seed_views.Codex32BackupUnavailableView, screenshot_name="Codex32BackupUnavailableView"),
+                ScreenshotConfig(
+                    seed_views.Codex32BackupShareSelectView,
+                    dict(
+                        seed=codex32_seed,
+                        share_map={
+                            "s": "MS12WSFPSASMA35NSTR6MR88JRAWNQRT62ELZ3NSQ592PAXE",
+                            "a": "MS12WSFPARFG0AFNHER0NAE08R0FNA0EFN83WMZT0A5AP6ZK",
+                            "c": "MS12WSFPC8NFE0ANF0R80EAN0REHNFA0GFRYUQYKDKJJPYV5",
+                        },
+                        source_map={"s": "derived", "a": "entered", "c": "entered"},
+                    ),
+                    screenshot_name="Codex32BackupShareSelectView",
+                ),
                 ScreenshotConfig(seed_views.SeedMnemonicEntryView),
                 ScreenshotConfig(seed_views.SeedMnemonicInvalidView),
                 ScreenshotConfig(seed_views.SeedFinalizeView),
@@ -383,7 +494,8 @@ def generate_screenshots(locale):
                 ScreenshotConfig(seed_views.SeedReviewPassphraseView),
                 
                 ScreenshotConfig(seed_views.SeedOptionsView, dict(seed=seed_12)),
-                ScreenshotConfig(seed_views.SeedBackupView,  dict(seed=seed_12)),
+                ScreenshotConfig(seed_views.SeedBackupView, dict(seed=seed_12)),
+                ScreenshotConfig(seed_views.SeedBackupView, dict(seed=codex32_seed), screenshot_name="SeedBackupView_Codex32"),
                 ScreenshotConfig(seed_views.SeedExportXpubSigTypeView,          dict(seed=seed_12)),
                 ScreenshotConfig(seed_views.SeedExportXpubScriptTypeView,       dict(seed=seed_12, sig_type="msig")),
                 ScreenshotConfig(seed_views.SeedExportXpubCustomDerivationView, dict(seed=seed_12, sig_type="ss",   script_type="")),
@@ -397,7 +509,7 @@ def generate_screenshots(locale):
                 ScreenshotConfig(seed_views.SeedWordsView, dict(seed=seed_12, page_index=2), screenshot_name="SeedWordsView_2"),
                 ScreenshotConfig(seed_views.SeedBIP85SelectNumWordsView,     dict(seed=seed_12)),
                 ScreenshotConfig(seed_views.SeedBIP85SelectChildIndexView,   dict(seed=seed_12, num_words=24)),
-                ScreenshotConfig(seed_views.SeedBIP85InvalidChildIndexView,  dict(seed=seed_12, num_words=12)), 
+                ScreenshotConfig(seed_views.SeedBIP85InvalidChildIndexView,  dict(seed=seed_12, num_words=12)),
                 ScreenshotConfig(seed_views.SeedWordsBackupTestPromptView,   dict(seed=seed_12)),
                 ScreenshotConfig(seed_views.SeedWordsBackupTestView,         dict(seed=seed_12, rand_seed=6102)),
                 ScreenshotConfig(seed_views.SeedWordsBackupTestMistakeView,  dict(seed=seed_12, cur_index=7, wrong_word="satoshi")),
@@ -408,6 +520,21 @@ def generate_screenshots(locale):
                 ScreenshotConfig(seed_views.SeedTranscribeSeedQRWholeQRView,  dict(seed=seed_12, seedqr_format=QRType.SEED__SEEDQR, num_modules=25),        screenshot_name="SeedTranscribeSeedQRWholeQRView_12_Standard"),
                 ScreenshotConfig(seed_views.SeedTranscribeSeedQRWholeQRView,  dict(seed=seed_24, seedqr_format=QRType.SEED__COMPACTSEEDQR, num_modules=25), screenshot_name="SeedTranscribeSeedQRWholeQRView_24_Compact"),
                 ScreenshotConfig(seed_views.SeedTranscribeSeedQRWholeQRView,  dict(seed=seed_24, seedqr_format=QRType.SEED__SEEDQR, num_modules=29),        screenshot_name="SeedTranscribeSeedQRWholeQRView_24_Standard"),
+                ScreenshotConfig(
+                    seed_views.SeedTranscribeSeedQRWarningView,
+                    dict(seed=codex32_seed, seedqr_format=QRType.SEED__CODEX32, num_modules=codex32_model.CODEX32_QR_MODULE_TARGET, qr_data=CODEX32_MASTER_SHARE),
+                    screenshot_name="SeedTranscribeCodex32QRWarningView",
+                ),
+                ScreenshotConfig(
+                    seed_views.SeedTranscribeSeedQRWholeQRView,
+                    dict(seed=codex32_seed, seedqr_format=QRType.SEED__CODEX32, num_modules=codex32_model.CODEX32_QR_MODULE_TARGET, qr_data=CODEX32_MASTER_SHARE),
+                    screenshot_name="SeedTranscribeCodex32QRWholeQRView",
+                ),
+                ScreenshotConfig(
+                    seed_views.SeedTranscribeSeedQRZoomedInView,
+                    dict(seed=codex32_seed, seedqr_format=QRType.SEED__CODEX32, qr_data=CODEX32_MASTER_SHARE),
+                    screenshot_name="SeedTranscribeCodex32QRZoomedInView",
+                ),
                 ScreenshotConfig(seed_views.SeedTranscribeSeedQRZoomedInView, dict(seed=seed_12, seedqr_format=QRType.SEED__COMPACTSEEDQR, initial_zone_x=1, initial_zone_y=1), screenshot_name="SeedTranscribeSeedQRZoomedInView_12_Compact"),
                 ScreenshotConfig(seed_views.SeedTranscribeSeedQRZoomedInView, dict(seed=seed_12, seedqr_format=QRType.SEED__SEEDQR, initial_zone_x=2, initial_zone_y=2),        screenshot_name="SeedTranscribeSeedQRZoomedInView_12_Standard"),
 
@@ -415,6 +542,26 @@ def generate_screenshots(locale):
                 ScreenshotConfig(seed_views.SeedTranscribeSeedQRConfirmWrongSeedView),
                 ScreenshotConfig(seed_views.SeedTranscribeSeedQRConfirmInvalidQRView),
                 ScreenshotConfig(seed_views.SeedTranscribeSeedQRConfirmSuccessView, dict(seed=seed_12)),
+                ScreenshotConfig(
+                    seed_views.SeedTranscribeSeedQRConfirmQRPromptView,
+                    dict(seed=codex32_seed, seedqr_format=QRType.SEED__CODEX32, expected_qr_data=CODEX32_MASTER_SHARE),
+                    screenshot_name="SeedTranscribeCodex32QRConfirmQRPromptView",
+                ),
+                ScreenshotConfig(
+                    seed_views.SeedTranscribeSeedQRConfirmWrongSeedView,
+                    dict(seedqr_format=QRType.SEED__CODEX32),
+                    screenshot_name="SeedTranscribeCodex32QRConfirmWrongSeedView",
+                ),
+                ScreenshotConfig(
+                    seed_views.SeedTranscribeSeedQRConfirmInvalidQRView,
+                    dict(seedqr_format=QRType.SEED__CODEX32),
+                    screenshot_name="SeedTranscribeCodex32QRConfirmInvalidQRView",
+                ),
+                ScreenshotConfig(
+                    seed_views.SeedTranscribeSeedQRConfirmSuccessView,
+                    dict(seed=codex32_seed, seedqr_format=QRType.SEED__CODEX32),
+                    screenshot_name="SeedTranscribeCodex32QRConfirmSuccessView",
+                ),
 
                 # Screenshot can't render live preview screens
                 # ScreenshotConfig(seed_views.SeedTranscribeSeedQRConfirmScanView, dict(seed=seed_12)),
@@ -436,24 +583,24 @@ def generate_screenshots(locale):
             ],
             "PSBT Views": [
                 ScreenshotConfig(psbt_views.PSBTSelectSeedView, mock_context_manager=mock_controller_psbt_seed_empty),
-                ScreenshotConfig(psbt_views.PSBTOverviewView,   mock_context_manager=mock_multisig_psbt_loaded),
+                ScreenshotConfig(psbt_views.PSBTOverviewView, mock_context_manager=mock_multisig_psbt_loaded),
                 ScreenshotConfig(psbt_views.PSBTUnsupportedScriptTypeWarningView),
                 ScreenshotConfig(psbt_views.PSBTNoChangeWarningView),
                 ScreenshotConfig(psbt_views.PSBTMathView, mock_context_manager=mock_multisig_psbt_loaded),
                 ScreenshotConfig(psbt_views.PSBTAddressDetailsView, dict(address_num=0), mock_context_manager=mock_multisig_psbt_loaded),
 
-                ScreenshotConfig(psbt_views.PSBTChangeDetailsView, dict(change_address_num=0), screenshot_name="PSBTChangeDetailsView_single_sig_change_verified",        mock_context_manager=mock_single_sig_psbt_loaded),
+                ScreenshotConfig(psbt_views.PSBTChangeDetailsView, dict(change_address_num=0), screenshot_name="PSBTChangeDetailsView_single_sig_change_verified", mock_context_manager=mock_single_sig_psbt_loaded),
                 ScreenshotConfig(psbt_views.PSBTChangeDetailsView, dict(change_address_num=1), screenshot_name="PSBTChangeDetailsView_single_sig_self_transfer_verified", mock_context_manager=mock_single_sig_psbt_loaded),
                 ScreenshotConfig(psbt_views.PSBTChangeDetailsView, dict(change_address_num=0), screenshot_name="PSBTChangeDetailsView_multisig_unverified", mock_context_manager=mock_multisig_psbt_loaded),
-                ScreenshotConfig(psbt_views.PSBTChangeDetailsView, dict(change_address_num=0), screenshot_name="PSBTChangeDetailsView_multisig_verified",   mock_context_manager=mock_multisig_psbt_and_descriptor_loaded),
-                ScreenshotConfig(psbt_views.PSBTOverviewView, screenshot_name="PSBTOverviewView_op_return",    mock_context_manager=mock_psbt_with_op_return_loaded),
-                ScreenshotConfig(psbt_views.PSBTOpReturnView, screenshot_name="PSBTOpReturnView_text",         mock_context_manager=mock_psbt_with_op_return_loaded),
+                ScreenshotConfig(psbt_views.PSBTChangeDetailsView, dict(change_address_num=0), screenshot_name="PSBTChangeDetailsView_multisig_verified", mock_context_manager=mock_multisig_psbt_and_descriptor_loaded),
+                ScreenshotConfig(psbt_views.PSBTOverviewView, screenshot_name="PSBTOverviewView_op_return", mock_context_manager=mock_psbt_with_op_return_loaded),
+                ScreenshotConfig(psbt_views.PSBTOpReturnView, screenshot_name="PSBTOpReturnView_text", mock_context_manager=mock_psbt_with_op_return_loaded),
                 ScreenshotConfig(psbt_views.PSBTOpReturnView, screenshot_name="PSBTOpReturnView_raw_hex_data", mock_context_manager=mock_psbt_with_op_return_raw_bytes_loaded),
                 ScreenshotConfig(psbt_views.PSBTAddressVerificationFailedView, dict(is_change=True, is_multisig=False),  screenshot_name="PSBTAddressVerificationFailedView_singlesig_change"),
                 ScreenshotConfig(psbt_views.PSBTAddressVerificationFailedView, dict(is_change=False, is_multisig=False), screenshot_name="PSBTAddressVerificationFailedView_singlesig_selftransfer"),
                 ScreenshotConfig(psbt_views.PSBTAddressVerificationFailedView, dict(is_change=True, is_multisig=True),   screenshot_name="PSBTAddressVerificationFailedView_multisig_change"),
                 ScreenshotConfig(psbt_views.PSBTAddressVerificationFailedView, dict(is_change=False, is_multisig=True),  screenshot_name="PSBTAddressVerificationFailedView_multisig_selftransfer"),
-                ScreenshotConfig(psbt_views.PSBTFinalizeView,     mock_context_manager=mock_multisig_psbt_loaded),
+                ScreenshotConfig(psbt_views.PSBTFinalizeView, mock_context_manager=mock_multisig_psbt_loaded),
                 #ScreenshotConfig(PSBTSignedQRDisplayViewScreenshotConfig),
                 ScreenshotConfig(psbt_views.PSBTSigningErrorView, mock_context_manager=mock_multisig_psbt_loaded),
             ],
@@ -475,6 +622,11 @@ def generate_screenshots(locale):
                 ScreenshotConfig(tools_views.ToolsAddressExplorerAddressListView),
                 # ScreenshotConfig(tools_views.ToolsAddressExplorerAddressView),
             ],
+            "Scan Views": [
+                ScreenshotConfig(scan_views.ScanView),
+                ScreenshotConfig(scan_views.ScanSeedQRView),
+                ScreenshotConfig(scan_views.ScanCodex32ShareView, dict(share_num=2), screenshot_name="ScanCodex32ShareView"),
+            ],
             "Settings Views": settings_views_list + [
                 ScreenshotConfig(settings_views.IOTestView),
                 ScreenshotConfig(settings_views.DonateView),
@@ -489,7 +641,7 @@ def generate_screenshots(locale):
                 ScreenshotConfig(UnhandledExceptionView, dict(error=["IndexError", "line 1, in some_buggy_code.py", "list index out of range"])),
                 ScreenshotConfig(CameraConnectionErrorView),
                 ScreenshotConfig(NetworkMismatchErrorView, dict(derivation_path="m/84'/1'/0'")),
-                ScreenshotConfig(OptionDisabledView,       dict(settings_attr=SettingsConstants.SETTING__MESSAGE_SIGNING)),
+                ScreenshotConfig(OptionDisabledView, dict(settings_attr=SettingsConstants.SETTING__MESSAGE_SIGNING)),
                 ScreenshotConfig(scan_views.ScanInvalidQRTypeView)
             ]
         }
@@ -512,10 +664,9 @@ def generate_screenshots(locale):
             try:
                 cur_count = screenshot_renderer.render_count
 
-                # Activate the (optional) context manager for this screenshot to activate
-                # any specialized mocks.
+                # Activate any screenshot-specific temporary data/state while the
+                # target View runs.
                 with screenshot_config.mock_context_manager():
-                    # Set up and run the target View
                     screenshot_config.View_cls(**screenshot_config.view_kwargs).run()
 
                 if screenshot_renderer.render_count == cur_count:
@@ -543,10 +694,9 @@ def generate_screenshots(locale):
                 toast_thread.stop()
                 toast_thread.join()
 
-
     # Parse the main `l10n/messages.pot` for overall stats
     messages_source_path = os.path.join(pathlib.Path(__file__).parent.resolve().parent.resolve().parent.resolve(), "l10n", "messages.pot")
-    with open(messages_source_path, 'r') as messages_source_file:
+    with open(messages_source_path, 'r', encoding="utf-8") as messages_source_file:
         num_source_messages = messages_source_file.read().count("msgid \"") - 1
 
     locale_tuple_list = [locale_tuple for locale_tuple in SettingsConstants.get_detected_languages() if locale_tuple[0] == locale]
@@ -563,7 +713,7 @@ def generate_screenshots(locale):
     if locale != SettingsConstants.LOCALE__ENGLISH:
         try:
             translated_messages_path = os.path.join(pathlib.Path(__file__).parent.resolve().parent.resolve().parent.resolve(), "src", "seedsigner", "resources", "seedsigner-translations", "l10n", locale, "LC_MESSAGES", "messages.po") 
-            with open(translated_messages_path, 'r') as translation_file:
+            with open(translated_messages_path, 'r', encoding="utf-8") as translation_file:
                 locale_translations = translation_file.read()
                 num_locale_translations = locale_translations.count("msgid \"") - locale_translations.count("""msgstr ""\n\n""") - 1
 
@@ -589,20 +739,20 @@ def generate_screenshots(locale):
 
         locale_readme += "</td></tr></table>"
 
-    with open(os.path.join(screenshot_root, locale, "README.md"), 'w') as readme_file:
+    with open(os.path.join(screenshot_root, locale, "README.md"), 'w', encoding="utf-8") as readme_file:
         readme_file.write(locale_readme)
 
     print(f"Done with locale: {locale}.")
 
     # Write the main README; ensure it writes all locales, not just the one that may
     # have been specified for this run.
-    with open(os.path.join("tests", "screenshot_generator", "template.md"), 'r') as readme_template:
+    with open(os.path.join(os.path.dirname(__file__), "template.md"), 'r', encoding="utf-8") as readme_template:
         main_readme = readme_template.read()
 
     for locale, display_name in SettingsConstants.get_detected_languages():
         main_readme += f"* [{display_name}]({locale}/README.md)\n"
 
-    with open(os.path.join(screenshot_root, "README.md"), 'w') as readme_file:
+    with open(os.path.join(screenshot_root, "README.md"), 'w', encoding="utf-8") as readme_file:
         readme_file.write(main_readme)
 
     print(f"Screenshots rendered: {screenshot_renderer.render_count}")

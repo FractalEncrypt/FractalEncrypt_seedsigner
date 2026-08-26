@@ -1,5 +1,5 @@
 from typing import List
-from seedsigner.models.seed import Seed, ElectrumSeed, InvalidSeedException
+from seedsigner.models.seed import Seed, Codex32Seed, ElectrumSeed, InvalidSeedException
 from seedsigner.models.settings_definition import SettingsConstants
 
 
@@ -21,15 +21,44 @@ class SeedStorage:
 
 
     def finalize_pending_seed(self) -> Seed:
-        # Store the pending seed and return it
+        # Store the pending seed and return the stored Seed object.
         seed = self.pending_seed
-        if seed not in self.seeds:
+        if seed in self.seeds:
+            index = self.seeds.index(seed)
+            existing_seed = self.seeds[index]
+
+            # Preserve richer Codex32 backup metadata when a duplicate Codex32 seed
+            # (same bytes) is loaded again.
+            if (
+                isinstance(existing_seed, Codex32Seed)
+                and isinstance(seed, Codex32Seed)
+                and (
+                    (
+                        existing_seed.codex32_master_share is None
+                        and seed.codex32_master_share is not None
+                    )
+                    or (
+                        not existing_seed.codex32_export_shares
+                        and bool(seed.codex32_export_shares)
+                    )
+                )
+            ):
+                self.seeds[index] = seed
+                if existing_seed is not seed:
+                    existing_seed.wipe()
+            else:
+                if seed is not existing_seed:
+                    seed.wipe()
+                seed = existing_seed
+        else:
             self.seeds.append(seed)
         self.pending_seed = None
         return seed
 
 
     def clear_pending_seed(self):
+        if self.pending_seed is not None:
+            self.pending_seed.wipe()
         self.pending_seed = None
 
 

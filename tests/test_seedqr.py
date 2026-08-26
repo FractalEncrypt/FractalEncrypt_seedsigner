@@ -1,8 +1,10 @@
 import os
+import qrcode
 from embit import bip39
 from seedsigner.helpers.qr import QR
+from seedsigner.models.codex32 import CODEX32_QR_CANONICAL_LENGTH, CODEX32_QR_EC_LEVEL, CODEX32_QR_MODULE_TARGET
 from seedsigner.models.decode_qr import DecodeQR, DecodeQRStatus
-from seedsigner.models.encode_qr import SeedQrEncoder, CompactSeedQrEncoder
+from seedsigner.models.encode_qr import SeedQrEncoder, CompactSeedQrEncoder, Codex32QrEncoder
 from seedsigner.models.qr_type import QRType
 
 
@@ -128,3 +130,23 @@ def test_compact_seedqr_bytes_interpretable_as_str():
         entropy_bytes.decode()  # should not raise an exception
         mnemonic_length = 12 if len(entropy_bytes) == 16 else 24
         run_encode_decode_test(entropy_bytes, mnemonic_length=mnemonic_length, qr_type=QRType.SEED__COMPACTSEEDQR)
+
+
+def test_codex32qr_mvp_payload_renders_version3_29x29():
+    canonical_share = "MS12NAMES6XQGUZTTXKEQNJSJZV4JV3NZ5K3KWGSPHUH6EVW"
+    payload = Codex32QrEncoder(share=canonical_share).next_part()
+
+    qr = qrcode.QRCode(
+        version=1,
+        error_correction=qrcode.constants.ERROR_CORRECT_L,
+        box_size=5,
+        border=3,
+    )
+    qr.add_data(payload)
+    qr.make(fit=True)
+
+    assert len(payload) == CODEX32_QR_CANONICAL_LENGTH
+    assert CODEX32_QR_EC_LEVEL == "L"
+    assert qr.error_correction == qrcode.constants.ERROR_CORRECT_L
+    assert qr.version == 3
+    assert qr.modules_count == CODEX32_QR_MODULE_TARGET

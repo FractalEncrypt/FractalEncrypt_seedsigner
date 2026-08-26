@@ -123,6 +123,7 @@ class Controller(Singleton):
     address_explorer_data: dict = None
 
     sign_message_data: dict = None
+    codex32_temp_share: str = None
     # TODO: end refactor section
 
     # Destination placeholder for when we need to jump out to a side flow but intend to
@@ -219,6 +220,7 @@ class Controller(Singleton):
 
     def discard_seed(self, seed: Seed):
         self.storage.seeds.remove(seed)
+        seed.wipe()
 
 
     def pop_prev_from_back_stack(self):
@@ -234,6 +236,24 @@ class Controller(Singleton):
 
     def clear_back_stack(self):
         self.back_stack = BackStack()
+
+
+    def _reset_main_menu_state(self):
+        """Reset transient controller state when returning Home."""
+        self.resume_main_flow = None
+        self.multisig_wallet_descriptor = None
+        self.unverified_address = None
+        self.address_explorer_data = None
+        self.psbt = None
+        self.psbt_parser = None
+        self.codex32_temp_share = None
+
+        if self.psbt_seed is not None:
+            # Only wipe transient psbt seeds. If the user selected an onboard seed,
+            # keep that stored seed intact and just clear the psbt reference.
+            if not any(self.psbt_seed is seed for seed in self.storage.seeds):
+                self.psbt_seed.wipe()
+            self.psbt_seed = None
 
 
     def start(self, initial_destination: Destination = None) -> None:
@@ -296,13 +316,7 @@ class Controller(Singleton):
                     self.clear_back_stack()
                     
                     # Home always wipes the back_stack/state of temp vars
-                    self.resume_main_flow = None
-                    self.multisig_wallet_descriptor = None
-                    self.unverified_address = None
-                    self.address_explorer_data = None
-                    self.psbt = None
-                    self.psbt_parser = None
-                    self.psbt_seed = None
+                    self._reset_main_menu_state()
                 
                 logger.info(f"\nback_stack: {self.back_stack}")
 
