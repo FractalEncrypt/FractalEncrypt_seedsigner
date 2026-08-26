@@ -266,6 +266,21 @@ class TestPSBTParser:
         assert PSBTParser.get_inputs_signed_by_fingerprint(psbt, multisig_key_3_fingerprint) == []
 
 
+    def test_get_inputs_signed_by_fingerprint_detects_taproot_script_partial_sig(self):
+        psbt = PSBT.parse(a2b_base64(PSBTTestData.SINGLE_SIG_TAPROOT_1_INPUT))
+        inp = psbt.inputs[0]
+        pubkey, (_leaf_hashes, derivation) = next(
+            iter(inp.taproot_bip32_derivations.items())
+        )
+        inp.taproot_sigs[(pubkey, b"\x11" * 32)] = b"\x22" * 64
+        claimed_fingerprint = derivation.fingerprint.hex()
+
+        assert PSBTParser.get_inputs_signed_by_fingerprint(
+            psbt,
+            claimed_fingerprint,
+        ) == [0]
+
+
     def test_trim_and_sig_count(self):
         """
         PSBTParser should correctly trim a psbt of all unnecessary data and count the number of

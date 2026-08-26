@@ -171,15 +171,11 @@ class Seed:
 
     def wipe(self) -> None:
         """
-        Best-effort wipe of sensitive in-memory fields.
+        Best-effort release of sensitive in-memory fields.
 
-        Python object lifecycles and immutable strings/bytes prevent a hard guarantee,
-        but this minimizes resident secret material before references are dropped.
+        Python's immutable strings/bytes cannot be scrubbed safely in place. Clear
+        mutable containers and drop our references without implying secure erasure.
         """
-        if self.seed_bytes is not None:
-            wipe_buf = bytearray(self.seed_bytes)
-            for i in range(len(wipe_buf)):
-                wipe_buf[i] = 0
         self.seed_bytes = None
 
         if self._mnemonic is not None:
@@ -224,9 +220,10 @@ class Codex32Seed(Seed):
         except codex32_model.Codex32InputError as exc:
             raise InvalidSeedException(str(exc)) from exc
 
-        # Store raw 16-byte codex32 entropy before super().__init__() calls
+        # Take ownership of a distinct immutable buffer so later cleanup of a
+        # caller-owned Codex32String cannot alias this seed's entropy.
         # _generate_seed(). Must be set first since _generate_seed() reads it.
-        self._codex32_entropy = seed_bytes
+        self._codex32_entropy = bytes(bytearray(seed_bytes))
 
         # Derive BIP39 mnemonic from raw entropy, then delegate to parent.
         mnemonic = unicodedata.normalize("NFKD", bip39.mnemonic_from_bytes(seed_bytes)).split()
@@ -277,10 +274,6 @@ class Codex32Seed(Seed):
     def wipe(self) -> None:
         super().wipe()
 
-        if self._codex32_entropy is not None:
-            wipe_buf = bytearray(self._codex32_entropy)
-            for i in range(len(wipe_buf)):
-                wipe_buf[i] = 0
         self._codex32_entropy = None
 
         if self._codex32_master_share:

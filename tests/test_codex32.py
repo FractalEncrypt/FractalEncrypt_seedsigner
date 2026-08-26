@@ -200,3 +200,17 @@ def test_entering_s_mid_collection_completes_recovery_immediately():
 
     assert collection.ready is True
     assert collection.recovered_secret_share().s == secret_s
+
+
+def test_nonzero_padding_variant_decodes_to_same_bytes_and_is_preserved():
+    original = Codex32String(
+        "MS12NAMES6XQGUZTTXKEQNJSJZV4JV3NZ5K3KWGSPHUH6EVW"
+    )
+    variant_values = original.data_part_values
+    variant_values[-1] ^= 1  # Change only one of the two ignored pad bits.
+    variant_value = codex32_min.ms32_encode(variant_values).upper()
+    variant = Codex32String(variant_value)
+
+    assert variant.s != original.s
+    assert variant.data == original.data
+    assert codex32_model.normalize_codex32_display(variant.s) == variant_value
