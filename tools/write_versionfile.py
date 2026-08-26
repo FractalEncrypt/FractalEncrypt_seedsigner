@@ -1,3 +1,4 @@
+import argparse
 import json
 import os
 
@@ -7,6 +8,9 @@ from seedsigner.helpers.version import Version, VersionUtils
 """
 CLI utility to extract the current version data and write to
 `src/seedsigner/version.json`. Primarily used by the SeedSigner OS build process.
+
+An optional `--name` argument can override the automatically detected display name for
+custom builds while retaining the detected fork, commit hash, and timestamp.
 
 Notes:
     * The SeedSigner OS build environment already relies on `git` being installed.
@@ -33,10 +37,26 @@ Version data:
         * Local dev: Scans the source python files for the most recent modified time.
 
 """
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Write SeedSigner version metadata.")
+    parser.add_argument(
+        "--name",
+        dest="version_name",
+        help="Override the version name displayed by SeedSigner (for example, v0.8.7-Codex32).",
+    )
+    return parser.parse_args()
+
+
 if __name__ == "__main__":
+    args = parse_args()
+
     # As soon as `Version` is instantiated, it will gather all the version data
     # according to the logic in `VersionUtils`.
     version_info = Version.get_instance().to_dict()
+    if args.version_name:
+        version_info[VersionUtils.VERSIONFILE_ATTR__NAME] = args.version_name
 
     # Write the version.json file.
     version_file_path = VersionUtils._get_version_file_path()

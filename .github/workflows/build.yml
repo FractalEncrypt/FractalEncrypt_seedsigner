@@ -44,7 +44,7 @@ jobs:
         target: [ "pi0", "pi2", "pi02w", "pi4" ]
     steps:
       - name: checkout seedsigner-os
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: "seedsigner/seedsigner-os"
           # use the os-ref input parameter in case of workflow_dispatch or default to main in case of cron triggers
@@ -55,7 +55,7 @@ jobs:
           fetch-depth: 0
 
       - name: checkout source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           # ref defaults to repo default-branch=dev (cron) or SHA of event (workflow_dispatch)
           path: "seedsigner-os/opt/rootfs-overlay/opt"
@@ -147,7 +147,7 @@ jobs:
           ls -la seedsigner-os/images
 
       - name: upload images
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: seedsigner_os_images-${{ matrix.target }}
           path: "seedsigner-os/images/*.img"
@@ -180,7 +180,7 @@ jobs:
           sha256sum *.img > seedsigner_os.${{ env.source_hash }}.sha256
 
       - name: upload checksums
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: seedsigner_os_images_sha256
           path: "images/*.sha256"
