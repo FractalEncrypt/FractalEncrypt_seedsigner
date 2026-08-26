@@ -372,6 +372,29 @@ def test_codex32_seed_derives_correct_fingerprint_and_xpub():
 	)
 
 
+def test_published_codex32_s_maps_to_known_fingerprint_and_account_xpub():
+	"""Lock the published BIP-93 S vector to its direct BIP-32 wallet identity."""
+	parsed_s = codex32_model.validate_codex32_s_share(CODEX32_TEST_SECRET)
+	seed = Codex32Seed(
+		seed_bytes=parsed_s.data,
+		codex32_master_share=parsed_s.s,
+	)
+
+	assert seed.get_fingerprint(SettingsConstants.MAINNET) == "fab6868a"
+	assert str(seed.get_xpub("m/84h/0h/0h", SettingsConstants.MAINNET)) == (
+		"xpub6CEFy4uoJKSNXkjNE1bRMAXcNRYYQTc1vGKEyYCh5JcdS1NVGwHJ65u8Qz2Z9iMhgNRpCUhVR4umcBz59CUaNEWj5dmmEVW3X1S86jfqU9P"
+	)
+
+
+def test_codex32_seed_copies_caller_owned_entropy():
+	parsed_s = codex32_model.validate_codex32_s_share(CODEX32_TEST_SECRET)
+	caller_owned_entropy = parsed_s.data
+	seed = Codex32Seed(seed_bytes=caller_owned_entropy)
+
+	assert seed.seed_bytes == caller_owned_entropy
+	assert seed.seed_bytes is not caller_owned_entropy
+
+
 def test_seed_wipe_clears_sensitive_fields():
 	seed = Seed(mnemonic="obscure bone gas open exotic abuse virus bunker shuffle nasty ship dash".split())
 

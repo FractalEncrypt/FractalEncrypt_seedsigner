@@ -1569,6 +1569,16 @@ class SeedBackupView(View):
         if len(split_indices) > codex32_model.CODEX32_MAX_SPLIT_SHARES:
             return {}, {}, False
 
+        validated_share_map = {"s": share_map["s"]} if dropped_non_s_entries else share_map
+        try:
+            codex32_model.validate_codex32_seed_metadata(
+                self.seed.seed_bytes,
+                master_share=canonical_s_display,
+                export_shares=validated_share_map,
+            )
+        except codex32_model.Codex32InputError:
+            return {}, {}, False
+
         if dropped_non_s_entries:
             return {"s": share_map["s"]}, {"s": source_map["s"]}, True
 

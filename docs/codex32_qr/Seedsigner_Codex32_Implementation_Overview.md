@@ -25,7 +25,7 @@ Even those bitcoiners rolling dice, using seed picker cards, or other manual met
 By combining codex32 and SeedSigner, we establish a **Trustless Analog-to-Digital Bridge**:
 
 1. **Analog Generation:** You generate your codex32 master secret and split shares entirely offline, using dice and paper worksheets. You calculate the checksums yourself. No silicon, no electricity, no potential for malware.
-2. **Stateless Digital Signing:** When you need to receive or spend Bitcoin, you temporarily bring your analog key into the digital realm by entering it into the SeedSigner. You interact with an internet connected watch-only wallet over airgap. The seed never touches an internet connected device. Once you are done, as soon as you pull the power cord, the seed is completely wiped from the Seedsigner. 
+2. **Stateless Digital Signing:** When you need to receive or spend Bitcoin, you temporarily bring your analog key into the digital realm by entering it into the SeedSigner. You interact with an internet connected watch-only wallet over airgap. The seed never touches an internet connected device. Once you are done, pulling power ends the running process and releases its volatile application state; this is not a physical secure-erasure claim.
 
 This integration means you can rely on the unhackable nature of paper and math to create  your Bitcoin seed, while retaining the convenience of an electronic signer when you actually need to move funds.
 
@@ -127,7 +127,7 @@ In practice, this means SeedQR and codex32QR remain separate wire formats while 
   - Adds `Codex32Seed` as a seed type backed by the recovered 16-byte entropy.
   - Preserves codex32-specific metadata needed for backup/export UX (`master_share`, export-share map, source map).
   - Explicitly keeps codex32 seeds passphrase-free to match the codex32 model.
-  - Adds best-effort `wipe()` handling for `Seed` and `Codex32Seed` fields to reduce in-memory secret residency before references are dropped.
+  - Adds best-effort `wipe()` cleanup for `Seed` and `Codex32Seed`: mutable containers are cleared and immutable secret references are dropped without claiming in-place erasure.
 
 - **[src/seedsigner/models/seed_storage.py](../../src/seedsigner/models/seed_storage.py)**
   - Updates duplicate-seed handling so reloading an equivalent codex32 seed can enrich existing stored metadata instead of discarding it.

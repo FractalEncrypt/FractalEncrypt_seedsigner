@@ -573,6 +573,9 @@ class DecodeQR:
     def is_potential_codex32_share(s):
         if not isinstance(s, str):
             return False
+        # Hyphen removal is detection-only: a hyphenated MS1 payload must still
+        # route to strict Codex32 parsing and fail closed as INVALID, rather than
+        # falling through to an unrelated QR type.
         compact = "".join(s.split()).replace("-", "")
         return compact[:3].lower() == "ms1"
 
