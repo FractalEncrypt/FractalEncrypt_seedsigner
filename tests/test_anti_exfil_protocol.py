@@ -8,7 +8,7 @@ from embit.networks import NETWORKS
 from embit.psbt import DerivationPath, PSBT
 from embit.transaction import SIGHASH, Transaction, TransactionInput, TransactionOutput
 from seedsigner.helpers.anti_exfil_protocol import AntiExfilProtocolCode, AntiExfilProtocolError
-from seedsigner.helpers.anti_exfil_protocol_v1 import Network, ProtocolMessage, SigningSlot, Stage, decode_message
+from seedsigner.helpers.anti_exfil_protocol_v1 import COMMON_RECORD, HEADER, Network, ProtocolMessage, SigningSlot, Stage, decode_message, validate_transition
 from seedsigner.helpers.anti_exfil_signer_v1 import AntiExfilSignerController, derive_signing_contexts
 from seedsigner.helpers.anti_exfil_transport import AntiExfilTransportPackage, TransportNetwork
 from seedsigner.models.seed import Seed
@@ -91,6 +91,42 @@ def test_frozen_reference_stage_one_vector_and_strict_slot_rules():
     with pytest.raises(AntiExfilProtocolError): replace(message, slots=(message.slots[0], message.slots[0])).encode()
     with pytest.raises(AntiExfilProtocolError): replace(message, slots=(replace(message.slots[0], sighash_type=0x81),)).encode()
     with pytest.raises(AntiExfilProtocolError): replace(message, slots=(replace(message.slots[0], commitment=message.slots[1].commitment), message.slots[1])).encode()
+
+def test_codec_rejects_reused_opening_for_same_signer_key():
+    signer_pubkey = ec.PrivateKey(bytes.fromhex("11" * 32)).get_public_key().sec()
+    other_opening = ec.PrivateKey(bytes.fromhex("22" * 32)).get_public_key().sec()
+    slots = (
+        SigningSlot(0, signer_pubkey, bytes.fromhex("91" * 32), 1,
+                    tagged_host_commitment(bytes.fromhex("a1" * 32)), opening=GENERATOR),
+        SigningSlot(1, signer_pubkey, bytes.fromhex("92" * 32), 1,
+                    tagged_host_commitment(bytes.fromhex("a2" * 32)), opening=other_opening),
+    )
+    message = ProtocolMessage(Network.REGTEST, Stage.SIGNER_OPENINGS, SESSION_ID,
+                              bytes.fromhex("d7" * 32), slots)
+    encoded = bytearray(message.encode())
+    record_len = COMMON_RECORD.size + 33
+    second_opening = HEADER.size + record_len + COMMON_RECORD.size
+    encoded[second_opening:second_opening + 33] = GENERATOR
+
+    with pytest.raises(AntiExfilProtocolError) as raised:
+        decode_message(bytes(encoded))
+    assert raised.value.code == AntiExfilProtocolCode.OPENING_MISMATCH
+
+def test_transition_rejects_host_reveal_that_does_not_match_commitment():
+    rho = bytes.fromhex("a1" * 32)
+    slot = SigningSlot(0, GENERATOR, bytes.fromhex("91" * 32), 1,
+                       tagged_host_commitment(rho), opening=GENERATOR)
+    previous = ProtocolMessage(Network.REGTEST, Stage.SIGNER_OPENINGS, SESSION_ID,
+                               bytes.fromhex("d7" * 32), (slot,))
+    current = replace(
+        previous,
+        stage=Stage.HOST_REVEAL,
+        slots=(replace(slot, rho=bytes.fromhex("a2" * 32)),),
+    )
+
+    with pytest.raises(AntiExfilProtocolError) as raised:
+        validate_transition(previous, current)
+    assert raised.value.code == AntiExfilProtocolCode.COMMITMENT_MISMATCH
 
 def test_testnet_setting_accepts_distinct_test_family_wire_labels():
     psbt = build_fixture(); raw = psbt.serialize(); seed = Seed(MNEMONIC.split())

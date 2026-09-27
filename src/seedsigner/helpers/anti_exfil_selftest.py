@@ -32,18 +32,21 @@ EXPECTED_SIGNATURE = bytes.fromhex(
 
 def run_selftest(library_path: Path) -> dict[str, object]:
     with AntiExfilNativeBackend(library_path) as backend:
+        host_commitment = backend.host_commit(HOST_RANDOMNESS)
         opening = backend.signer_commit(SECRET, MESSAGE, HOST_COMMITMENT)
         signature = backend.sign(SECRET, MESSAGE, HOST_RANDOMNESS)
 
+    host_commitment_matches = hmac.compare_digest(host_commitment, HOST_COMMITMENT)
     opening_matches = hmac.compare_digest(opening, EXPECTED_OPENING)
     signature_matches = hmac.compare_digest(signature, EXPECTED_SIGNATURE)
-    if not opening_matches or not signature_matches:
+    if not host_commitment_matches or not opening_matches or not signature_matches:
         raise AntiExfilNativeError("native anti-exfil pinned-vector mismatch")
 
     return {
         "status": "ok",
         "backend": "native-secp256k1-zkp",
         "library": str(library_path.resolve()),
+        "host_commitment_matches": host_commitment_matches,
         "opening_matches": opening_matches,
         "signature_matches": signature_matches,
         "production_fallback": False,

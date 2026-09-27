@@ -3,6 +3,7 @@
 from __future__ import annotations
 from dataclasses import dataclass
 from enum import IntEnum
+import hashlib
 import struct
 from embit import ec
 from seedsigner.helpers.anti_exfil_protocol import AntiExfilProtocolCode, AntiExfilProtocolError
@@ -118,6 +119,13 @@ def validate_transition(previous: ProtocolMessage, current: ProtocolMessage) -> 
             raise AntiExfilProtocolError(AntiExfilProtocolCode.COMMITMENT_MISMATCH, "slot commitment changed")
         if previous.stage >= Stage.SIGNER_OPENINGS and before.opening != after.opening:
             raise AntiExfilProtocolError(AntiExfilProtocolCode.OPENING_MISMATCH, "accepted opening changed")
+    if current.stage == Stage.HOST_REVEAL:
+        for slot in current.slots:
+            if slot.rho is None or _host_commit(slot.rho) != slot.commitment:
+                raise AntiExfilProtocolError(
+                    AntiExfilProtocolCode.COMMITMENT_MISMATCH,
+                    "host reveal does not match its slot commitment",
+                )
 
 def _encode_slot(stage, slot):
     result = COMMON_RECORD.pack(slot.input_index, slot.sighash_type, slot.signer_pubkey, slot.message_hash, slot.commitment)
@@ -142,6 +150,7 @@ def _validate_message(message):
     if not isinstance(message.slots, tuple) or not 1 <= len(message.slots) <= MAX_SLOTS:
         _invalid("slot collection is outside v1 limits")
     previous, commitments, reveals, counts = None, set(), set(), {}
+    openings_by_signer = {}
     for slot in message.slots:
         _validate_slot(message.stage, slot)
         if previous is not None and slot.identifier <= previous:
@@ -154,6 +163,14 @@ def _validate_message(message):
             if slot.rho in reveals:
                 raise AntiExfilProtocolError(AntiExfilProtocolCode.COMMITMENT_MISMATCH, "reveals must be unique")
             reveals.add(slot.rho)
+        if slot.opening is not None:
+            signer_openings = openings_by_signer.setdefault(slot.signer_pubkey, set())
+            if slot.opening in signer_openings:
+                raise AntiExfilProtocolError(
+                    AntiExfilProtocolCode.OPENING_MISMATCH,
+                    "signer openings must be unique per signer public key",
+                )
+            signer_openings.add(slot.opening)
         counts[slot.input_index] = counts.get(slot.input_index, 0) + 1
         if counts[slot.input_index] > MAX_SLOTS_PER_INPUT:
             raise AntiExfilProtocolError(AntiExfilProtocolCode.SIGNATURE_SLOT_MISMATCH, "per-input slot limit exceeded")
@@ -178,6 +195,9 @@ def _point(name, value):
     _bytes(name, value, 33)
     try: ec.PublicKey.parse(value)
     except Exception as exc: raise AntiExfilProtocolError(AntiExfilProtocolCode.INVALID_MESSAGE, f"invalid {name}") from exc
+def _host_commit(rho):
+    tag = hashlib.sha256(b"s2c/ecdsa/data").digest()
+    return hashlib.sha256(tag + tag + rho).digest()
 def _invalid(message):
     raise AntiExfilProtocolError(AntiExfilProtocolCode.INVALID_MESSAGE, message)
 def _slot_diagnostic(slot):

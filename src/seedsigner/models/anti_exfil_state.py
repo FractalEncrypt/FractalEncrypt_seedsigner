@@ -11,7 +11,7 @@ from embit.psbt import PSBT
 from seedsigner.helpers.anti_exfil import AntiExfilNativeBackend
 from seedsigner.helpers.anti_exfil_protocol import AntiExfilProtocolCode, AntiExfilProtocolError
 from seedsigner.helpers.anti_exfil_protocol_v1 import Stage, decode_message
-from seedsigner.helpers.anti_exfil_signer_v1 import AntiExfilSignerController, ControllerResult
+from seedsigner.helpers.anti_exfil_signer_v1 import AntiExfilSignerController
 from seedsigner.helpers.anti_exfil_transport import AntiExfilTransportPackage
 from seedsigner.models.seed import Seed
 
@@ -23,13 +23,12 @@ class AntiExfilFlowPhase(str, Enum):
 
 @dataclass(slots=True)
 class AntiExfilFlowState:
-    """Hold only public request/response data; no secret session state is persisted."""
+    """Hold the public request and response needed by the current UI flow."""
 
     request_package: AntiExfilTransportPackage
     request_psbt: PSBT
     phase: AntiExfilFlowPhase = AntiExfilFlowPhase.REQUEST_LOADED
     response_package: AntiExfilTransportPackage | None = None
-    result: ControllerResult | None = None
 
     @classmethod
     def from_package(cls, package: AntiExfilTransportPackage) -> "AntiExfilFlowState":
@@ -114,7 +113,6 @@ class AntiExfilFlowState:
         )
         # Force all response transport invariants before making the transition.
         response.encode()
-        self.result = result
         self.response_package = response
         self.phase = AntiExfilFlowPhase.RESPONSE_READY
         return response

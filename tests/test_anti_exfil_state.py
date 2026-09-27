@@ -40,6 +40,7 @@ def test_round_one_state_emits_complete_opening_set():
     message = decode_message(response.message)
     assert response.psbt is None and len(message.slots) == len(contexts) == 5
     assert all(slot.opening == GENERATOR for slot in message.slots)
+    assert not hasattr(state, "result")
 
 def test_round_two_resumes_statelessly_and_returns_no_psbt():
     seed, request = make_round_two_request(); resumed = AntiExfilFlowState.from_package(request)
