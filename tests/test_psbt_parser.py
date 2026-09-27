@@ -1426,11 +1426,11 @@ class TestPSBTParserSeedOwnership(PSBTParserOwnershipTestBase):
             assert psbt_parser.verified_input_derivation_paths[0] != []
 
 
-    def test_a_psbt_with_no_utxos_is_rejected_rather_than_crashing(self):
+    def test_a_psbt_with_no_utxos_reports_the_missing_inputs(self):
         """
-        A psbt with no inputs is malformed and cannot be signed. `parse` should raise
-        PSBTSeedCannotSignError. Note that diagnosing the malformation is not this check's
-        job.
+        A PSBT with no UTXO metadata is malformed and cannot be signed. Codex32's
+        coordinator-compatibility flow diagnoses that condition explicitly so the view
+        can tell the user which inputs must be re-exported, while still failing closed.
         """
         psbt = self._psbt_with_change()
         for psbt_input in psbt.inputs:
@@ -1439,8 +1439,10 @@ class TestPSBTParserSeedOwnership(PSBTParserOwnershipTestBase):
             psbt_input._utxo = None
             psbt_input.bip32_derivations.clear()
 
-        with pytest.raises(PSBTSeedCannotSignError):
+        with pytest.raises(MissingInputUtxoError) as exc_info:
             self._parse(psbt)
+
+        assert exc_info.value.missing_input_indexes == [0]
 
 
 
