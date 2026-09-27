@@ -1257,6 +1257,27 @@ class PSBTParser():
         """
         total_output_value_excluding_change = self.get_total_output_value()
 
+        if (
+            getattr(self, "mixed_input_policies", False)
+            and getattr(self, "destination_amounts", None)
+        ):
+            # Output ownership is classified against the first input policy. With
+            # mixed input policies, an output that is change for another input policy
+            # can therefore remain in destination_amounts and inflate the usual fee
+            # denominator. Use the smallest displayed destination as a conservative
+            # lower bound instead. If there is at least one real external output, this
+            # value cannot exceed the aggregate external spend, so classification
+            # uncertainty may cause an extra warning but can never suppress one.
+            total_output_value_excluding_change = min(
+                total_output_value_excluding_change,
+                min(self.destination_amounts),
+            )
+            if total_output_value_excluding_change <= 0:
+                # A zero-valued displayed output is still a valid lower bound. Any
+                # positive fee is high relative to it; do not fall through to the
+                # ordinary all-change exception below.
+                return self.fee_amount > 0
+
         # If there are no outputs other than change, then it can't be a high fee
         if total_output_value_excluding_change <= 0:
             return False

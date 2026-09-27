@@ -11,6 +11,7 @@ from seedsigner.helpers.anti_exfil_protocol import AntiExfilProtocolCode, AntiEx
 from seedsigner.helpers.anti_exfil_protocol_v1 import COMMON_RECORD, HEADER, Network, ProtocolMessage, SigningSlot, Stage, decode_message, validate_transition
 from seedsigner.helpers.anti_exfil_signer_v1 import AntiExfilSignerController, derive_signing_contexts
 from seedsigner.helpers.anti_exfil_transport import AntiExfilTransportPackage, TransportNetwork
+from seedsigner.models.psbt_parser import PSBTParser
 from seedsigner.models.seed import Seed
 from seedsigner.models.settings import SettingsConstants
 
@@ -46,6 +47,60 @@ def build_fixture():
         psbt.inputs[input_index].bip32_derivations[own[key_index]] = DerivationPath(root.my_fingerprint, paths[key_index])
     return psbt
 
+def build_mixed_policy_fee_fixture():
+    root = bip32.HDKey.from_seed(
+        bip39.mnemonic_to_seed(MNEMONIC), version=NETWORKS["regtest"]["xprv"]
+    )
+    receive_paths = [bip32.parse_path(f"m/84h/1h/0h/0/{i}") for i in range(3)]
+    change_paths = [bip32.parse_path(f"m/84h/1h/0h/1/{i}") for i in range(2)]
+    receive_keys = [root.derive(path).key.get_public_key() for path in receive_paths]
+    change_keys = [root.derive(path).key.get_public_key() for path in change_paths]
+    external_keys = [
+        ec.PrivateKey(bytes([value]) * 32).get_public_key()
+        for value in (0x31, 0x32)
+    ]
+
+    input_multisig = script.multisig(
+        2, [receive_keys[1], external_keys[0], receive_keys[2]]
+    )
+    change_multisig = script.multisig(
+        2, [change_keys[0], external_keys[0], change_keys[1]]
+    )
+    tx = Transaction(
+        2,
+        [
+            TransactionInput(bytes.fromhex("51" * 32), 0, 0xfffffffd),
+            TransactionInput(bytes.fromhex("52" * 32), 1, 0xfffffffd),
+        ],
+        [
+            TransactionOutput(160000, script.p2wsh(change_multisig)),
+            TransactionOutput(30000, script.p2wpkh(external_keys[1])),
+        ],
+        0,
+    )
+    psbt = PSBT(tx)
+    psbt.inputs[0].witness_utxo = TransactionOutput(
+        100000, script.p2wpkh(receive_keys[0])
+    )
+    psbt.inputs[0].bip32_derivations[receive_keys[0]] = DerivationPath(
+        root.my_fingerprint, receive_paths[0]
+    )
+    psbt.inputs[1].witness_utxo = TransactionOutput(
+        100000, script.p2wsh(input_multisig)
+    )
+    psbt.inputs[1].witness_script = input_multisig
+    for key, path in zip(receive_keys[1:], receive_paths[1:]):
+        psbt.inputs[1].bip32_derivations[key] = DerivationPath(
+            root.my_fingerprint, path
+        )
+
+    psbt.outputs[0].witness_script = change_multisig
+    for key, path in zip(change_keys, change_paths):
+        psbt.outputs[0].bip32_derivations[key] = DerivationPath(
+            root.my_fingerprint, path
+        )
+    return psbt
+
 class FakeNativeBackend:
     def host_commit(self, rho): return tagged_host_commitment(rho)
     def signer_commit(self, secret_key, message_hash, commitment): return GENERATOR
@@ -69,6 +124,29 @@ def test_multislot_fixture_and_codec_are_canonical(fixture_context):
     assert [c.script_kind for c in contexts] == ["p2wpkh","p2sh-p2wpkh","p2wsh-multisig","p2wsh-multisig","p2sh-p2wsh-multisig"]
     assert decode_message(message.encode()) == message
     with pytest.raises(AntiExfilProtocolError): decode_message(message.encode() + b"x")
+
+def test_mixed_policy_change_cannot_suppress_high_fee_warning():
+    psbt = build_mixed_policy_fee_fixture()
+    parser = PSBTParser(
+        psbt,
+        Seed(MNEMONIC.split()),
+        SettingsConstants.REGTEST,
+        allow_mixed_inputs=True,
+    )
+
+    assert parser.mixed_input_policies is True
+    assert parser.fee_amount == 10000
+    # Output classification intentionally remains conservative: the multisig
+    # change does not match the first input's single-sig policy.
+    assert parser.change_amount == 0
+    assert parser.destination_amounts == [160000, 30000]
+    assert parser.get_total_output_value() == 190000
+    # 10k is 33% of the real 30k external spend. The mixed-policy safety
+    # denominator must not let the unclassified 160k change hide the warning.
+    assert parser.is_high_fee is True
+
+    parser.destination_amounts = [0, 30000]
+    assert parser.has_high_fee() is True
 
 def test_frozen_reference_stage_one_vector_and_strict_slot_rules():
     psbt = b"psbt\xff" + b"protocol-v1-synthetic-wire-fixture"
