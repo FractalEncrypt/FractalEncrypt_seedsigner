@@ -47,7 +47,8 @@ def build_fixture():
         psbt.inputs[input_index].bip32_derivations[own[key_index]] = DerivationPath(root.my_fingerprint, paths[key_index])
     return psbt
 
-def build_mixed_policy_fee_fixture(*, self_transfer=False):
+def build_mixed_policy_fee_fixture(*, self_transfer=False, op_return=False):
+    assert not (self_transfer and op_return)
     root = bip32.HDKey.from_seed(
         bip39.mnemonic_to_seed(MNEMONIC), version=NETWORKS["regtest"]["xprv"]
     )
@@ -68,14 +69,21 @@ def build_mixed_policy_fee_fixture(*, self_transfer=False):
     change_multisig = script.multisig(
         2, [change_keys[0], external_keys[0], change_keys[1]]
     )
-    input_amount = 700000 if self_transfer else 100000
-    change_amount = 1000000 if self_transfer else 160000
-    other_amount = 200000 if self_transfer else 30000
-    other_script = (
-        script.p2wpkh(self_transfer_key)
-        if self_transfer
-        else script.p2wpkh(external_keys[1])
-    )
+    if self_transfer:
+        input_amount = 700000
+        change_amount = 1000000
+        other_amount = 200000
+        other_script = script.p2wpkh(self_transfer_key)
+    elif op_return:
+        input_amount = 650000
+        change_amount = 1000000
+        other_amount = 100000
+        other_script = script.Script(bytes.fromhex("6a04deadbeef"))
+    else:
+        input_amount = 100000
+        change_amount = 160000
+        other_amount = 30000
+        other_script = script.p2wpkh(external_keys[1])
     tx = Transaction(
         2,
         [
@@ -184,6 +192,24 @@ def test_mixed_policy_change_cannot_hide_fee_against_self_transfer():
     )
     # The correct non-change denominator is the 200k self-transfer, so the
     # 200k fee must warn despite the 1M unclassified change output.
+    assert parser.is_high_fee is True
+
+def test_mixed_policy_change_cannot_hide_fee_against_op_return_value():
+    parser = PSBTParser(
+        build_mixed_policy_fee_fixture(op_return=True),
+        Seed(MNEMONIC.split()),
+        SettingsConstants.REGTEST,
+        allow_mixed_inputs=True,
+    )
+
+    assert parser.mixed_input_policies is True
+    assert parser.fee_amount == 200000
+    assert parser.op_return_data == bytes.fromhex("adbeef")
+    assert parser.change_amount == 0
+    assert parser.destination_amounts == [1000000]
+    assert parser.get_total_output_value() == 1100000
+    # The 100k OP_RETURN value is a positive non-change output. Building the
+    # bound from every output not proved to be true change keeps it in scope.
     assert parser.is_high_fee is True
 
 def test_frozen_reference_stage_one_vector_and_strict_slot_rules():

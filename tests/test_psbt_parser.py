@@ -445,6 +445,65 @@ class TestPSBTParser:
         assert parser.has_high_fee() is expected
 
 
+    def test_mixed_fee_bound_never_suppresses_a_due_warning(self):
+        """Exhaust every verified/actual-change partition of a small output set."""
+        output_values = [0, 1, 4, 10]
+        output_count = len(output_values)
+
+        for verified_change_mask in range(1 << output_count):
+            for actual_change_mask in range(1 << output_count):
+                # Anything already verified as change must really be change. The
+                # additional bits model alternate-policy change the parser cannot
+                # classify against its retained first policy.
+                if verified_change_mask & ~actual_change_mask:
+                    continue
+
+                correct_denominator = sum(
+                    amount
+                    for index, amount in enumerate(output_values)
+                    if not (actual_change_mask & (1 << index))
+                )
+                for fee_amount in (0, 1, 2, 4, 10):
+                    warning_is_due = (
+                        correct_denominator > 0
+                        and fee_amount
+                        > (PSBTParser.HIGH_FEES_WARNING_THRESHOLD / 100)
+                        * correct_denominator
+                    )
+                    if not warning_is_due:
+                        continue
+
+                    parser = PSBTParser.__new__(PSBTParser)
+                    parser.psbt = SimpleNamespace(
+                        tx=SimpleNamespace(
+                            vout=[
+                                SimpleNamespace(value=amount)
+                                for amount in output_values
+                            ]
+                        )
+                    )
+                    parser.change_data = [
+                        {
+                            "output_index": index,
+                            "amount": amount,
+                            "verified_derivation_path": bip32.parse_path(
+                                f"m/84h/0h/0h/1/{index}"
+                            ),
+                        }
+                        for index, amount in enumerate(output_values)
+                        if verified_change_mask & (1 << index)
+                    ]
+                    parser.mixed_input_policies = True
+                    parser.fee_amount = fee_amount
+
+                    assert parser.has_high_fee() is True, (
+                        verified_change_mask,
+                        actual_change_mask,
+                        correct_denominator,
+                        fee_amount,
+                    )
+
+
     def test_parse_sets_is_high_fee(self):
         """
             parse() should settle is_high_fee once, from the real totals, so the views
