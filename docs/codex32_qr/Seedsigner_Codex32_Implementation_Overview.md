@@ -191,10 +191,12 @@ In practice, this means SeedQR and codex32QR remain separate wire formats while 
 
 ### 4.6. Scope Boundaries: Practical Subset of BIP93
 
-Our SeedSigner implementation intentionally does **not** implement the full codex32 space described in BIP93.
+The low-level codec validates all six master-seed lengths retained by the current
+BIP93 specification and uses the standard checksum-selection rules. The
+SeedSigner product workflow intentionally exposes a narrower profile.
 
 #### What we support today
-- **48-character codex32 strings only** (the fixed-length profile used by our codex32QR workflow).
+- **48-character codex32 strings only at product entry, recovery, and export boundaries** (the fixed-length profile used by our codex32QR workflow).
 - **128-bit (16-byte) codex32 master seeds only** in this release.
 - **256-bit (32-byte) codex32 master seeds are not yet supported**.
 - **Up to 5 split shares** in collection/export workflows.

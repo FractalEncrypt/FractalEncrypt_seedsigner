@@ -225,9 +225,14 @@ class Codex32Seed(Seed):
         # _generate_seed(). Must be set first since _generate_seed() reads it.
         self._codex32_entropy = bytes(bytearray(seed_bytes))
 
-        # Derive BIP39 mnemonic from raw entropy, then delegate to parent.
-        mnemonic = unicodedata.normalize("NFKD", bip39.mnemonic_from_bytes(seed_bytes)).split()
-        super().__init__(mnemonic=mnemonic, passphrase="")
+        # A codex32 master seed is direct BIP32 seed material, not BIP39 entropy.
+        # Do not synthesize mnemonic words that would restore to a different key
+        # tree if they were later displayed or exported as a BIP39 backup.
+        self._wordlist_language_code = SettingsConstants.WORDLIST_LANGUAGE__ENGLISH
+        self._mnemonic = []
+        self._passphrase = ""
+        self.seed_bytes = None
+        self._generate_seed()
 
         self._codex32_master_share = codex32_master_share
         self._codex32_export_shares = dict(codex32_export_shares) if codex32_export_shares else None
@@ -249,6 +254,11 @@ class Codex32Seed(Seed):
 
     @property
     def passphrase_supported(self) -> bool:
+        return False
+
+
+    @property
+    def seedqr_supported(self) -> bool:
         return False
 
 

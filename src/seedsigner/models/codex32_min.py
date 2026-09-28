@@ -10,6 +10,9 @@ CHARSET_MAP = {c: i for i, c in enumerate(CHARSET)}
 
 MS32_CONST = 0x10CE0795C2FD1E62A
 MS32_LONG_CONST = 0x43381E570BF4798AB26
+MS32_HRP_EXPANDED_LENGTH = 5
+MS32_VALID_LENGTHS = (48, 54, 61, 67, 74, 127)
+MS32_VALID_PAYLOAD_BYTE_LENGTHS = (16, 20, 24, 28, 32, 64)
 
 BECH32_INV = [
     0, 1, 20, 24, 10, 8, 12, 29, 5, 11, 4, 9, 6, 28, 26, 31,
@@ -65,6 +68,8 @@ def ms32_long_polymod(values: Iterable[int]) -> int:
 
 
 def ms32_verify_long_checksum(data: List[int]) -> bool:
+    if MS32_HRP_EXPANDED_LENGTH + len(data) > 1023:
+        return False
     return ms32_long_polymod(data) == MS32_LONG_CONST
 
 
@@ -74,19 +79,19 @@ def ms32_create_long_checksum(data: List[int]) -> List[int]:
 
 
 def ms32_verify_checksum(data: List[int]) -> bool:
-    if len(data) >= 96:
+    expanded_length = MS32_HRP_EXPANDED_LENGTH + len(data)
+    if expanded_length >= 96:
         return ms32_verify_long_checksum(data)
-    if len(data) <= 93:
+    if expanded_length <= 93:
         return ms32_polymod(data) == MS32_CONST
     raise CodexError(
-        f"Invalid codex32 data length {len(data)}: "
-        "lengths 94-95 are not permitted by BIP-93 "
-        "(short checksum covers <= 93, long checksum covers >= 96)"
+        f"Invalid codex32 expanded length {expanded_length}: "
+        "expanded lengths 94-95 are not permitted by BIP-93"
     )
 
 
 def ms32_create_checksum(data: List[int]) -> List[int]:
-    if len(data) > 80:
+    if MS32_HRP_EXPANDED_LENGTH + len(data) + 13 > 93:
         return ms32_create_long_checksum(data)
     polymod = ms32_polymod(data + [0] * 13) ^ MS32_CONST
     return [(polymod >> 5 * (12 - i)) & 31 for i in range(13)]
@@ -98,14 +103,14 @@ def ms32_encode(data: List[int]) -> str:
 
 
 def _checksum_length(data_values: List[int]) -> int:
-    if len(data_values) >= 96:
+    expanded_length = MS32_HRP_EXPANDED_LENGTH + len(data_values)
+    if expanded_length >= 96:
         return 15
-    if len(data_values) <= 93:
+    if expanded_length <= 93:
         return 13
     raise CodexError(
-        f"Invalid codex32 data length {len(data_values)}: "
-        "lengths 94-95 are not permitted by BIP-93 "
-        "(short checksum covers <= 93, long checksum covers >= 96)"
+        f"Invalid codex32 expanded length {expanded_length}: "
+        "expanded lengths 94-95 are not permitted by BIP-93"
     )
 
 
@@ -117,7 +122,7 @@ def _decode_data_values(codex_str: str) -> tuple[List[int], str]:
     case = "upper" if codex_str == codex_str.upper() else "lower"
     codex = codex_str.lower()
     pos = codex.rfind("1")
-    if pos < 2 or not (48 <= len(codex) <= 127):
+    if pos < 2 or len(codex) not in MS32_VALID_LENGTHS:
         raise CodexError("Codex32 input has invalid length")
     if codex[:pos] != "ms":
         raise CodexError("Codex32 input must start with ms1")
@@ -210,8 +215,10 @@ class Codex32String:
                 "Codex32 payload has an invalid incomplete byte group"
             )
         payload_byte_length = payload_bit_length // 8
-        if not 16 <= payload_byte_length <= 64:
-            raise CodexError("Codex32 payload must encode 16 to 64 bytes")
+        if payload_byte_length not in MS32_VALID_PAYLOAD_BYTE_LENGTHS:
+            raise CodexError(
+                "Codex32 payload must encode 16, 20, 24, 28, 32, or 64 bytes"
+            )
         self.data = _payload_to_bytes(self._payload_values)
 
     @property

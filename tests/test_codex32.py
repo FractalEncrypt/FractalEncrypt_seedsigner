@@ -9,6 +9,69 @@ from seedsigner.models import codex32_min
 from seedsigner.models.codex32_min import Codex32String, CodexError
 
 
+@pytest.mark.parametrize(
+    ("payload_byte_length", "encoded_length"),
+    [(16, 48), (20, 54), (24, 61), (28, 67), (32, 74), (64, 127)],
+)
+def test_bip93_accepts_exact_retained_master_seed_lengths(
+    payload_byte_length, encoded_length
+):
+    payload_value_count = (payload_byte_length * 8 + 4) // 5
+    data_values = [
+        codex32_min.CHARSET_MAP["2"],
+        *(codex32_min.CHARSET_MAP[c] for c in "test"),
+        codex32_min.CHARSET_MAP["s"],
+        *([0] * payload_value_count),
+    ]
+
+    encoded = codex32_min.ms32_encode(data_values)
+
+    assert len(encoded) == encoded_length
+    assert len(Codex32String(encoded).data) == payload_byte_length
+
+
+def test_bip93_rejects_formerly_valid_17_byte_master_seed():
+    payload_value_count = (17 * 8 + 4) // 5
+    data_values = [
+        codex32_min.CHARSET_MAP["2"],
+        *(codex32_min.CHARSET_MAP[c] for c in "test"),
+        codex32_min.CHARSET_MAP["s"],
+        *([0] * payload_value_count),
+    ]
+    formerly_valid = codex32_min.ms32_encode(data_values)
+
+    assert len(formerly_valid) == 50
+    with pytest.raises(CodexError, match="invalid length"):
+        Codex32String(formerly_valid)
+
+
+@pytest.mark.parametrize(
+    ("data_without_checksum_length", "complete_data_length", "checksum_length"),
+    [(75, 88, 13), (76, 91, 15), (79, 94, 15)],
+)
+def test_bip93_checksum_selection_counts_expanded_hrp_length(
+    data_without_checksum_length, complete_data_length, checksum_length
+):
+    data_values = [0] * data_without_checksum_length
+
+    checksum = codex32_min.ms32_create_checksum(data_values)
+    complete_data = data_values + checksum
+
+    assert len(checksum) == checksum_length
+    assert len(complete_data) == complete_data_length
+    assert codex32_min.ms32_verify_checksum(complete_data)
+    assert codex32_min._checksum_length(complete_data) == checksum_length
+
+
+@pytest.mark.parametrize("complete_data_length", [89, 90])
+def test_bip93_rejects_expanded_checksum_gap(complete_data_length):
+    with pytest.raises(CodexError, match="expanded lengths 94-95"):
+        codex32_min.ms32_verify_checksum([0] * complete_data_length)
+
+    with pytest.raises(CodexError, match="expanded lengths 94-95"):
+        codex32_min._checksum_length([0] * complete_data_length)
+
+
 def test_bip93_vector_1_unshared_secret():
     secret = Codex32String("ms10testsxxxxxxxxxxxxxxxxxxxxxxxxxx4nzvca9cmczlw")
 

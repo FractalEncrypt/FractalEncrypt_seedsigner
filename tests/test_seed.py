@@ -395,6 +395,16 @@ def test_codex32_seed_copies_caller_owned_entropy():
 	assert seed.seed_bytes is not caller_owned_entropy
 
 
+def test_codex32_seed_does_not_expose_non_restorable_bip39_backup():
+	seed = Codex32Seed(seed_bytes=CODEX32_TEST_SEED_BYTES)
+
+	assert seed.mnemonic_str == ""
+	assert seed.mnemonic_list == []
+	assert seed.mnemonic_display_str == ""
+	assert seed.mnemonic_display_list == []
+	assert seed.seedqr_supported is False
+
+
 def test_seed_wipe_clears_sensitive_fields():
 	seed = Seed(mnemonic="obscure bone gas open exotic abuse virus bunker shuffle nasty ship dash".split())
 
