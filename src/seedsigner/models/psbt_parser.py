@@ -1257,23 +1257,33 @@ class PSBTParser():
         """
         total_output_value_excluding_change = self.get_total_output_value()
 
-        if (
-            getattr(self, "mixed_input_policies", False)
-            and getattr(self, "destination_amounts", None)
-        ):
+        if getattr(self, "mixed_input_policies", False):
             # Output ownership is classified against the first input policy. With
             # mixed input policies, an output that is change for another input policy
             # can therefore remain in destination_amounts and inflate the usual fee
-            # denominator. Use the smallest displayed destination as a conservative
-            # lower bound instead. If there is at least one real external output, this
-            # value cannot exceed the aggregate external spend, so classification
-            # uncertainty may cause an extra warning but can never suppress one.
-            total_output_value_excluding_change = min(
-                total_output_value_excluding_change,
-                min(self.destination_amounts),
+            # denominator. Build a conservative lower bound from every output already
+            # known to be non-change: displayed destinations plus verified outputs to
+            # our own receive branch (self-transfers). If any true non-change output
+            # exists, the smallest candidate cannot exceed their aggregate value, so
+            # classification uncertainty may add a warning but cannot suppress one.
+            conservative_candidates = list(
+                getattr(self, "destination_amounts", [])
             )
-            if total_output_value_excluding_change <= 0:
-                # A zero-valued displayed output is still a valid lower bound. Any
+            conservative_candidates.extend(
+                entry["amount"]
+                for entry in getattr(self, "change_data", [])
+                if not PSBTParser.is_change_branch(
+                    entry["verified_derivation_path"]
+                )
+            )
+            if conservative_candidates:
+                total_output_value_excluding_change = min(
+                    total_output_value_excluding_change,
+                    min(conservative_candidates),
+                )
+
+            if conservative_candidates and total_output_value_excluding_change <= 0:
+                # A zero-valued known non-change output is still a valid lower bound. Any
                 # positive fee is high relative to it; do not fall through to the
                 # ordinary all-change exception below.
                 return self.fee_amount > 0

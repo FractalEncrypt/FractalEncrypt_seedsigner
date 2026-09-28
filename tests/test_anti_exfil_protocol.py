@@ -47,14 +47,16 @@ def build_fixture():
         psbt.inputs[input_index].bip32_derivations[own[key_index]] = DerivationPath(root.my_fingerprint, paths[key_index])
     return psbt
 
-def build_mixed_policy_fee_fixture():
+def build_mixed_policy_fee_fixture(*, self_transfer=False):
     root = bip32.HDKey.from_seed(
         bip39.mnemonic_to_seed(MNEMONIC), version=NETWORKS["regtest"]["xprv"]
     )
     receive_paths = [bip32.parse_path(f"m/84h/1h/0h/0/{i}") for i in range(3)]
     change_paths = [bip32.parse_path(f"m/84h/1h/0h/1/{i}") for i in range(2)]
+    self_transfer_path = bip32.parse_path("m/84h/1h/0h/0/3")
     receive_keys = [root.derive(path).key.get_public_key() for path in receive_paths]
     change_keys = [root.derive(path).key.get_public_key() for path in change_paths]
+    self_transfer_key = root.derive(self_transfer_path).key.get_public_key()
     external_keys = [
         ec.PrivateKey(bytes([value]) * 32).get_public_key()
         for value in (0x31, 0x32)
@@ -66,6 +68,14 @@ def build_mixed_policy_fee_fixture():
     change_multisig = script.multisig(
         2, [change_keys[0], external_keys[0], change_keys[1]]
     )
+    input_amount = 700000 if self_transfer else 100000
+    change_amount = 1000000 if self_transfer else 160000
+    other_amount = 200000 if self_transfer else 30000
+    other_script = (
+        script.p2wpkh(self_transfer_key)
+        if self_transfer
+        else script.p2wpkh(external_keys[1])
+    )
     tx = Transaction(
         2,
         [
@@ -73,20 +83,20 @@ def build_mixed_policy_fee_fixture():
             TransactionInput(bytes.fromhex("52" * 32), 1, 0xfffffffd),
         ],
         [
-            TransactionOutput(160000, script.p2wsh(change_multisig)),
-            TransactionOutput(30000, script.p2wpkh(external_keys[1])),
+            TransactionOutput(change_amount, script.p2wsh(change_multisig)),
+            TransactionOutput(other_amount, other_script),
         ],
         0,
     )
     psbt = PSBT(tx)
     psbt.inputs[0].witness_utxo = TransactionOutput(
-        100000, script.p2wpkh(receive_keys[0])
+        input_amount, script.p2wpkh(receive_keys[0])
     )
     psbt.inputs[0].bip32_derivations[receive_keys[0]] = DerivationPath(
         root.my_fingerprint, receive_paths[0]
     )
     psbt.inputs[1].witness_utxo = TransactionOutput(
-        100000, script.p2wsh(input_multisig)
+        input_amount, script.p2wsh(input_multisig)
     )
     psbt.inputs[1].witness_script = input_multisig
     for key, path in zip(receive_keys[1:], receive_paths[1:]):
@@ -98,6 +108,10 @@ def build_mixed_policy_fee_fixture():
     for key, path in zip(change_keys, change_paths):
         psbt.outputs[0].bip32_derivations[key] = DerivationPath(
             root.my_fingerprint, path
+        )
+    if self_transfer:
+        psbt.outputs[1].bip32_derivations[self_transfer_key] = DerivationPath(
+            root.my_fingerprint, self_transfer_path
         )
     return psbt
 
@@ -147,6 +161,30 @@ def test_mixed_policy_change_cannot_suppress_high_fee_warning():
 
     parser.destination_amounts = [0, 30000]
     assert parser.has_high_fee() is True
+
+def test_mixed_policy_change_cannot_hide_fee_against_self_transfer():
+    parser = PSBTParser(
+        build_mixed_policy_fee_fixture(self_transfer=True),
+        Seed(MNEMONIC.split()),
+        SettingsConstants.REGTEST,
+        allow_mixed_inputs=True,
+    )
+
+    assert parser.mixed_input_policies is True
+    assert parser.fee_amount == 200000
+    # The first-policy self-transfer is verified and retained in change_data,
+    # while alternate-policy change remains conservatively displayed.
+    assert parser.change_amount == 200000
+    assert parser.destination_amounts == [1000000]
+    assert parser.get_total_output_value() == 1200000
+    assert any(
+        entry["amount"] == 200000
+        and not PSBTParser.is_change_branch(entry["verified_derivation_path"])
+        for entry in parser.change_data
+    )
+    # The correct non-change denominator is the 200k self-transfer, so the
+    # 200k fee must warn despite the 1M unclassified change output.
+    assert parser.is_high_fee is True
 
 def test_frozen_reference_stage_one_vector_and_strict_slot_rules():
     psbt = b"psbt\xff" + b"protocol-v1-synthetic-wire-fixture"
