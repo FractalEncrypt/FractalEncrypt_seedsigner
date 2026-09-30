@@ -199,6 +199,12 @@ class FlowTest(BaseTest):
                     # View class that is being run.
                     if destination.View_cls != cur_flow_step.expected_view:
                         raise FlowTestUnexpectedViewException(f"Expected {cur_flow_step.expected_view}, got {destination.View_cls}")
+
+                    # Inspect or mutate the destination even when it is the final
+                    # observation-only step. Assertions must run before the
+                    # terminal shortcut below stops the flow.
+                    if cur_flow_step.before_run:
+                        cur_flow_step.before_run(destination.view)
                     
                     if len(sequence) == 1:
                         # This is the last step in the sequence
@@ -219,10 +225,6 @@ class FlowTest(BaseTest):
                             # still letting redirects get returned by `View.run()` further
                             # below.
                             return destination.view.get_redirect()
-
-                        # Run the optional pre-run function to modify the View.
-                        if cur_flow_step.before_run:
-                            cur_flow_step.before_run(destination.view)
 
                         # Some Views reach into their Screen's variables directly (e.g. 
                         # Screen.buttons to preserve the scroll position), so we need to mock out the

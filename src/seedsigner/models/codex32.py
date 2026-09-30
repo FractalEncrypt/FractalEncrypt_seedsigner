@@ -199,6 +199,13 @@ def _parse_threshold(value: str) -> int:
 
 
 @dataclass
+class Codex32RecoveryResult:
+    secret: Codex32String | None = None
+    split_consistency_proven: bool = False
+    omitted_split_shares: bool = False
+
+
+@dataclass
 class Codex32ShareCollection:
     threshold: int
     ident: str
@@ -226,6 +233,10 @@ class Codex32ShareCollection:
     def ready_for_export(self) -> bool:
         return self.recovered_secret_share() is not None
 
+    @property
+    def backup_metadata_warning_required(self) -> bool:
+        return self._recovery_result().omitted_split_shares
+
     def prefix(self) -> str:
         prefix = f"ms1{self.threshold}{self.ident}"
         if self.case == "upper":
@@ -251,8 +262,11 @@ class Codex32ShareCollection:
             )
 
     def recovered_secret_share(self) -> Codex32String | None:
+        return self._recovery_result().secret
+
+    def _recovery_result(self) -> Codex32RecoveryResult:
         if not self.ready:
-            return None
+            return Codex32RecoveryResult()
 
         try:
             entered_secret = self.get_share("s")
@@ -274,29 +288,42 @@ class Codex32ShareCollection:
                     if canonical_secret is None:
                         canonical_secret = recovered
                     elif recovered.s.lower() != canonical_secret.s.lower():
+                        if entered_secret is not None:
+                            # Policy C keeps an independently valid entered S
+                            # while omitting a complete but inconsistent split.
+                            return Codex32RecoveryResult(
+                                secret=canonical_secret,
+                                omitted_split_shares=True,
+                            )
                         raise Codex32InputError(
                             "Share set does not reconstruct the entered secret.",
                             ERROR_DATA,
                         )
 
-            return canonical_secret
+                return Codex32RecoveryResult(
+                    secret=canonical_secret,
+                    split_consistency_proven=True,
+                )
+
+            return Codex32RecoveryResult(
+                secret=canonical_secret,
+                omitted_split_shares=bool(split_shares),
+            )
         except Codex32InputError as e:
             logger.debug("Secret share recovery failed: %s", e)
-            return None
+            return Codex32RecoveryResult()
 
     def export_shares(self) -> tuple[dict[str, str], dict[str, str]]:
-        secret_share = self.recovered_secret_share()
+        recovery = self._recovery_result()
+        secret_share = recovery.secret
         if secret_share is None:
             return {}, {}
 
         share_map: dict[str, str] = {}
         source_map: dict[str, str] = {}
 
-        split_shares = [share for share in self.shares if share.share_idx.lower() != "s"]
-        # A below-threshold split cannot be proven to belong to the polynomial
-        # represented by S, even when its header and checksum are valid. Preserve
-        # it only after recovered_secret_share() has checked a complete set.
-        verified_shares = self.shares if len(split_shares) >= self.threshold else []
+        # Only a complete, consistent split set may cross this export boundary.
+        verified_shares = self.shares if recovery.split_consistency_proven else []
 
         for share in verified_shares:
             share_idx = share.share_idx.lower()

@@ -203,6 +203,7 @@ class Codex32Seed(Seed):
         codex32_master_share: str | None = None,
         codex32_export_shares: dict[str, str] | None = None,
         codex32_share_sources: dict[str, str] | None = None,
+        codex32_backup_warning: bool = False,
     ) -> None:
         if len(seed_bytes) != 16:
             raise InvalidSeedException(
@@ -237,6 +238,7 @@ class Codex32Seed(Seed):
         self._codex32_master_share = codex32_master_share
         self._codex32_export_shares = dict(codex32_export_shares) if codex32_export_shares else None
         self._codex32_share_sources = dict(codex32_share_sources) if codex32_share_sources else None
+        self._codex32_backup_warning = bool(codex32_backup_warning)
 
 
     def _generate_seed(self):
@@ -281,6 +283,11 @@ class Codex32Seed(Seed):
         return dict(self._codex32_share_sources)
 
 
+    @property
+    def codex32_backup_warning(self) -> bool:
+        return self._codex32_backup_warning
+
+
     def wipe(self) -> None:
         super().wipe()
 
@@ -303,6 +310,7 @@ class Codex32Seed(Seed):
                     self._codex32_share_sources[share_idx] = "\x00" * len(source)
             self._codex32_share_sources.clear()
         self._codex32_share_sources = None
+        self._codex32_backup_warning = False
 
 
 

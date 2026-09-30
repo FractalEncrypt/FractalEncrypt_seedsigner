@@ -266,6 +266,36 @@ class TestSeedFlows(FlowTest):
         assert invalid_view.share_data is None
 
 
+    def test_codex32_rejected_payload_edit_and_discard_all_are_transient_and_clear_data(self):
+        rejected_share = "MS1INVALID"
+        share_a, _, _ = _build_codex32_split_fixture()
+        collection = codex32_model.Codex32ShareCollection.from_first_share(share_a)
+
+        edit_view = seed_views.Codex32ShareInvalidView(
+            share_data=rejected_share,
+            share_collection=collection,
+        )
+        with patch.object(edit_view, "run_screen", return_value=0):
+            edit_destination = edit_view.run()
+
+        assert edit_destination.View_cls == seed_views.Codex32EntryView
+        assert edit_destination.view_args["share_data"] == rejected_share
+        assert edit_destination.skip_current_view is True
+        assert edit_view.share_data is None
+
+        discard_view = seed_views.Codex32ShareInvalidView(
+            share_data=rejected_share,
+            share_collection=collection,
+        )
+        with patch.object(discard_view, "run_screen", return_value=2):
+            discard_destination = discard_view.run()
+
+        assert discard_destination.View_cls == seed_views.Codex32DiscardAllSharesConfirmView
+        assert discard_destination.view_args["share_collection"] is collection
+        assert discard_destination.skip_current_view is True
+        assert discard_view.share_data is None
+
+
     def test_codex32_collection_scan_header_mismatch_routes_to_invalid_and_preserves_collection(self):
         share_a, _, _ = _build_codex32_split_fixture()
         mismatched_share = _build_header_mismatch_share(share_a, threshold_char="3")
@@ -1064,6 +1094,53 @@ class TestSeedFlows(FlowTest):
         assert collection.threshold == 0
         assert self.controller.storage.pending_seed.seed_bytes == expected_seed_bytes
         assert self.controller.storage.pending_seed.codex32_master_share == expected_secret
+
+
+    def test_codex32_live_collection_preserves_warning_when_below_threshold_split_is_omitted(self):
+        share_a, secret_share, _ = _build_codex32_split_fixture()
+        expected_secret = secret_share.s
+        collection = codex32_model.Codex32ShareCollection.from_first_share(share_a)
+        collection.add_share(secret_share)
+        view = seed_views.Codex32EntryView()
+
+        destination = seed_views.Codex32EntryView._destination_from_share_collection(
+            view,
+            collection,
+            share_num=2,
+        )
+        pending_seed = self.controller.storage.pending_seed
+        share_map, _, show_warning = seed_views.SeedBackupView(
+            seed=pending_seed
+        )._get_codex32_export_data()
+
+        assert destination.View_cls == seed_views.Codex32MasterShareSuccessView
+        assert pending_seed.codex32_export_shares == {"s": expected_secret}
+        assert pending_seed.codex32_backup_warning is True
+        assert share_map == {"s": expected_secret}
+        assert show_warning is True
+
+
+    def test_codex32_live_collection_degrades_inconsistent_complete_split_to_warned_s_only(self):
+        share_a, secret_share, share_c = _build_codex32_split_fixture()
+        expected_secret = secret_share.s
+        expected_seed_bytes = secret_share.data
+        conflicting_share_c = _build_conflicting_share_same_index(share_c)
+        collection = codex32_model.Codex32ShareCollection.from_first_share(share_a)
+        collection.add_share(conflicting_share_c)
+        collection.add_share(secret_share)
+        view = seed_views.Codex32EntryView()
+
+        destination = seed_views.Codex32EntryView._destination_from_share_collection(
+            view,
+            collection,
+            share_num=3,
+        )
+        pending_seed = self.controller.storage.pending_seed
+
+        assert destination.View_cls == seed_views.Codex32MasterShareSuccessView
+        assert pending_seed.seed_bytes == expected_seed_bytes
+        assert pending_seed.codex32_export_shares == {"s": expected_secret}
+        assert pending_seed.codex32_backup_warning is True
 
 
     def test_codex32_backup_export_index_key_mismatch_warns_and_exports_s_only(self):

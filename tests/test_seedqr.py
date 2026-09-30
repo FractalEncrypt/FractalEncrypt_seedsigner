@@ -1,3 +1,4 @@
+import logging
 import os
 import qrcode
 from embit import bip39
@@ -139,6 +140,26 @@ def test_compact_seedqr_rejects_ambiguous_32_byte_utf8_expansion():
 
     assert DecodeQR.normalize_compact_seedqr_bytes(expanded) is None
     assert DecodeQR.detect_segment_type(expanded) == QRType.INVALID
+
+
+def test_compact_seedqr_rejects_ambiguous_32_byte_cp932_expansion():
+    expanded = "ｱｲｳｴｵｶｷｸABCDEFGH".encode("utf-8")
+    assert len(expanded) == 32
+    assert len(expanded.decode("utf-8").encode("cp932")) == 16
+
+    assert DecodeQR.normalize_compact_seedqr_bytes(expanded) is None
+    assert DecodeQR.detect_segment_type(expanded) == QRType.INVALID
+
+
+def test_codex32_scan_debug_log_never_contains_raw_share(caplog):
+    canonical_share = "MS12NAMES6XQGUZTTXKEQNJSJZV4JV3NZ5K3KWGSPHUH6EVW"
+    caplog.set_level(logging.DEBUG, logger="seedsigner.models.decode_qr")
+
+    decoder = DecodeQR()
+    assert decoder.add_data(canonical_share) == DecodeQRStatus.COMPLETE
+
+    assert canonical_share not in caplog.text
+    assert "segment string length: 48" in caplog.text
 
 
 def test_compact_seedqr_binary_ms1_prefix_precedes_codex32_text_reservation():

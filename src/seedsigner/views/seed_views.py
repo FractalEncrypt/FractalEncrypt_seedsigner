@@ -318,6 +318,7 @@ class Codex32EntryView(View):
                 codex32_master_share=share_display,
                 codex32_export_shares=share_map,
                 codex32_share_sources=source_map,
+                codex32_backup_warning=share_collection.backup_metadata_warning_required,
             )
             view.controller.storage.set_pending_seed(seed)
             # The seed now owns independent entropy and metadata copies. Release
@@ -1512,7 +1513,11 @@ class SeedBackupView(View):
             export_shares=self.seed.codex32_export_shares,
             share_sources=self.seed.codex32_share_sources,
         )
-        return resolved.share_map, resolved.source_map, resolved.show_warning
+        return (
+            resolved.share_map,
+            resolved.source_map,
+            resolved.show_warning or self.seed.codex32_backup_warning,
+        )
     
 
     def run(self):

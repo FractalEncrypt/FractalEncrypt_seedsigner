@@ -36,22 +36,60 @@ class TestPSBTParser:
         self.seed = Seed(self.seed_words.copy())
 
 
-    def test_from_psbt_copy_does_not_mutate_source_when_parse_rejects(self):
-        source = SimpleNamespace(marker="original")
+    def test_from_psbt_copy_does_not_mutate_source_when_wrong_seed_parse_rejects(self):
+        """
+        Reproduce the real failure mode behind #300433: the wrong seed can own a
+        zero-fingerprint output even though it owns no input. Parsing first repairs that
+        output's fingerprint, then rejects the seed because it cannot sign. The repair
+        must occur only on the parser's private copy so a subsequent attempt with the
+        correct signing seed receives the original PSBT unchanged.
+        """
+        psbt = PSBT.parse(a2b_base64(PSBTTestData.SINGLE_SIG_NATIVE_SEGWIT_1_INPUT))
+        wrong_seed = PSBTTestData.recipient_seed
+        derivation_path = "m/84h/1h/0h/0/0"
+        wrong_seed_root = root_for_seed(wrong_seed)
+        wrong_seed_public_key = wrong_seed_root.derive(derivation_path).get_public_key()
 
-        class MutatingRejectParser(PSBTParser):
-            def __init__(self, p, seed, network):
-                p.marker = "mutated"
-                raise PSBTSeedCannotSignError()
+        output = create_output(PSBTTestData.SINGLE_SIG_NATIVE_SEGWIT_RECEIVE)
+        output.bip32_derivations[wrong_seed_public_key] = DerivationPath(
+            fingerprint=b"\x00\x00\x00\x00",
+            derivation=bip32.parse_path(derivation_path),
+        )
+        psbt.outputs.append(output)
+        source_serialization = psbt.serialize()
 
-        with pytest.raises(PSBTSeedCannotSignError):
-            MutatingRejectParser.from_psbt_copy(
-                source,
-                seed=self.seed,
-                network=SettingsConstants.REGTEST,
-            )
+        observed_repaired_fingerprint = None
+        original_reject = PSBTParser._reject_if_seed_cannot_sign
 
-        assert source.marker == "original"
+        def observe_then_reject(parser):
+            nonlocal observed_repaired_fingerprint
+            observed_repaired_fingerprint = parser.psbt.outputs[0].bip32_derivations[
+                wrong_seed_public_key
+            ].fingerprint
+            return original_reject(parser)
+
+        with patch.object(PSBTParser, "_reject_if_seed_cannot_sign", observe_then_reject):
+            with pytest.raises(PSBTSeedCannotSignError):
+                PSBTParser.from_psbt_copy(
+                    psbt,
+                    seed=wrong_seed,
+                    network=SettingsConstants.REGTEST,
+                )
+
+        assert observed_repaired_fingerprint == wrong_seed_root.my_fingerprint
+        assert psbt.serialize() == source_serialization
+        assert psbt.outputs[0].bip32_derivations[wrong_seed_public_key].fingerprint == b"\x00" * 4
+
+        # Retrying with the actual input-owning seed succeeds from the pristine source;
+        # the rejected wrong-seed attempt has not leaked its output repair into it.
+        parser = PSBTParser.from_psbt_copy(
+            psbt,
+            seed=self.seed,
+            network=SettingsConstants.REGTEST,
+        )
+        assert parser.verified_input_derivation_paths[0] != []
+        assert parser.filled_missing_fingerprint_count == 0
+        assert psbt.serialize() == source_serialization
 
     def run_basic_test(self, psbt_base64: str, change_data: str, self_transfer_data: str):
         """

@@ -490,6 +490,7 @@ def test_codex32_seed_wipe_clears_seed_and_metadata_fields():
 		codex32_master_share=CODEX32_TEST_SECRET,
 		codex32_export_shares={"s": CODEX32_TEST_SECRET},
 		codex32_share_sources={"s": "entered"},
+		codex32_backup_warning=True,
 	)
 
 	seed.wipe()
@@ -500,6 +501,7 @@ def test_codex32_seed_wipe_clears_seed_and_metadata_fields():
 	assert seed.codex32_master_share is None
 	assert seed.codex32_export_shares is None
 	assert seed.codex32_share_sources is None
+	assert seed.codex32_backup_warning is False
 
 
 def test_codex32_share_collection_wipe_clears_collection_and_share_buffers():
