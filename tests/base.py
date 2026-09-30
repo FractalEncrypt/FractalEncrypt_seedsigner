@@ -127,7 +127,7 @@ class FlowStep:
         Trivial helper class to express FlowTest sequences below.
 
         * expected_view:         verify that the current step in the sequence instantiates the right View.
-        * before_run:            function that takes a View instance as an arg and modifies it before running the View.
+        * before_run:            function that takes a View instance as an arg and modifies it before terminal or redirect handling.
         * screen_return_value:   mocked Screen interaction result: raw return value as if from the Screen.
         * button_data_selection: mocked Screen interaction result: the View.button_data value of the desired option.
         * is_redirect:           expects the Destination to specify `skip_current_view=True`.
@@ -187,8 +187,11 @@ class FlowTest(BaseTest):
         """
         with patch("seedsigner.views.view.Destination._run_view", autospec=True) as mock_run_view:
             with patch("seedsigner.views.view.View.run_screen", autospec=True) as mock_run_screen:
+                before_run_exception = None
+
                 def run_view(destination: Destination, *args, **kwargs):
                     """ Replaces Destination._run_view() """
+                    nonlocal before_run_exception
                     if len(sequence) == 0:
                         # Nothing left to do.
                         self.stop_test()
@@ -200,20 +203,26 @@ class FlowTest(BaseTest):
                     if destination.View_cls != cur_flow_step.expected_view:
                         raise FlowTestUnexpectedViewException(f"Expected {cur_flow_step.expected_view}, got {destination.View_cls}")
 
-                    # Inspect or mutate the destination even when it is the final
-                    # observation-only step. Assertions must run before the
-                    # terminal shortcut below stops the flow.
-                    if cur_flow_step.before_run:
-                        cur_flow_step.before_run(destination.view)
-                    
-                    if len(sequence) == 1:
-                        # This is the last step in the sequence
-                        if cur_flow_step.screen_return_value is None and cur_flow_step.button_data_selection is None:
-                            # This is the last View in the sequence and it doesn't specify any
-                            # user-mimicking interactions for the Screen. Nothing left to do.
-                            self.stop_test()
-
                     try:
+                        # Inspect or mutate the destination before terminal and redirect
+                        # handling. Convert callback failures into a controlled stop so the
+                        # Controller cannot replace the original error with an
+                        # UnhandledExceptionView routing failure; run_sequence re-raises the
+                        # exact callback exception after the Controller exits.
+                        if cur_flow_step.before_run:
+                            try:
+                                cur_flow_step.before_run(destination.view)
+                            except Exception as exc:
+                                before_run_exception = exc
+                                self.stop_test()
+
+                        if len(sequence) == 1:
+                            # This is the last step in the sequence
+                            if cur_flow_step.screen_return_value is None and cur_flow_step.button_data_selection is None:
+                                # This is the last View in the sequence and it doesn't specify any
+                                # user-mimicking interactions for the Screen. Nothing left to do.
+                                self.stop_test()
+
                         if cur_flow_step.is_redirect and destination.view.has_redirect:
                             # Right upon instantiation, the View set its own redirect without
                             # needing to wait for its run() method to be called.
@@ -305,3 +314,5 @@ class FlowTest(BaseTest):
 
                 # Start the Controller and run the sequence
                 Controller.get_instance().start(initial_destination=initial_destination)
+                if before_run_exception is not None:
+                    raise before_run_exception

@@ -227,6 +227,58 @@ def test_seed_storage_preserves_codex32_export_metadata_on_duplicate():
 	assert first_seed.seed_bytes is None
 
 
+def test_seed_storage_preserves_codex32_backup_warning_on_equal_duplicate_metadata():
+	storage = SeedStorage()
+	warned_seed = Codex32Seed(
+		seed_bytes=CODEX32_TEST_SEED_BYTES,
+		codex32_master_share=CODEX32_TEST_SECRET,
+		codex32_export_shares={"s": CODEX32_TEST_SECRET},
+		codex32_share_sources={"s": "entered"},
+		codex32_backup_warning=True,
+	)
+	storage.set_pending_seed(warned_seed)
+	storage.finalize_pending_seed()
+
+	unwarned_duplicate = Codex32Seed(
+		seed_bytes=CODEX32_TEST_SEED_BYTES,
+		codex32_master_share=CODEX32_TEST_SECRET,
+		codex32_export_shares={"s": CODEX32_TEST_SECRET},
+		codex32_share_sources={"s": "entered"},
+	)
+	storage.set_pending_seed(unwarned_duplicate)
+	result = storage.finalize_pending_seed()
+
+	assert result is warned_seed
+	assert result.codex32_backup_warning is True
+	assert unwarned_duplicate.seed_bytes is None
+
+
+def test_seed_storage_adopts_codex32_backup_warning_from_equal_duplicate_metadata():
+	storage = SeedStorage()
+	unwarned_seed = Codex32Seed(
+		seed_bytes=CODEX32_TEST_SEED_BYTES,
+		codex32_master_share=CODEX32_TEST_SECRET,
+		codex32_export_shares={"s": CODEX32_TEST_SECRET},
+		codex32_share_sources={"s": "entered"},
+	)
+	storage.set_pending_seed(unwarned_seed)
+	storage.finalize_pending_seed()
+
+	warned_duplicate = Codex32Seed(
+		seed_bytes=CODEX32_TEST_SEED_BYTES,
+		codex32_master_share=CODEX32_TEST_SECRET,
+		codex32_export_shares={"s": CODEX32_TEST_SECRET},
+		codex32_share_sources={"s": "entered"},
+		codex32_backup_warning=True,
+	)
+	storage.set_pending_seed(warned_duplicate)
+	result = storage.finalize_pending_seed()
+
+	assert result is warned_duplicate
+	assert result.codex32_backup_warning is True
+	assert unwarned_seed.seed_bytes is None
+
+
 def test_seed_storage_replaces_s_only_duplicate_with_verified_split_metadata():
 	share_a, secret_share, share_c = _build_codex32_split_fixture()
 	storage = SeedStorage()
@@ -535,6 +587,17 @@ def test_codex32_backup_resolver_rejects_malformed_master_without_raising():
 		seed_bytes=CODEX32_TEST_SEED_BYTES,
 		master_share=object(),
 		export_shares={"s": CODEX32_TEST_SECRET},
+	)
+
+	assert resolved.available is False
+	assert resolved.share_map == {}
+
+
+def test_codex32_backup_resolver_rejects_non_mapping_export_shares_without_raising():
+	resolved = codex32_model.resolve_codex32_backup_metadata(
+		seed_bytes=CODEX32_TEST_SEED_BYTES,
+		master_share=CODEX32_TEST_SECRET,
+		export_shares=object(),
 	)
 
 	assert resolved.available is False

@@ -1096,6 +1096,25 @@ class TestSeedFlows(FlowTest):
         assert self.controller.storage.pending_seed.codex32_master_share == expected_secret
 
 
+    def test_codex32_entry_redirects_safely_if_a_wiped_collection_is_revisited(self):
+        share_a, secret_share, _ = _build_codex32_split_fixture()
+        collection = codex32_model.Codex32ShareCollection.from_first_share(share_a)
+        collection.wipe()
+        self.controller.storage.set_pending_seed(
+            Codex32Seed(
+                seed_bytes=secret_share.data,
+                codex32_master_share=secret_share.s,
+            )
+        )
+
+        destination = seed_views.Codex32EntryView(
+            share_collection=collection,
+        ).run()
+
+        assert destination.View_cls == seed_views.Codex32MasterShareSuccessView
+        assert destination.clear_history is True
+
+
     def test_codex32_live_collection_preserves_warning_when_below_threshold_split_is_omitted(self):
         share_a, secret_share, _ = _build_codex32_split_fixture()
         expected_secret = secret_share.s
@@ -1118,6 +1137,19 @@ class TestSeedFlows(FlowTest):
         assert pending_seed.codex32_backup_warning is True
         assert share_map == {"s": expected_secret}
         assert show_warning is True
+
+        stored_seed = self.controller.storage.finalize_pending_seed()
+        assert stored_seed.codex32_backup_warning is True
+        self.run_sequence(
+            initial_destination_view_args={"seed": stored_seed},
+            sequence=[
+                FlowStep(
+                    seed_views.SeedBackupView,
+                    button_data_selection=seed_views.SeedBackupView.EXPORT_CODEX32QR,
+                ),
+                FlowStep(seed_views.Codex32BackupMetadataWarningView),
+            ],
+        )
 
 
     def test_codex32_live_collection_degrades_inconsistent_complete_split_to_warned_s_only(self):

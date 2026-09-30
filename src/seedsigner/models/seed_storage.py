@@ -22,7 +22,7 @@ class SeedStorage:
 
 
     @staticmethod
-    def _codex32_metadata_richness(seed: Codex32Seed) -> tuple[int, int, int, int, int]:
+    def _codex32_metadata_richness(seed: Codex32Seed) -> tuple[int, int, int, int, int, int]:
         """Rank usable Codex32 backup metadata without trusting field presence."""
         share_map = seed.codex32_export_shares or {}
         source_map = seed.codex32_share_sources or {}
@@ -33,11 +33,11 @@ class SeedStorage:
                 export_shares=share_map,
             )
         except codex32_model.Codex32InputError:
-            return (-1, -1, -1, -1, -1)
+            return (-1, -1, -1, -1, -1, -1)
 
         canonical_s_value = seed.codex32_master_share or share_map.get("s")
         if canonical_s_value is None:
-            return (0, 0, 0, 0, 0)
+            return (0, 0, 0, 0, 0, 0)
 
         canonical_s = codex32_model.validate_codex32_s_share(canonical_s_value)
         split_count = len([idx for idx in share_map if str(idx).lower() != "s"])
@@ -55,6 +55,9 @@ class SeedStorage:
             verified_split_count,
             int("s" in {str(idx).lower() for idx in share_map}),
             recognized_sources,
+            # A warning is safety-relevant metadata: on otherwise equal duplicates,
+            # preserve the seed that still requires the user-facing warning.
+            int(seed.codex32_backup_warning),
         )
 
 

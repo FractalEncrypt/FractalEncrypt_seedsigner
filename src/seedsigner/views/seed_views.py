@@ -339,6 +339,15 @@ class Codex32EntryView(View):
         )
 
     def run(self):
+        if self.share_collection is not None and self.share_collection.is_wiped:
+            # A completed recovery wipes this collection. It can remain referenced by
+            # an older back-stack destination, so fail safely if future navigation ever
+            # makes that destination reachable again.
+            pending_seed = self.controller.storage.get_pending_seed()
+            if isinstance(pending_seed, Codex32Seed):
+                return Destination(Codex32MasterShareSuccessView, clear_history=True)
+            return Destination(MainMenuView, clear_history=True)
+
         if self.auto_submit_share_data and self.share_data is not None:
             ret = self.share_data
         else:

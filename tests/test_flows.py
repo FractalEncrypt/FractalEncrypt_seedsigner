@@ -106,10 +106,24 @@ class TestFlowTest(FlowTest):
 
     def test_before_run_executes(self):
         """
-        Ensure that the FlowTest can execute a function before running a View.
+        Ensure that before_run executes exactly once on an observation-only terminal
+        step, and that callback failures surface as their original exception.
         """
-        # TODO
-        pass
+        calls = []
+
+        self.run_sequence([
+            FlowStep(MainMenuView, before_run=lambda view: calls.append(type(view))),
+        ])
+
+        assert calls == [MainMenuView]
+
+        def fail_with_original_exception(view):
+            raise AssertionError("terminal before_run assertion")
+
+        with pytest.raises(AssertionError, match="terminal before_run assertion"):
+            self.run_sequence([
+                FlowStep(MainMenuView, before_run=fail_with_original_exception),
+            ])
 
 
     def test_back_button_flow(self):

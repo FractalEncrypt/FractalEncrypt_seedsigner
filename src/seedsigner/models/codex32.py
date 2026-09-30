@@ -237,6 +237,11 @@ class Codex32ShareCollection:
     def backup_metadata_warning_required(self) -> bool:
         return self._recovery_result().omitted_split_shares
 
+    @property
+    def is_wiped(self) -> bool:
+        """Whether this collection has released its recovery state."""
+        return self.threshold == 0 and not self.shares
+
     def prefix(self) -> str:
         prefix = f"ms1{self.threshold}{self.ident}"
         if self.case == "upper":
