@@ -517,6 +517,116 @@ def test_codex32_share_collection_wipe_clears_collection_and_share_buffers():
 	assert share_c.data == b""
 
 
+def test_codex32_metadata_validator_rejects_normalized_key_collisions():
+	share_a, secret_share, _ = _build_codex32_split_fixture()
+
+	with pytest.raises(codex32_model.Codex32InputError, match="Duplicate normalized"):
+		codex32_model.validate_codex32_seed_metadata(
+			secret_share.data,
+			master_share=secret_share.s,
+			export_shares={"s": secret_share.s, "A": share_a.s, "a": share_a.s},
+		)
+
+
+def test_codex32_backup_resolver_rejects_malformed_master_without_raising():
+	resolved = codex32_model.resolve_codex32_backup_metadata(
+		seed_bytes=CODEX32_TEST_SEED_BYTES,
+		master_share=object(),
+		export_shares={"s": CODEX32_TEST_SECRET},
+	)
+
+	assert resolved.available is False
+	assert resolved.share_map == {}
+
+
+def test_codex32_backup_resolver_does_not_mask_invalid_master_with_valid_map_s():
+	resolved = codex32_model.resolve_codex32_backup_metadata(
+		seed_bytes=CODEX32_TEST_SEED_BYTES,
+		master_share="NOT_A_VALID_CODEX32_SHARE",
+		export_shares={"s": CODEX32_TEST_SECRET},
+		share_sources={"s": "entered"},
+	)
+
+	assert resolved.available is False
+	assert resolved.share_map == {}
+
+
+def test_codex32_backup_resolver_rejects_mixed_case_master_before_display_normalization():
+	mixed_case_secret = CODEX32_TEST_SECRET[0].lower() + CODEX32_TEST_SECRET[1:]
+	resolved = codex32_model.resolve_codex32_backup_metadata(
+		seed_bytes=CODEX32_TEST_SEED_BYTES,
+		master_share=mixed_case_secret,
+		export_shares={"s": CODEX32_TEST_SECRET},
+	)
+
+	assert resolved.available is False
+
+
+def test_codex32_backup_resolver_counts_raw_colliding_splits_before_filtering():
+	share_a, secret_share, share_c = _build_codex32_split_fixture()
+	resolved = codex32_model.resolve_codex32_backup_metadata(
+		seed_bytes=secret_share.data,
+		master_share=secret_share.s,
+		export_shares={
+			"s": secret_share.s,
+			"A": share_a.s,
+			"a": share_a.s,
+			"C": share_c.s,
+			"c": share_c.s,
+			"D": share_a.s,
+			"d": share_a.s,
+		},
+	)
+
+	assert resolved.available is False
+
+
+def test_codex32_backup_resolver_validates_case_before_canonical_display():
+	share_a, secret_share, _ = _build_codex32_split_fixture()
+	mixed_case_share = share_a.s[0].lower() + share_a.s[1:]
+
+	resolved = codex32_model.resolve_codex32_backup_metadata(
+		seed_bytes=secret_share.data,
+		master_share=secret_share.s,
+		export_shares={"s": secret_share.s, "a": mixed_case_share},
+		share_sources={"s": "entered", "a": "entered"},
+	)
+
+	assert resolved.share_map == {"s": secret_share.s}
+	assert resolved.source_map == {"s": "entered"}
+	assert resolved.show_warning is True
+
+
+def test_codex32_backup_resolver_omits_colliding_split_keys_with_warning():
+	share_a, secret_share, _ = _build_codex32_split_fixture()
+
+	resolved = codex32_model.resolve_codex32_backup_metadata(
+		seed_bytes=secret_share.data,
+		master_share=secret_share.s,
+		export_shares={"s": secret_share.s, "A": share_a.s, "a": share_a.s},
+		share_sources={"s": "entered", "A": "entered", "a": "entered"},
+	)
+
+	assert resolved.share_map == {"s": secret_share.s}
+	assert resolved.source_map == {"s": "entered"}
+	assert resolved.show_warning is True
+
+
+def test_codex32_backup_resolver_requires_recovery_facts_for_derived_source():
+	share_a, secret_share, _ = _build_codex32_split_fixture()
+
+	resolved = codex32_model.resolve_codex32_backup_metadata(
+		seed_bytes=secret_share.data,
+		master_share=secret_share.s,
+		export_shares={"s": secret_share.s, "a": share_a.s},
+		share_sources={"s": "derived", "a": "derived"},
+	)
+
+	assert resolved.share_map == {"s": secret_share.s}
+	assert resolved.source_map == {"s": "unknown"}
+	assert resolved.show_warning is True
+
+
 # --- Adversarial input tests ---
 
 

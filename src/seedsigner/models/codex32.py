@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
 from itertools import combinations
 from dataclasses import dataclass, field
 
@@ -36,6 +37,8 @@ def sanitize_codex32_input(raw: str | None) -> str:
     """Normalize user input by removing whitespace (per Codex32QR spec 3.2)."""
     if raw is None:
         return ""
+    if not isinstance(raw, str):
+        raise Codex32InputError("Codex32 input must be text", ERROR_DATA)
     compact = "".join(raw.split())
     if "-" in compact:
         raise Codex32InputError(
@@ -382,7 +385,30 @@ def validate_codex32_seed_metadata(
     if master_share is not None:
         s_candidates.append(validate_codex32_s_share(master_share))
 
-    for share_idx_raw, share_value in (export_shares or {}).items():
+    raw_export_shares = export_shares or {}
+    if not isinstance(raw_export_shares, Mapping):
+        raise Codex32InputError("Codex32 export metadata must be a mapping.", ERROR_DATA)
+
+    normalized_keys: set[str] = set()
+    raw_split_count = 0
+    for share_idx_raw in raw_export_shares.keys():
+        share_idx = str(share_idx_raw).lower()
+        if share_idx in normalized_keys:
+            raise Codex32InputError(
+                f"Duplicate normalized export metadata key '{share_idx}'.",
+                ERROR_HEADER,
+            )
+        normalized_keys.add(share_idx)
+        if share_idx != "s":
+            raw_split_count += 1
+
+    if raw_split_count > CODEX32_MAX_SPLIT_SHARES:
+        raise Codex32InputError(
+            f"A maximum of {CODEX32_MAX_SPLIT_SHARES} split shares is supported.",
+            ERROR_HEADER,
+        )
+
+    for share_idx_raw, share_value in raw_export_shares.items():
         share_idx = str(share_idx_raw).lower()
         parsed_share = parse_codex32_share(share_value)
         if parsed_share.share_idx.lower() != share_idx:
@@ -418,12 +444,6 @@ def validate_codex32_seed_metadata(
     split_shares = [
         share for share_idx, share in parsed_export_shares.items() if share_idx != "s"
     ]
-    if len(split_shares) > CODEX32_MAX_SPLIT_SHARES:
-        raise Codex32InputError(
-            f"A maximum of {CODEX32_MAX_SPLIT_SHARES} split shares is supported.",
-            ERROR_HEADER,
-        )
-
     if not split_shares:
         return
 
@@ -443,3 +463,183 @@ def validate_codex32_seed_metadata(
                     "Export shares do not reconstruct the canonical S share.",
                     ERROR_DATA,
                 )
+
+
+@dataclass
+class Codex32BackupMetadata:
+    """Canonical, export-safe Codex32 backup metadata."""
+
+    share_map: dict[str, str] = field(default_factory=dict)
+    source_map: dict[str, str] = field(default_factory=dict)
+    show_warning: bool = False
+
+    @property
+    def available(self) -> bool:
+        return "s" in self.share_map
+
+
+def resolve_codex32_backup_metadata(
+    seed_bytes: bytes,
+    master_share: str | None = None,
+    export_shares: Mapping[object, object] | None = None,
+    share_sources: Mapping[object, object] | None = None,
+) -> Codex32BackupMetadata:
+    """Resolve malformed or legacy metadata into an export-safe Policy-C view.
+
+    Canonical ``S`` failures and raw split overflow make backup unavailable.
+    Invalid, incomplete, or inconsistent non-S metadata is omitted with a
+    warning. Every normalization operation stays inside this exception boundary.
+    """
+    try:
+        return _resolve_codex32_backup_metadata(
+            seed_bytes=seed_bytes,
+            master_share=master_share,
+            export_shares=export_shares,
+            share_sources=share_sources,
+        )
+    except (Codex32InputError, AttributeError, TypeError, ValueError):
+        return Codex32BackupMetadata()
+
+
+def _resolve_codex32_backup_metadata(
+    seed_bytes: bytes,
+    master_share: str | None,
+    export_shares: Mapping[object, object] | None,
+    share_sources: Mapping[object, object] | None,
+) -> Codex32BackupMetadata:
+    if export_shares is None:
+        raw_share_items: list[tuple[object, object]] = []
+    elif isinstance(export_shares, Mapping):
+        raw_share_items = list(export_shares.items())
+    else:
+        raise Codex32InputError("Codex32 export metadata must be a mapping.", ERROR_DATA)
+
+    normalized_entries: dict[str, tuple[object, object]] = {}
+    collided_indices: set[str] = set()
+    raw_split_count = 0
+    for raw_key, raw_value in raw_share_items:
+        share_idx = str(raw_key).lower()
+        if share_idx != "s":
+            raw_split_count += 1
+        if share_idx in normalized_entries:
+            collided_indices.add(share_idx)
+        else:
+            normalized_entries[share_idx] = (raw_key, raw_value)
+
+    # Policy C treats raw overflow as a total metadata failure. Count entries
+    # before collision collapse or invalid-entry filtering.
+    if raw_split_count > CODEX32_MAX_SPLIT_SHARES:
+        raise Codex32InputError(
+            f"A maximum of {CODEX32_MAX_SPLIT_SHARES} split shares is supported.",
+            ERROR_HEADER,
+        )
+    if "s" in collided_indices:
+        raise Codex32InputError("Conflicting normalized S metadata keys.", ERROR_HEADER)
+
+    normalized_sources: dict[str, object] = {}
+    source_collisions: set[str] = set()
+    if share_sources is not None:
+        if not isinstance(share_sources, Mapping):
+            share_sources = {}
+        for raw_key, raw_value in share_sources.items():
+            source_idx = str(raw_key).lower()
+            if source_idx in normalized_sources:
+                source_collisions.add(source_idx)
+            else:
+                normalized_sources[source_idx] = raw_value
+
+    canonical_candidates: list[Codex32String] = []
+    if master_share is not None:
+        # Validate original case first. Canonical display conversion occurs only
+        # after strict parsing succeeds.
+        canonical_candidates.append(validate_codex32_s_share(master_share))
+
+    raw_s_entry = normalized_entries.get("s")
+    if raw_s_entry is not None:
+        _, raw_s_value = raw_s_entry
+        canonical_candidates.append(validate_codex32_s_share(raw_s_value))
+
+    if not canonical_candidates:
+        raise Codex32InputError(
+            "Codex32 backup metadata must include a canonical S share.",
+            ERROR_DATA,
+        )
+
+    canonical_s = canonical_candidates[0]
+    for candidate in canonical_candidates[1:]:
+        if candidate.s.lower() != canonical_s.s.lower():
+            raise Codex32InputError(
+                "Conflicting canonical S shares in backup metadata.",
+                ERROR_DATA,
+            )
+    if canonical_s.data != seed_bytes:
+        raise Codex32InputError(
+            "Codex32 backup metadata does not match the active seed.",
+            ERROR_DATA,
+        )
+
+    canonical_display = canonical_s.s.upper()
+    share_map = {"s": canonical_display}
+    source_map = {"s": "unknown"}
+    dropped_non_s_entries = bool(collided_indices - {"s"})
+    parsed_split_shares: dict[str, Codex32String] = {}
+
+    for share_idx, (_, raw_value) in normalized_entries.items():
+        if share_idx == "s" or share_idx in collided_indices:
+            continue
+        try:
+            parsed = parse_codex32_share(raw_value)
+        except Codex32InputError:
+            dropped_non_s_entries = True
+            continue
+        if parsed.share_idx.lower() != share_idx:
+            dropped_non_s_entries = True
+            continue
+        if parsed.k != canonical_s.k or parsed.ident != canonical_s.ident:
+            dropped_non_s_entries = True
+            continue
+        parsed_split_shares[share_idx] = parsed
+        share_map[share_idx] = parsed.s.upper()
+        # Non-S shares in this product are collection inputs, never derived.
+        source_map[share_idx] = "entered"
+
+    split_consistency_proven = False
+    if parsed_split_shares:
+        try:
+            threshold = _parse_threshold(canonical_s.k)
+        except Codex32InputError:
+            dropped_non_s_entries = True
+            threshold = CODEX32_MAX_SPLIT_SHARES + 1
+
+        if len(parsed_split_shares) >= threshold:
+            try:
+                validate_codex32_seed_metadata(
+                    seed_bytes,
+                    master_share=canonical_display,
+                    export_shares=share_map,
+                )
+                split_consistency_proven = True
+            except Codex32InputError:
+                dropped_non_s_entries = True
+
+    raw_s_source = normalized_sources.get("s") if "s" not in source_collisions else None
+    if raw_s_source == "entered":
+        source_map["s"] = "entered"
+    elif raw_s_source == "derived" and split_consistency_proven:
+        source_map["s"] = "derived"
+
+    if parsed_split_shares and not split_consistency_proven:
+        dropped_non_s_entries = True
+
+    if dropped_non_s_entries:
+        return Codex32BackupMetadata(
+            share_map={"s": canonical_display},
+            source_map={"s": source_map["s"]},
+            show_warning=True,
+        )
+
+    return Codex32BackupMetadata(
+        share_map=share_map,
+        source_map=source_map,
+        show_warning=False,
+    )

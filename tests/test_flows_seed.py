@@ -836,7 +836,7 @@ class TestSeedFlows(FlowTest):
             initial_destination_view_args=dict(seed=seed),
             sequence=[
                 FlowStep(seed_views.SeedOptionsView, button_data_selection=seed_views.SeedOptionsView.BACKUP),
-                FlowStep(seed_views.SeedBackupView, button_data_selection=seed_views.SeedBackupView.EXPORT_CODEX32QR),
+                FlowStep(seed_views.SeedBackupView, button_data_selection=seed_views.SeedBackupView.VIEW_CODEX32_SECRET_UNAVAILABLE),
                 FlowStep(seed_views.Codex32BackupUnavailableView),
             ],
         )
@@ -860,7 +860,7 @@ class TestSeedFlows(FlowTest):
             initial_destination_view_args=dict(seed=seed),
             sequence=[
                 FlowStep(seed_views.SeedOptionsView, button_data_selection=seed_views.SeedOptionsView.BACKUP),
-                FlowStep(seed_views.SeedBackupView, button_data_selection=seed_views.SeedBackupView.VIEW_CODEX32_SECRET),
+                FlowStep(seed_views.SeedBackupView, button_data_selection=seed_views.SeedBackupView.VIEW_CODEX32_SECRET_UNAVAILABLE),
                 FlowStep(seed_views.Codex32BackupUnavailableView),
             ],
         )
@@ -884,7 +884,7 @@ class TestSeedFlows(FlowTest):
             initial_destination_view_args=dict(seed=seed),
             sequence=[
                 FlowStep(seed_views.SeedOptionsView, button_data_selection=seed_views.SeedOptionsView.BACKUP),
-                FlowStep(seed_views.SeedBackupView, button_data_selection=seed_views.SeedBackupView.EXPORT_CODEX32QR),
+                FlowStep(seed_views.SeedBackupView, button_data_selection=seed_views.SeedBackupView.VIEW_CODEX32_SECRET_UNAVAILABLE),
                 FlowStep(seed_views.Codex32BackupUnavailableView),
             ],
         )
@@ -1026,6 +1026,46 @@ class TestSeedFlows(FlowTest):
         )
 
 
+    def test_codex32_backup_menu_uses_valid_map_only_s_capability(self):
+        seed = Codex32Seed(
+            seed_bytes=CODEX32_TEST_SEED_BYTES,
+            codex32_export_shares={"s": CODEX32_TEST_SECRET},
+            codex32_share_sources={"s": "entered"},
+        )
+        self.controller.storage.set_pending_seed(seed)
+        self.controller.storage.finalize_pending_seed()
+
+        self.run_sequence(
+            initial_destination_view_args=dict(seed=seed),
+            sequence=[
+                FlowStep(seed_views.SeedOptionsView, button_data_selection=seed_views.SeedOptionsView.BACKUP),
+                FlowStep(seed_views.SeedBackupView, button_data_selection=seed_views.SeedBackupView.EXPORT_CODEX32QR),
+                FlowStep(seed_views.SeedTranscribeSeedQRWarningView),
+            ],
+        )
+
+
+    def test_codex32_recovery_wipes_collection_after_pending_seed_owns_copies(self):
+        share_a, secret_share, share_c = _build_codex32_split_fixture()
+        expected_secret = secret_share.s
+        expected_seed_bytes = secret_share.data
+        collection = codex32_model.Codex32ShareCollection.from_first_share(share_a)
+        collection.add_share(share_c)
+        view = seed_views.Codex32EntryView()
+
+        destination = seed_views.Codex32EntryView._destination_from_share_collection(
+            view,
+            collection,
+            share_num=2,
+        )
+
+        assert destination.View_cls == seed_views.Codex32MasterShareSuccessView
+        assert collection.shares == []
+        assert collection.threshold == 0
+        assert self.controller.storage.pending_seed.seed_bytes == expected_seed_bytes
+        assert self.controller.storage.pending_seed.codex32_master_share == expected_secret
+
+
     def test_codex32_backup_export_index_key_mismatch_warns_and_exports_s_only(self):
         secret_share = "MS12NAMES6XQGUZTTXKEQNJSJZV4JV3NZ5K3KWGSPHUH6EVW"
         valid_non_s_share = "MS12NAMEA320ZYXWVUTSRQPNMLKJHGFEDCAXRPP870HKKQRM"
@@ -1118,7 +1158,7 @@ class TestSeedFlows(FlowTest):
             initial_destination_view_args=dict(seed=seed),
             sequence=[
                 FlowStep(seed_views.SeedOptionsView, button_data_selection=seed_views.SeedOptionsView.BACKUP),
-                FlowStep(seed_views.SeedBackupView, button_data_selection=seed_views.SeedBackupView.VIEW_CODEX32_SECRET),
+                FlowStep(seed_views.SeedBackupView, button_data_selection=seed_views.SeedBackupView.VIEW_CODEX32_SECRET_UNAVAILABLE),
                 FlowStep(seed_views.Codex32BackupUnavailableView),
             ],
         )
@@ -1277,7 +1317,7 @@ class TestSeedFlows(FlowTest):
         )
 
 
-    def test_codex32_backup_multishare_selection_defaults_s_label_to_entered(self):
+    def test_codex32_backup_multishare_selection_marks_missing_source_unknown(self):
         share_map = {
             "a": "MS12NAMEA320ZYXWVUTSRQPNMLKJHGFEDCAXRPP870HKKQRM",
             "c": "MS12NAMECACDEFGHJKLMNPQRSTUVWXYZ023FTR2GDZMPY6PN",
@@ -1302,7 +1342,7 @@ class TestSeedFlows(FlowTest):
                 FlowStep(seed_views.SeedBackupView, button_data_selection=seed_views.SeedBackupView.EXPORT_CODEX32QR),
                 FlowStep(
                     seed_views.Codex32BackupShareSelectView,
-                    button_data_selection=ButtonOption("Secret seed S", return_data="s"),
+                    button_data_selection=ButtonOption("Secret seed S (source unknown)", return_data="s"),
                 ),
                 FlowStep(seed_views.SeedTranscribeSeedQRWarningView, before_run=assert_selected_share_payload),
             ],
@@ -1335,7 +1375,7 @@ class TestSeedFlows(FlowTest):
             initial_destination_view_args=dict(seed=seed),
             sequence=[
                 FlowStep(seed_views.SeedOptionsView, button_data_selection=seed_views.SeedOptionsView.BACKUP),
-                FlowStep(seed_views.SeedBackupView, button_data_selection=seed_views.SeedBackupView.EXPORT_CODEX32QR),
+                FlowStep(seed_views.SeedBackupView, button_data_selection=seed_views.SeedBackupView.VIEW_CODEX32_SECRET_UNAVAILABLE),
                 FlowStep(seed_views.Codex32BackupUnavailableView),
             ],
         )
