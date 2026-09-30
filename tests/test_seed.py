@@ -150,6 +150,30 @@ def test_codex32_seed_rejects_split_metadata_that_does_not_reconstruct_s():
 		)
 
 
+def test_codex32_seed_rejects_reconstruction_with_different_padding_symbols():
+	share_a, secret_share, _ = _build_codex32_split_fixture()
+	variant_values = secret_share.data_part_values
+	variant_values[-1] ^= 1
+	padding_variant = codex32_model.Codex32String(codex32_min.ms32_encode(variant_values).upper())
+	assert padding_variant.data == secret_share.data
+	assert padding_variant.s != secret_share.s
+	share_c = codex32_model.Codex32String.interpolate_at(
+		[share_a, padding_variant],
+		target="c",
+	)
+
+	with pytest.raises(InvalidSeedException, match="do not reconstruct"):
+		Codex32Seed(
+			seed_bytes=secret_share.data,
+			codex32_master_share=secret_share.s,
+			codex32_export_shares={
+				"s": secret_share.s,
+				"a": share_a.s,
+				"c": share_c.s,
+			},
+		)
+
+
 def test_seed_storage_preserves_richer_codex32_metadata_on_duplicate():
 	seed_bytes = CODEX32_TEST_SEED_BYTES
 	storage = SeedStorage()
@@ -201,6 +225,36 @@ def test_seed_storage_preserves_codex32_export_metadata_on_duplicate():
 	assert second_seed.codex32_export_shares == share_map
 	assert second_seed.codex32_share_sources == source_map
 	assert first_seed.seed_bytes is None
+
+
+def test_seed_storage_replaces_s_only_duplicate_with_verified_split_metadata():
+	share_a, secret_share, share_c = _build_codex32_split_fixture()
+	storage = SeedStorage()
+	storage.set_pending_seed(
+		Codex32Seed(
+			seed_bytes=secret_share.data,
+			codex32_master_share=secret_share.s,
+			codex32_export_shares={"s": secret_share.s},
+			codex32_share_sources={"s": "entered"},
+		)
+	)
+	s_only_seed = storage.finalize_pending_seed()
+
+	verified_share_map = {"s": secret_share.s, "a": share_a.s, "c": share_c.s}
+	storage.set_pending_seed(
+		Codex32Seed(
+			seed_bytes=secret_share.data,
+			codex32_master_share=secret_share.s,
+			codex32_export_shares=verified_share_map,
+			codex32_share_sources={"s": "derived", "a": "entered", "c": "entered"},
+		)
+	)
+	richer_seed = storage.finalize_pending_seed()
+
+	assert richer_seed is storage.seeds[0]
+	assert richer_seed is not s_only_seed
+	assert richer_seed.codex32_export_shares == verified_share_map
+	assert s_only_seed.seed_bytes is None
 
 
 def test_seed_storage_wipes_unused_duplicate_pending_seed():
@@ -353,6 +407,18 @@ def test_codex32_share_collection_export_shares_preserves_entered_s_source():
 	share_map, source_map = collection.export_shares()
 
 	assert share_map == {"s": entered_s.s}
+	assert source_map == {"s": "entered"}
+
+
+def test_codex32_share_collection_export_omits_below_threshold_split_with_entered_s():
+	share_a, secret_share, _ = _build_codex32_split_fixture()
+	foreign_share_a = _build_conflicting_share_same_index(share_a)
+	collection = codex32_model.Codex32ShareCollection.from_first_share(foreign_share_a)
+	collection.add_share(secret_share)
+
+	share_map, source_map = collection.export_shares()
+
+	assert share_map == {"s": secret_share.s}
 	assert source_map == {"s": "entered"}
 
 

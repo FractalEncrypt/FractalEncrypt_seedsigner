@@ -1,4 +1,5 @@
 from typing import List
+from seedsigner.models import codex32 as codex32_model
 from seedsigner.models.seed import Seed, Codex32Seed, ElectrumSeed, InvalidSeedException
 from seedsigner.models.settings_definition import SettingsConstants
 
@@ -20,6 +21,43 @@ class SeedStorage:
         return self.pending_seed
 
 
+    @staticmethod
+    def _codex32_metadata_richness(seed: Codex32Seed) -> tuple[int, int, int, int, int]:
+        """Rank usable Codex32 backup metadata without trusting field presence."""
+        share_map = seed.codex32_export_shares or {}
+        source_map = seed.codex32_share_sources or {}
+        try:
+            codex32_model.validate_codex32_seed_metadata(
+                seed.seed_bytes,
+                master_share=seed.codex32_master_share,
+                export_shares=share_map,
+            )
+        except codex32_model.Codex32InputError:
+            return (-1, -1, -1, -1, -1)
+
+        canonical_s_value = seed.codex32_master_share or share_map.get("s")
+        if canonical_s_value is None:
+            return (0, 0, 0, 0, 0)
+
+        canonical_s = codex32_model.validate_codex32_s_share(canonical_s_value)
+        split_count = len([idx for idx in share_map if str(idx).lower() != "s"])
+        verified_split_count = 0
+        if canonical_s.k != "0" and split_count >= int(canonical_s.k):
+            # validate_codex32_seed_metadata() above proved every threshold subset.
+            verified_split_count = split_count
+
+        recognized_sources = len([
+            source for source in source_map.values() if source in ["entered", "derived"]
+        ])
+        return (
+            1,
+            int(seed.codex32_master_share is not None),
+            verified_split_count,
+            int("s" in {str(idx).lower() for idx in share_map}),
+            recognized_sources,
+        )
+
+
     def finalize_pending_seed(self) -> Seed:
         # Store the pending seed and return the stored Seed object.
         seed = self.pending_seed
@@ -27,21 +65,12 @@ class SeedStorage:
             index = self.seeds.index(seed)
             existing_seed = self.seeds[index]
 
-            # Preserve richer Codex32 backup metadata when a duplicate Codex32 seed
-            # (same bytes) is loaded again.
+            # Preserve the duplicate with richer *validated* Codex32 backup metadata.
             if (
                 isinstance(existing_seed, Codex32Seed)
                 and isinstance(seed, Codex32Seed)
-                and (
-                    (
-                        existing_seed.codex32_master_share is None
-                        and seed.codex32_master_share is not None
-                    )
-                    or (
-                        not existing_seed.codex32_export_shares
-                        and bool(seed.codex32_export_shares)
-                    )
-                )
+                and self._codex32_metadata_richness(seed)
+                > self._codex32_metadata_richness(existing_seed)
             ):
                 self.seeds[index] = seed
                 if existing_seed is not seed:

@@ -93,6 +93,12 @@ def test_bip93_vector_2_recovery_and_derivation():
     assert derived_d.s == expected_d
 
 
+def test_interpolate_at_returns_an_already_supplied_target_share():
+    share_a = Codex32String("MS12NAMEA320ZYXWVUTSRQPNMLKJHGFEDCAXRPP870HKKQRM")
+
+    assert Codex32String.interpolate_at([share_a], target="a") is share_a
+
+
 def test_bip93_vector_3_every_threshold_combination_recovers_secret():
     share_strings = {
         "a": "ms13casha320zyxwvutsrqpnmlkjhgfedca2a8d0zehn8a0t",
@@ -250,6 +256,16 @@ def test_product_profile_rejects_threshold_above_five_on_first_share():
         codex32_model.Codex32ShareCollection.from_first_share(
             codex32_model.parse_codex32_share(unsupported)
         )
+
+
+def test_product_profile_rejects_threshold_above_five_on_s_share():
+    secret = Codex32String("MS12NAMES6XQGUZTTXKEQNJSJZV4JV3NZ5K3KWGSPHUH6EVW")
+    values = secret.data_part_values
+    values[0] = codex32_min.CHARSET_MAP["6"]
+    unsupported = codex32_min.ms32_encode(values)
+
+    with pytest.raises(codex32_model.Codex32InputError, match="above 5"):
+        codex32_model.validate_codex32_s_share(unsupported)
 
 
 def test_entering_s_mid_collection_completes_recovery_immediately():

@@ -132,6 +132,22 @@ def test_compact_seedqr_bytes_interpretable_as_str():
         run_encode_decode_test(entropy_bytes, mnemonic_length=mnemonic_length, qr_type=QRType.SEED__COMPACTSEEDQR)
 
 
+def test_compact_seedqr_rejects_ambiguous_32_byte_utf8_expansion():
+    entropy_16 = bytes(range(0x80, 0x90))
+    expanded = entropy_16.decode("latin-1").encode("utf-8")
+    assert len(expanded) == 32
+
+    assert DecodeQR.normalize_compact_seedqr_bytes(expanded) is None
+    assert DecodeQR.detect_segment_type(expanded) == QRType.INVALID
+
+
+def test_compact_seedqr_binary_ms1_prefix_precedes_codex32_text_reservation():
+    entropy = b"MS1" + b"binaryentropy"
+    assert len(entropy) == 16
+
+    assert DecodeQR.detect_segment_type(entropy) == QRType.SEED__COMPACTSEEDQR
+
+
 def test_codex32qr_mvp_payload_renders_version3_29x29():
     canonical_share = "MS12NAMES6XQGUZTTXKEQNJSJZV4JV3NZ5K3KWGSPHUH6EVW"
     payload = Codex32QrEncoder(share=canonical_share).next_part()

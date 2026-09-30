@@ -308,6 +308,7 @@ class Codex32EntryView(View):
         share_num: int,
         entry_method: str = "manual",
     ) -> Destination:
+        current_share_num = len(share_collection.shares)
         secret = share_collection.recovered_secret_share()
         if secret is not None:
             share_map, source_map = share_collection.export_shares()
@@ -326,7 +327,7 @@ class Codex32EntryView(View):
             view_args={
                 "entered_shares": len(share_collection.shares),
                 "total_shares": share_collection.threshold,
-                "share_num": share_num,
+                "share_num": current_share_num,
                 "prefill": share_collection.prefix(),
                 "share_collection": share_collection,
                 "entry_method": entry_method,
@@ -362,6 +363,7 @@ class Codex32EntryView(View):
                     "share_collection": self.share_collection,
                     "entry_method": self.entry_method,
                 },
+                skip_current_view=True,
             )
 
         if codex.share_idx.lower() == "s" and self.share_collection is None:
@@ -379,6 +381,7 @@ class Codex32EntryView(View):
                         "share_collection": self.share_collection,
                         "entry_method": self.entry_method,
                     },
+                    skip_current_view=True,
                 )
 
             share_display = codex32_model.normalize_codex32_display(ret)
@@ -407,6 +410,7 @@ class Codex32EntryView(View):
                         "share_collection": self.share_collection,
                         "entry_method": self.entry_method,
                     },
+                    skip_current_view=True,
                 )
 
             prefill = self.prefill
@@ -423,6 +427,7 @@ class Codex32EntryView(View):
                     "share_collection": self.share_collection,
                     "entry_method": self.entry_method,
                 },
+                skip_current_view=True,
             )
 
         return self._destination_from_share_collection(
@@ -464,15 +469,17 @@ class Codex32ShareConflictConfirmView(View):
         )
 
         if button_data[selected_menu_num] == self.KEEP_EXISTING:
+            self.share_data = None
             return Destination(
                 Codex32EntryView,
                 view_args={
-                    "share_num": self.share_num,
+                    "share_num": len(self.share_collection.shares) + 1,
                     "prefill": self.prefill,
                     "start_page": 0,
                     "share_collection": self.share_collection,
                     "entry_method": self.entry_method,
                 },
+                skip_current_view=True,
             )
 
         try:
@@ -489,14 +496,18 @@ class Codex32ShareConflictConfirmView(View):
                     "error_detail": str(exc),
                     "share_collection": self.share_collection,
                 },
+                skip_current_view=True,
             )
 
-        return Codex32EntryView._destination_from_share_collection(
+        self.share_data = None
+        destination = Codex32EntryView._destination_from_share_collection(
             view=self,
             share_collection=self.share_collection,
             share_num=self.share_num,
             entry_method=self.entry_method,
         )
+        destination.skip_current_view = True
+        return destination
 
 
 class Codex32ShareInvalidView(View):
@@ -556,7 +567,7 @@ class Codex32ShareInvalidView(View):
         )
 
         if button_data[selected_menu_num] == self.EDIT:
-            return Destination(
+            destination = Destination(
                 Codex32EntryView,
                 view_args={
                     "share_num": self.share_num,
@@ -565,23 +576,34 @@ class Codex32ShareInvalidView(View):
                     "share_collection": self.share_collection,
                     "entry_method": self.entry_method,
                 },
+                skip_current_view=True,
             )
+            self.share_data = None
+            return destination
 
         elif button_data[selected_menu_num] == self.DISCARD_INVALID:
+            self.share_data = None
             return Destination(
                 Codex32ShareEntryMethodView,
                 view_args={
-                    "share_num": self.share_num,
+                    "share_num": (
+                        len(self.share_collection.shares) + 1
+                        if self.share_collection is not None
+                        else 1
+                    ),
                     "prefill": self.prefill,
                     "share_collection": self.share_collection,
                     "entry_method": self.entry_method,
                 },
+                skip_current_view=True,
             )
 
         elif button_data[selected_menu_num] == self.DISCARD_ALL:
+            self.share_data = None
             return Destination(
                 Codex32DiscardAllSharesConfirmView,
                 view_args={"share_collection": self.share_collection},
+                skip_current_view=True,
             )
 
 
@@ -708,7 +730,7 @@ class Codex32ShareSuccessView(View):
             return Destination(
                 Codex32EntryView,
                 view_args={
-                    "share_num": self.share_num + 1,
+                    "share_num": len(self.share_collection.shares) + 1,
                     "prefill": self.prefill,
                     "share_collection": self.share_collection,
                     "entry_method": "manual",
@@ -720,7 +742,7 @@ class Codex32ShareSuccessView(View):
             return Destination(
                 ScanCodex32ShareView,
                 view_args={
-                    "share_num": self.share_num + 1,
+                    "share_num": len(self.share_collection.shares) + 1,
                     "share_collection": self.share_collection,
                 },
             )
@@ -778,10 +800,11 @@ class Codex32MasterShareSuccessView(View):
 
 
 class Codex32MasterSecretWarningView(View):
-    def __init__(self, share_data: str | None = None, seed: Seed | None = None):
+    def __init__(self, share_data: str | None = None, seed: Seed | None = None, share_idx: str = "s"):
         super().__init__()
         self.share_data = codex32_model.normalize_codex32_display(share_data) if share_data else None
         self.seed = seed
+        self.share_idx = share_idx.lower()
 
 
     def _resolve_share_data(self) -> str | None:
@@ -811,13 +834,17 @@ class Codex32MasterSecretWarningView(View):
 
         destination = Destination(
             Codex32MasterSecretDisplayView,
-            view_args={"page_index": 0, "seed": self.seed},
+            view_args={"page_index": 0, "seed": self.seed, "share_idx": self.share_idx},
             skip_current_view=True,
         )
 
+        status_headline = _("This will display your master seed!")
+        if self.share_idx != "s":
+            status_headline = _("This will display codex32 Share {}!").format(self.share_idx.upper())
+
         selected_menu_num = self.run_screen(
             DireWarningScreen,
-            status_headline=_("This will display your master seed!"),
+            status_headline=status_headline,
             text=_("Never photograph or scan it into a device that connects to the internet."),
         )
 
@@ -833,11 +860,12 @@ class Codex32MasterSecretDisplayView(View):
     FINALIZE = ButtonOption("Finalize Seed")
     CONFIRM = ButtonOption("Confirm Backup")
 
-    def __init__(self, share_data: str | None = None, page_index: int = 0, seed: Seed | None = None):
+    def __init__(self, share_data: str | None = None, page_index: int = 0, seed: Seed | None = None, share_idx: str = "s"):
         super().__init__()
         self.share_data = codex32_model.normalize_codex32_display(share_data) if share_data else None
         self.page_index = page_index
         self.seed = seed
+        self.share_idx = share_idx.lower()
 
     def run(self):
         share_data = self.share_data if self.share_data is not None else self.controller.codex32_temp_share
@@ -854,6 +882,7 @@ class Codex32MasterSecretDisplayView(View):
         selected_menu_num = self.run_screen(
             seed_screens.Codex32MasterSecretDisplayScreen,
             share_data=share_data,
+            share_idx=self.share_idx,
             start_index=self.page_index * 24,
             chunk_size=24,
             boxes_label=boxes_label,
@@ -868,7 +897,7 @@ class Codex32MasterSecretDisplayView(View):
         if button_data[selected_menu_num] == self.CONTINUE:
             return Destination(
                 Codex32MasterSecretDisplayView,
-                view_args={"page_index": 1, "seed": self.seed},
+                view_args={"page_index": 1, "seed": self.seed, "share_idx": self.share_idx},
             )
 
         if self.seed is None:
@@ -878,7 +907,7 @@ class Codex32MasterSecretDisplayView(View):
         self.controller.codex32_temp_share = None
         return Destination(
             Codex32BackupConfirmPromptView,
-            view_args={"seed": self.seed, "expected_share": share_data},
+            view_args={"seed": self.seed, "expected_share": share_data, "share_idx": self.share_idx},
         )
 
 
@@ -886,10 +915,11 @@ class Codex32BackupConfirmPromptView(View):
     CONFIRM = ButtonOption("Confirm codex32 Backup")
     DONE = ButtonOption("Done")
 
-    def __init__(self, seed: Seed, expected_share: str):
+    def __init__(self, seed: Seed, expected_share: str, share_idx: str = "s"):
         super().__init__()
         self.seed = seed
         self.expected_share = codex32_model.normalize_codex32_display(expected_share)
+        self.share_idx = share_idx.lower()
 
     def run(self):
         button_data = [self.CONFIRM, self.DONE]
@@ -903,12 +933,16 @@ class Codex32BackupConfirmPromptView(View):
         )
 
         if selected_menu_num == RET_CODE__BACK_BUTTON:
+            # The display flow intentionally clears its temporary secret before
+            # arriving here. Restore the exact displayed share before navigating
+            # back so split-share confirmation cannot silently fall back to S.
+            self.controller.codex32_temp_share = self.expected_share
             return Destination(BackStackView)
 
         if button_data[selected_menu_num] == self.CONFIRM:
             return Destination(
                 Codex32BackupConfirmEntryView,
-                view_args={"seed": self.seed, "expected_share": self.expected_share},
+                view_args={"seed": self.seed, "expected_share": self.expected_share, "share_idx": self.share_idx},
             )
 
         return Destination(SeedOptionsView, view_args={"seed": self.seed}, clear_history=True)
@@ -919,12 +953,14 @@ class Codex32BackupConfirmEntryView(View):
         self,
         seed: Seed,
         expected_share: str,
+        share_idx: str = "s",
         share_data: str | None = None,
         start_page: int | None = None,
     ):
         super().__init__()
         self.seed = seed
         self.expected_share = codex32_model.normalize_codex32_display(expected_share)
+        self.share_idx = share_idx.lower()
         self.share_data = share_data
         self.start_page = start_page
 
@@ -952,24 +988,26 @@ class Codex32BackupConfirmEntryView(View):
                 view_args={
                     "seed": self.seed,
                     "expected_share": self.expected_share,
+                    "share_idx": self.share_idx,
                     "share_data": ret,
                 },
             )
 
         return Destination(
             Codex32BackupConfirmSuccessView,
-            view_args={"seed": self.seed},
+            view_args={"seed": self.seed, "share_idx": self.share_idx},
         )
 
 
 class Codex32BackupConfirmInvalidView(View):
     REVIEW = ButtonOption("Review & Edit")
 
-    def __init__(self, seed: Seed, expected_share: str, share_data: str | None = None):
+    def __init__(self, seed: Seed, expected_share: str, share_data: str | None = None, share_idx: str = "s"):
         super().__init__()
         self.seed = seed
         self.expected_share = codex32_model.normalize_codex32_display(expected_share)
         self.share_data = codex32_model.normalize_codex32_display(share_data) if share_data else None
+        self.share_idx = share_idx.lower()
 
     def run(self):
         self.run_screen(
@@ -986,6 +1024,7 @@ class Codex32BackupConfirmInvalidView(View):
             view_args={
                 "seed": self.seed,
                 "expected_share": self.expected_share,
+                "share_idx": self.share_idx,
                 "share_data": self.share_data,
             },
             skip_current_view=True,
@@ -993,9 +1032,10 @@ class Codex32BackupConfirmInvalidView(View):
 
 
 class Codex32BackupConfirmSuccessView(View):
-    def __init__(self, seed: Seed):
+    def __init__(self, seed: Seed, share_idx: str = "s"):
         super().__init__()
         self.seed = seed
+        self.share_idx = share_idx.lower()
 
     def run(self):
         from seedsigner.gui.screens.screen import LargeIconStatusScreen
@@ -1004,7 +1044,11 @@ class Codex32BackupConfirmSuccessView(View):
             LargeIconStatusScreen,
             title=_("Confirm codex32 backup"),
             status_headline=_("Success!"),
-            text=_("Your transcribed codex32 backup matched the original master seed."),
+            text=(
+                _("Your transcribed codex32 backup matched the original master seed.")
+                if self.share_idx == "s"
+                else _("Your transcribed codex32 backup matched Share {}.").format(self.share_idx.upper())
+            ),
             show_back_button=False,
             button_data=[ButtonOption("OK")],
         )
@@ -1047,7 +1091,8 @@ class Codex32BackupMetadataWarningView(View):
             title=_("Backup metadata warning"),
             status_headline=None,
             text=_(
-                "Some split-share backup metadata was invalid or inconsistent and was omitted. "
+                "Some split-share backup metadata was invalid, inconsistent, "
+                "or could not be verified and was omitted. "
                 "Continuing with secret seed S only."
             ),
             show_back_button=False,
@@ -1569,6 +1614,13 @@ class SeedBackupView(View):
         if len(split_indices) > codex32_model.CODEX32_MAX_SPLIT_SHARES:
             return {}, {}, False
 
+        # Header/checksum agreement is not evidence that a split belongs to S.
+        # A complete threshold set is required before reconstruction can prove
+        # consistency. Keep legacy/below-threshold metadata stored, but never
+        # present it as exportable backup material.
+        if split_indices and len(split_indices) < int(canonical_s.k):
+            return {"s": share_map["s"]}, {"s": source_map["s"]}, True
+
         validated_share_map = {"s": share_map["s"]} if dropped_non_s_entries else share_map
         try:
             codex32_model.validate_codex32_seed_metadata(
@@ -1577,7 +1629,9 @@ class SeedBackupView(View):
                 export_shares=validated_share_map,
             )
         except codex32_model.Codex32InputError:
-            return {}, {}, False
+            # Canonical S was already established above. Policy C keeps that
+            # backup available while omitting a split set that fails recovery.
+            return {"s": share_map["s"]}, {"s": source_map["s"]}, True
 
         if dropped_non_s_entries:
             return {"s": share_map["s"]}, {"s": source_map["s"]}, True
@@ -1748,6 +1802,7 @@ class Codex32BackupShareSelectView(View):
                 view_args={
                     "seed": self.seed,
                     "share_data": self.share_map[selected_share_idx],
+                    "share_idx": selected_share_idx,
                 },
             )
 
@@ -1758,6 +1813,7 @@ class Codex32BackupShareSelectView(View):
                 "seedqr_format": QRType.SEED__CODEX32,
                 "num_modules": codex32_model.CODEX32_QR_MODULE_TARGET,
                 "qr_data": self.share_map[selected_share_idx],
+                "codex32_share_idx": selected_share_idx,
             },
         )
 
@@ -2385,10 +2441,10 @@ class SeedWordsBackupTestView(View):
             while self.cur_index in self.confirmed_list:
                 self.cur_index = int(random.random() * len(self.mnemonic_list))
 
-        real_word = ButtonOption(self.mnemonic_list[self.cur_index])
-        fake_word1 = ButtonOption(bip39.WORDLIST[int(random.random() * 2047)])
-        fake_word2 = ButtonOption(bip39.WORDLIST[int(random.random() * 2047)])
-        fake_word3 = ButtonOption(bip39.WORDLIST[int(random.random() * 2047)])
+        real_word = ButtonOptionWithoutTranslation(self.mnemonic_list[self.cur_index])
+        fake_word1 = ButtonOptionWithoutTranslation(bip39.WORDLIST[int(random.random() * 2047)])
+        fake_word2 = ButtonOptionWithoutTranslation(bip39.WORDLIST[int(random.random() * 2047)])
+        fake_word3 = ButtonOptionWithoutTranslation(bip39.WORDLIST[int(random.random() * 2047)])
 
         button_data = [real_word, fake_word1, fake_word2, fake_word3]
         random.shuffle(button_data)
@@ -2575,21 +2631,23 @@ class SeedTranscribeSeedQRFormatView(View):
 
 
 class SeedTranscribeSeedQRWarningView(View):
-    def __init__(self, seed: Seed, seedqr_format: str = QRType.SEED__SEEDQR, num_modules: int = 29, qr_data: str | None = None):
+    def __init__(self, seed: Seed, seedqr_format: str = QRType.SEED__SEEDQR, num_modules: int = 29, qr_data: str | None = None, codex32_share_idx: str = "s"):
         super().__init__()
         self.seed = seed
         self.seedqr_format = seedqr_format
         self.num_modules = num_modules
         self.qr_data = qr_data
+        self.codex32_share_idx = codex32_share_idx.lower()
     
 
     def run(self):
         is_codex32 = self.seedqr_format == QRType.SEED__CODEX32
-        status_headline = (
-            _("Codex32 QR is your master seed!")
-            if is_codex32
-            else _("SeedQR is your private key!")
-        )
+        if is_codex32 and self.codex32_share_idx != "s":
+            status_headline = _("Codex32 QR contains Share {}.").format(self.codex32_share_idx.upper())
+        elif is_codex32:
+            status_headline = _("Codex32 QR is your master seed!")
+        else:
+            status_headline = _("SeedQR is your private key!")
         destination = Destination(
             SeedTranscribeSeedQRWholeQRView,
             view_args={

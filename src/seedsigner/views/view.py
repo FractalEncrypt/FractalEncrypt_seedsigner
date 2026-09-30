@@ -141,7 +141,9 @@ class Destination:
         else:
             out = self.View_cls.__name__
         if self.view_args:
-            out += f"({self.view_args})"
+            # Destinations routinely carry secrets (seed/share/QR data). Controller
+            # navigation is logged at INFO, so repr must describe the shape only.
+            out += f"(view_args={sorted(self.view_args.keys())})"
         else:
             out += "()"
         if self.clear_history:

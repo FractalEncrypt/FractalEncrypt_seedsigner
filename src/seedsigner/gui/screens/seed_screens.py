@@ -447,6 +447,7 @@ class Codex32MasterShareSuccessScreen(LargeIconStatusScreen):
 @dataclass
 class Codex32MasterSecretDisplayScreen(ButtonListScreen):
     share_data: str = ""
+    share_idx: str = "s"
     start_index: int = 0
     chunk_size: int = 24
     rows: int = 3
@@ -454,7 +455,10 @@ class Codex32MasterSecretDisplayScreen(ButtonListScreen):
     boxes_label: str | None = None
 
     def __post_init__(self):
-        self.title = _("Codex32 master seed")
+        if self.share_idx.lower() == "s":
+            self.title = _("Codex32 master seed")
+        else:
+            self.title = _("Codex32 Share {}").format(self.share_idx.upper())
         self.show_back_button = False
         self.is_bottom_list = True
         super().__post_init__()

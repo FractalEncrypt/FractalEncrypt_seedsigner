@@ -468,6 +468,12 @@ def test_codex32_like_invalid_payload_does_not_fallback_to_address():
     assert d.is_invalid is True
 
 
+def test_potential_codex32_namespace_precedes_wallet_config_detection():
+    payload = "MS-1 deliberately malformed multisig setup file"
+
+    assert DecodeQR.detect_segment_type(payload) == QRType.INVALID
+
+
 def test_detect_segment_type_defaults_wordlist_language_to_english():
     mnemonic = "height demise useless trap grow lion found off key clown transfer enroll"
     assert DecodeQR.detect_segment_type(mnemonic) == QRType.SEED__MNEMONIC

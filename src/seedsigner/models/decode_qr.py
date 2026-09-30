@@ -361,6 +361,23 @@ class DecodeQR:
 
         original_byte_data = s if isinstance(s, bytes) else None
 
+        # Exact 16/32-byte payloads are CompactSeedQR candidates. In particular,
+        # entropy beginning with ASCII "MS1" must not be reserved by the textual
+        # Codex32 namespace. Ambiguous 32-byte scanner expansion fails closed in
+        # normalize_compact_seedqr_bytes().
+        if original_byte_data is not None and len(original_byte_data) in [16, 32]:
+            try:
+                decoded_byte_text = original_byte_data.decode("utf-8")
+            except UnicodeDecodeError:
+                decoded_byte_text = None
+            if (
+                decoded_byte_text is None
+                or DecodeQR.is_potential_codex32_share(decoded_byte_text)
+            ):
+                if DecodeQR.normalize_compact_seedqr_bytes(original_byte_data) is not None:
+                    return QRType.SEED__COMPACTSEEDQR
+                return QRType.INVALID
+
         try:
             # Convert to str data
             if type(s) == bytes:
@@ -369,8 +386,8 @@ class DecodeQR:
                 # TODO: Convert the test suite rather than handle here?
                 s = s.decode('utf-8')
 
-            logger.debug(f"segment string: {s}")
-            logger.debug(f"segment string length: {len(s)}")
+            # QR payloads can contain complete signing secrets. Log metadata only.
+            logger.debug("segment string length: %s", len(s))
 
             # PSBT
             if re.search("^UR:CRYPTO-PSBT/", s, re.IGNORECASE):
@@ -393,6 +410,13 @@ class DecodeQR:
 
             elif re.search(r"^B\$[2HZ]P[0-9A-Z]{4}", s): # https://github.com/coinkite/BBQr/blob/master/BBQr.md#spliting-the-data
                 return QRType.PSBT__BBQR
+
+            # Reserve the Codex32 namespace before permissive wallet/config parsers.
+            elif DecodeQR.is_codex32_share(s):
+                return QRType.SEED__CODEX32
+
+            elif DecodeQR.is_potential_codex32_share(s):
+                return QRType.INVALID
 
             # Wallet Descriptor
             desc_str = s.replace("\n","").replace(" ","")
@@ -444,12 +468,6 @@ class DecodeQR:
 
             elif DecodeQR.is_base43_psbt(s):
                 return QRType.PSBT__BASE43
-
-            elif DecodeQR.is_codex32_share(s):
-                return QRType.SEED__CODEX32
-
-            elif DecodeQR.is_potential_codex32_share(s):
-                return QRType.INVALID
 
         except UnicodeDecodeError:
             # Probably this isn't meant to be string data; check if it's valid byte data
@@ -585,7 +603,26 @@ class DecodeQR:
         if not isinstance(data, bytes):
             return None
 
-        if len(data) in [16, 32]:
+        if len(data) == 16:
+            return data
+
+        if len(data) == 32:
+            # A 32-byte value can be either genuine 24-word entropy or a scanner's
+            # UTF-8 expansion of 16-byte entropy. If reversible normalization yields
+            # 16 bytes, there is no safe way to choose the intended seed.
+            normalized_candidates = []
+            try:
+                normalized_candidates.append(data.decode("utf-8").encode("latin-1"))
+            except (UnicodeDecodeError, UnicodeEncodeError):
+                pass
+            try:
+                normalized_candidates.append(
+                    data.decode("utf-8").replace("\u203e", "~").encode("cp932")
+                )
+            except (UnicodeDecodeError, UnicodeEncodeError):
+                pass
+            if any(len(candidate) == 16 for candidate in normalized_candidates):
+                return None
             return data
 
         # Some scanners return CompactSeedQR byte payloads as UTF-8 expanded bytes.

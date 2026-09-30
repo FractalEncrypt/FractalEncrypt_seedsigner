@@ -5,9 +5,19 @@ from base import BaseTest
 
 from seedsigner.controller import Controller
 from seedsigner.models.seed import Seed
+from seedsigner.views.view import Destination, MainMenuView
 
 
 class TestController(BaseTest):
+
+    def test_destination_repr_does_not_include_argument_values(self):
+        secret = "MS12NAMES6XQGUZTTXKEQNJSJZV4JV3NZ5K3KWGSPHUH6EVW"
+        destination = Destination(MainMenuView, view_args={"share_data": secret})
+
+        rendered = repr(destination)
+
+        assert secret not in rendered
+        assert "share_data" in rendered
 
     def test_reset_controller(self):
         """ The reset_controller util should completely reset the Controller singleton """

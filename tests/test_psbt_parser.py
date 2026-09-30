@@ -35,6 +35,24 @@ class TestPSBTParser:
         # that may wipe transient signing seeds.
         self.seed = Seed(self.seed_words.copy())
 
+
+    def test_from_psbt_copy_does_not_mutate_source_when_parse_rejects(self):
+        source = SimpleNamespace(marker="original")
+
+        class MutatingRejectParser(PSBTParser):
+            def __init__(self, p, seed, network):
+                p.marker = "mutated"
+                raise PSBTSeedCannotSignError()
+
+        with pytest.raises(PSBTSeedCannotSignError):
+            MutatingRejectParser.from_psbt_copy(
+                source,
+                seed=self.seed,
+                network=SettingsConstants.REGTEST,
+            )
+
+        assert source.marker == "original"
+
     def run_basic_test(self, psbt_base64: str, change_data: str, self_transfer_data: str):
         """
         Constructs a series of test psbts that use the specified `psbt_base64` for the input(s).

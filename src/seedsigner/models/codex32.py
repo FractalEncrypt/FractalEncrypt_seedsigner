@@ -97,6 +97,8 @@ def validate_codex32_s_share(codex_str: str, expected_len: int | None = 48) -> C
             f"Expected 16-byte (128-bit) master seed, got {len(codex.data)} bytes",
             ERROR_DATA,
         )
+    if codex.k != "0":
+        _parse_threshold(codex.k)
     return codex
 
 
@@ -268,7 +270,7 @@ class Codex32ShareCollection:
                     )
                     if canonical_secret is None:
                         canonical_secret = recovered
-                    elif recovered.data != canonical_secret.data:
+                    elif recovered.s.lower() != canonical_secret.s.lower():
                         raise Codex32InputError(
                             "Share set does not reconstruct the entered secret.",
                             ERROR_DATA,
@@ -280,16 +282,29 @@ class Codex32ShareCollection:
             return None
 
     def export_shares(self) -> tuple[dict[str, str], dict[str, str]]:
+        secret_share = self.recovered_secret_share()
+        if secret_share is None:
+            return {}, {}
+
         share_map: dict[str, str] = {}
         source_map: dict[str, str] = {}
 
-        for share in self.shares:
+        split_shares = [share for share in self.shares if share.share_idx.lower() != "s"]
+        # A below-threshold split cannot be proven to belong to the polynomial
+        # represented by S, even when its header and checksum are valid. Preserve
+        # it only after recovered_secret_share() has checked a complete set.
+        verified_shares = self.shares if len(split_shares) >= self.threshold else []
+
+        for share in verified_shares:
             share_idx = share.share_idx.lower()
             share_map[share_idx] = normalize_codex32_display(share.s)
             source_map[share_idx] = "entered"
 
-        secret_share = self.recovered_secret_share()
-        if secret_share is not None and "s" not in share_map:
+        entered_secret = self.get_share("s")
+        if entered_secret is not None:
+            share_map["s"] = normalize_codex32_display(entered_secret.s)
+            source_map["s"] = "entered"
+        else:
             share_map["s"] = normalize_codex32_display(secret_share.s)
             source_map["s"] = "derived"
 
@@ -353,9 +368,10 @@ def validate_codex32_seed_metadata(
     """Validate that Codex32 backup metadata represents ``seed_bytes``.
 
     Metadata is optional, but when present it must contain one unambiguous,
-    canonical ``S`` share. Every exported split share must belong to that set;
-    when enough split shares are present, every threshold-sized subset must
-    reconstruct the same ``S``.
+    canonical ``S`` share. Split shares must match its header. When enough
+    split shares are present, every threshold-sized subset must reconstruct the
+    same ``S``. Below-threshold splits remain valid stored recovery context but
+    must be omitted by export boundaries because consistency cannot be proven.
     """
     if master_share is None and not export_shares:
         return
@@ -422,7 +438,7 @@ def validate_codex32_seed_metadata(
     if len(split_shares) >= threshold:
         for share_subset in combinations(split_shares, threshold):
             recovered = recover_secret_share(list(share_subset))
-            if recovered.data != canonical_s.data:
+            if recovered.s.lower() != canonical_s.s.lower():
                 raise Codex32InputError(
                     "Export shares do not reconstruct the canonical S share.",
                     ERROR_DATA,

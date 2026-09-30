@@ -107,11 +107,15 @@ class PSBTOverviewView(View):
             self.loading_screen.start()
                 
             try:
-                self.controller.psbt_parser = PSBTParser(
+                psbt_parser = PSBTParser.from_psbt_copy(
                     self.controller.psbt,
                     seed=self.controller.psbt_seed,
                     network=self.settings.get_value(SettingsConstants.SETTING__NETWORK)
                 )
+                # Adopt parser repairs only after the selected seed completed every
+                # verification step. A rejected seed never mutates shared PSBT state.
+                self.controller.psbt_parser = psbt_parser
+                self.controller.psbt = psbt_parser.psbt
             # Note that in almost every exception case, we set clear_history to disable
             # returning via BACK button in the Destination.
             except MissingInputUtxoError as e:

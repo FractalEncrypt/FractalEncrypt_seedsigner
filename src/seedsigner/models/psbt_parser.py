@@ -1,4 +1,5 @@
 import logging
+from copy import deepcopy
 from binascii import hexlify
 from embit import psbt, script, ec, bip32
 from embit.descriptor import Descriptor
@@ -166,6 +167,17 @@ class PSBTParser():
     # Warn when the fee exceeds this percentage of what is being sent (outputs other than
     # change). TODO: Possibly make this configurable via settings.
     HIGH_FEES_WARNING_THRESHOLD = 25
+
+
+    @classmethod
+    def from_psbt_copy(
+        cls,
+        p: PSBT,
+        seed: Seed,
+        network: str = SettingsConstants.MAINNET,
+    ) -> "PSBTParser":
+        """Parse and repair a private copy; never mutate the caller's PSBT on failure."""
+        return cls(deepcopy(p), seed=seed, network=network)
 
 
     def __init__(self, p: PSBT, seed: Seed, network: str = SettingsConstants.MAINNET):

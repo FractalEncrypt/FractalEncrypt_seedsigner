@@ -6,12 +6,12 @@ import pytest
 from base import BaseTest, FlowTest, FlowStep
 from base import FlowTestInvalidButtonDataSelectionException
 
-from seedsigner.gui.screens.screen import RET_CODE__BACK_BUTTON, ButtonOption
+from seedsigner.gui.screens.screen import RET_CODE__BACK_BUTTON, ButtonOption, ButtonOptionWithoutTranslation
 from seedsigner.models import codex32 as codex32_model
 from seedsigner.models import codex32_min
 from seedsigner.models.settings import Settings, SettingsConstants
 from seedsigner.models.seed import Codex32Seed, ElectrumSeed, Seed
-from seedsigner.views.view import MainMenuView, OptionDisabledView, View, NetworkMismatchErrorView
+from seedsigner.views.view import BackStackView, ErrorView, MainMenuView, OptionDisabledView, View, NetworkMismatchErrorView
 from seedsigner.views import seed_views, scan_views, settings_views
 
 CODEX32_TEST_SECRET = "MS12NAMES6XQGUZTTXKEQNJSJZV4JV3NZ5K3KWGSPHUH6EVW"
@@ -64,6 +64,29 @@ def _build_header_mismatch_share(share: codex32_model.Codex32String, threshold_c
 
 class TestSeedFlows(FlowTest):
 
+    def test_seed_backup_quiz_keeps_mnemonic_words_out_of_gettext(self):
+        seed = Seed(
+            mnemonic="obscure bone gas open exotic abuse virus bunker shuffle nasty ship dash".split()
+        )
+        view = seed_views.SeedWordsBackupTestView(seed=seed, cur_index=0)
+
+        def inspect_options(_screen_cls, **kwargs):
+            assert all(
+                isinstance(option, ButtonOptionWithoutTranslation)
+                for option in kwargs["button_data"]
+            )
+            return kwargs["button_data"].index(
+                next(
+                    option
+                    for option in kwargs["button_data"]
+                    if option.button_label == seed.mnemonic_list[0]
+                )
+            )
+
+        with patch.object(view, "run_screen", side_effect=inspect_options):
+            view.run()
+
+
     def test_load_seed_menu_routes_to_scan_codex32_share_view(self):
         self.run_sequence([
             FlowStep(MainMenuView, button_data_selection=MainMenuView.SEEDS),
@@ -98,12 +121,70 @@ class TestSeedFlows(FlowTest):
         assert self.controller.storage.pending_seed.codex32_master_share == secret_share.s
 
 
+    def test_codex32_collection_cancel_scan_returns_to_live_collection(self):
+        share_a, _, _ = _build_codex32_split_fixture()
+        collection = codex32_model.Codex32ShareCollection.from_first_share(share_a)
+        view = scan_views.ScanCodex32ShareView(share_num=2, share_collection=collection)
+
+        with patch.object(view, "run_screen", return_value=RET_CODE__BACK_BUTTON):
+            destination = view.run()
+
+        assert destination.View_cls == seed_views.Codex32ShareEntryMethodView
+        assert destination.view_args["share_collection"] is collection
+        assert destination.view_args["share_num"] == 2
+        assert destination.view_args["entry_method"] == "scan"
+        assert destination.skip_current_view is True
+
+
+    def test_codex32_collection_invalid_scan_returns_error_then_live_collection(self):
+        share_a, _, _ = _build_codex32_split_fixture()
+        collection = codex32_model.Codex32ShareCollection.from_first_share(share_a)
+        view = scan_views.ScanCodex32ShareView(share_num=2, share_collection=collection)
+        view.decoder.add_data("not-a-valid-qr")
+
+        with patch.object(view, "run_screen", return_value=None):
+            destination = view.run()
+
+        assert destination.View_cls == ErrorView
+        assert destination.skip_current_view is True
+        next_destination = destination.view_args["next_destination"]
+        assert next_destination.View_cls == seed_views.Codex32ShareEntryMethodView
+        assert next_destination.view_args["share_collection"] is collection
+        assert next_destination.view_args["share_num"] == 2
+        assert next_destination.skip_current_view is True
+
+
+    def test_codex32_unchanged_duplicate_keeps_next_entry_ordinal(self):
+        share_a, _, _ = _build_codex32_split_fixture()
+        collection = codex32_model.Codex32ShareCollection.from_first_share(share_a)
+        view = seed_views.Codex32EntryView(
+            share_num=2,
+            share_data=share_a.s,
+            share_collection=collection,
+            auto_submit_share_data=True,
+        )
+
+        success_destination = view.run()
+        assert success_destination.View_cls == seed_views.Codex32ShareSuccessView
+        assert success_destination.view_args["share_num"] == 1
+
+        success_view = seed_views.Codex32ShareSuccessView(**success_destination.view_args)
+        with patch.object(success_view, "run_screen", return_value=0):
+            next_destination = success_view.run()
+
+        assert next_destination.View_cls == seed_views.Codex32EntryView
+        assert next_destination.view_args["share_num"] == 2
+
+
     def test_codex32_collection_conflict_confirm_replace_updates_share(self):
         share_a, _, _ = _build_codex32_split_fixture()
         conflicting_share = _build_conflicting_share_same_index(share_a)
 
         def assert_share_replaced(view: seed_views.Codex32ShareSuccessView):
             assert view.share_collection.get_share("a").s == conflicting_share.s
+
+        def assert_next_ordinal(view: seed_views.Codex32EntryView):
+            assert view.share_num == 2
 
         self.run_sequence([
             FlowStep(MainMenuView, button_data_selection=MainMenuView.SEEDS),
@@ -114,7 +195,7 @@ class TestSeedFlows(FlowTest):
             FlowStep(seed_views.Codex32EntryView, screen_return_value=conflicting_share.s),
             FlowStep(seed_views.Codex32ShareConflictConfirmView, button_data_selection=seed_views.Codex32ShareConflictConfirmView.REPLACE),
             FlowStep(seed_views.Codex32ShareSuccessView, before_run=assert_share_replaced, button_data_selection=seed_views.Codex32ShareSuccessView.NEXT),
-            FlowStep(seed_views.Codex32EntryView),
+            FlowStep(seed_views.Codex32EntryView, before_run=assert_next_ordinal),
         ])
 
 
@@ -125,6 +206,7 @@ class TestSeedFlows(FlowTest):
         def assert_original_share_preserved(view: seed_views.Codex32EntryView):
             assert view.share_collection is not None
             assert view.share_collection.get_share("a").s == share_a.s
+            assert view.share_num == 2
 
         self.run_sequence([
             FlowStep(MainMenuView, button_data_selection=MainMenuView.SEEDS),
@@ -157,6 +239,31 @@ class TestSeedFlows(FlowTest):
             FlowStep(seed_views.Codex32EntryView, screen_return_value=mismatched_share.s),
             FlowStep(seed_views.Codex32ShareInvalidView, before_run=assert_mismatch_invalid),
         ])
+
+
+    def test_codex32_rejected_payload_destinations_are_transient_and_clear_data(self):
+        rejected_share = "MS1INVALID"
+        entry_view = seed_views.Codex32EntryView(
+            share_data=rejected_share,
+            auto_submit_share_data=True,
+        )
+
+        invalid_destination = entry_view.run()
+
+        assert invalid_destination.View_cls == seed_views.Codex32ShareInvalidView
+        assert invalid_destination.skip_current_view is True
+
+        invalid_view = seed_views.Codex32ShareInvalidView(share_data=rejected_share)
+        with patch.object(
+            invalid_view,
+            "run_screen",
+            return_value=1,
+        ):
+            retry_destination = invalid_view.run()
+
+        assert retry_destination.View_cls == seed_views.Codex32ShareEntryMethodView
+        assert retry_destination.skip_current_view is True
+        assert invalid_view.share_data is None
 
 
     def test_codex32_collection_scan_header_mismatch_routes_to_invalid_and_preserves_collection(self):
@@ -826,6 +933,25 @@ class TestSeedFlows(FlowTest):
         assert view.controller.codex32_temp_share == CODEX32_TEST_SECRET
 
 
+    def test_codex32_backup_confirm_back_restores_displayed_share(self):
+        share_a, secret_share, _ = _build_codex32_split_fixture()
+        seed = Codex32Seed(
+            seed_bytes=secret_share.data,
+            codex32_master_share=secret_share.s,
+        )
+        view = seed_views.Codex32BackupConfirmPromptView(
+            seed=seed,
+            expected_share=share_a.s,
+            share_idx="a",
+        )
+
+        with patch.object(view, "run_screen", return_value=RET_CODE__BACK_BUTTON):
+            destination = view.run()
+
+        assert destination.View_cls == BackStackView
+        assert view.controller.codex32_temp_share == share_a.s
+
+
     def test_codex32_backup_menu_includes_export_as_codex32qr(self):
         codex32_share = "MS12NAMES6XQGUZTTXKEQNJSJZV4JV3NZ5K3KWGSPHUH6EVW"
         seed = Codex32Seed(
@@ -858,6 +984,36 @@ class TestSeedFlows(FlowTest):
 
         def assert_s_only_payload(view: seed_views.SeedTranscribeSeedQRWarningView):
             assert view.qr_data == secret_share
+
+        self.run_sequence(
+            initial_destination_view_args=dict(seed=seed),
+            sequence=[
+                FlowStep(seed_views.SeedOptionsView, button_data_selection=seed_views.SeedOptionsView.BACKUP),
+                FlowStep(seed_views.SeedBackupView, button_data_selection=seed_views.SeedBackupView.EXPORT_CODEX32QR),
+                FlowStep(seed_views.Codex32BackupMetadataWarningView),
+                FlowStep(seed_views.SeedTranscribeSeedQRWarningView, before_run=assert_s_only_payload),
+            ],
+        )
+
+
+    def test_codex32_backup_inconsistent_complete_split_warns_and_exports_s_only(self):
+        share_a, secret_share, share_c = _build_codex32_split_fixture()
+        conflicting_share_c = _build_conflicting_share_same_index(share_c)
+        seed = _set_corrupt_codex32_metadata_for_boundary_test(
+            Codex32Seed(seed_bytes=secret_share.data, codex32_master_share=secret_share.s),
+            master_share=secret_share.s,
+            export_shares={
+                "s": secret_share.s,
+                "a": share_a.s,
+                "c": conflicting_share_c.s,
+            },
+            share_sources={"s": "entered", "a": "entered", "c": "entered"},
+        )
+        self.controller.storage.set_pending_seed(seed)
+        self.controller.storage.finalize_pending_seed()
+
+        def assert_s_only_payload(view: seed_views.SeedTranscribeSeedQRWarningView):
+            assert view.qr_data == secret_share.s
 
         self.run_sequence(
             initial_destination_view_args=dict(seed=seed),
@@ -994,6 +1150,33 @@ class TestSeedFlows(FlowTest):
         )
 
 
+    def test_codex32_backup_below_threshold_split_warns_and_exports_s_only(self):
+        share_a, secret_share, _ = _build_codex32_split_fixture()
+        foreign_share_a = _build_conflicting_share_same_index(share_a)
+        share_map = {"a": foreign_share_a.s, "s": secret_share.s}
+        seed = Codex32Seed(
+            seed_bytes=secret_share.data,
+            codex32_master_share=secret_share.s,
+            codex32_export_shares=share_map,
+            codex32_share_sources={"a": "entered", "s": "entered"},
+        )
+        self.controller.storage.set_pending_seed(seed)
+        self.controller.storage.finalize_pending_seed()
+
+        def assert_s_only_payload(view: seed_views.SeedTranscribeSeedQRWarningView):
+            assert view.qr_data == secret_share.s
+
+        self.run_sequence(
+            initial_destination_view_args=dict(seed=seed),
+            sequence=[
+                FlowStep(seed_views.SeedOptionsView, button_data_selection=seed_views.SeedOptionsView.BACKUP),
+                FlowStep(seed_views.SeedBackupView, button_data_selection=seed_views.SeedBackupView.EXPORT_CODEX32QR),
+                FlowStep(seed_views.Codex32BackupMetadataWarningView),
+                FlowStep(seed_views.SeedTranscribeSeedQRWarningView, before_run=assert_s_only_payload),
+            ],
+        )
+
+
     def test_codex32_backup_multishare_selected_index_routes_with_selected_qr_data(self):
         share_map = {
             "a": "MS12NAMEA320ZYXWVUTSRQPNMLKJHGFEDCAXRPP870HKKQRM",
@@ -1012,6 +1195,7 @@ class TestSeedFlows(FlowTest):
 
         def assert_selected_share_payload(view: seed_views.SeedTranscribeSeedQRWarningView):
             assert view.qr_data == share_map["a"]
+            assert view.codex32_share_idx == "a"
 
         self.run_sequence(
             initial_destination_view_args=dict(seed=seed),
@@ -1027,12 +1211,46 @@ class TestSeedFlows(FlowTest):
         )
 
 
+    def test_codex32_backup_split_display_preserves_share_type(self):
+        share_map = {
+            "a": "MS12NAMEA320ZYXWVUTSRQPNMLKJHGFEDCAXRPP870HKKQRM",
+            "c": "MS12NAMECACDEFGHJKLMNPQRSTUVWXYZ023FTR2GDZMPY6PN",
+            "s": "MS12NAMES6XQGUZTTXKEQNJSJZV4JV3NZ5K3KWGSPHUH6EVW",
+        }
+        seed = Codex32Seed(
+            seed_bytes=CODEX32_TEST_SEED_BYTES,
+            codex32_master_share=share_map["s"],
+            codex32_export_shares=share_map,
+            codex32_share_sources={idx: "entered" for idx in share_map},
+        )
+        self.controller.storage.set_pending_seed(seed)
+        self.controller.storage.finalize_pending_seed()
+
+        def assert_selected_share(view: seed_views.Codex32MasterSecretWarningView):
+            assert view.share_data == share_map["a"]
+            assert view.share_idx == "a"
+
+        self.run_sequence(
+            initial_destination_view_args=dict(seed=seed),
+            sequence=[
+                FlowStep(seed_views.SeedOptionsView, button_data_selection=seed_views.SeedOptionsView.BACKUP),
+                FlowStep(seed_views.SeedBackupView, button_data_selection=seed_views.SeedBackupView.VIEW_CODEX32_SECRET),
+                FlowStep(
+                    seed_views.Codex32BackupShareSelectView,
+                    button_data_selection=ButtonOption("Share A", return_data="a"),
+                ),
+                FlowStep(seed_views.Codex32MasterSecretWarningView, before_run=assert_selected_share),
+            ],
+        )
+
+
     def test_codex32_backup_multishare_selection_uses_derived_s_label(self):
         share_map = {
             "a": "MS12NAMEA320ZYXWVUTSRQPNMLKJHGFEDCAXRPP870HKKQRM",
+            "c": "MS12NAMECACDEFGHJKLMNPQRSTUVWXYZ023FTR2GDZMPY6PN",
             "s": "MS12NAMES6XQGUZTTXKEQNJSJZV4JV3NZ5K3KWGSPHUH6EVW",
         }
-        source_map = {"a": "entered", "s": "derived"}
+        source_map = {"a": "entered", "c": "entered", "s": "derived"}
         seed = Codex32Seed(
             seed_bytes=CODEX32_TEST_SEED_BYTES,
             codex32_master_share=share_map["s"],
@@ -1062,6 +1280,7 @@ class TestSeedFlows(FlowTest):
     def test_codex32_backup_multishare_selection_defaults_s_label_to_entered(self):
         share_map = {
             "a": "MS12NAMEA320ZYXWVUTSRQPNMLKJHGFEDCAXRPP870HKKQRM",
+            "c": "MS12NAMECACDEFGHJKLMNPQRSTUVWXYZ023FTR2GDZMPY6PN",
             "s": "MS12NAMES6XQGUZTTXKEQNJSJZV4JV3NZ5K3KWGSPHUH6EVW",
         }
         seed = Codex32Seed(

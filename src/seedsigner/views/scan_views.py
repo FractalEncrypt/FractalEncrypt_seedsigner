@@ -47,6 +47,41 @@ class ScanView(View):
         return True
 
 
+    def _codex32_collection_destination(self) -> Destination:
+        from .seed_views import Codex32ShareEntryMethodView
+
+        if self.codex32_share_collection is None:
+            return Destination(BackStackView, skip_current_view=True)
+
+        prefill = "MS1"
+        prefill = self.codex32_share_collection.prefix()
+        return Destination(
+            Codex32ShareEntryMethodView,
+            view_args={
+                "share_num": len(self.codex32_share_collection.shares) + 1,
+                "prefill": prefill,
+                "share_collection": self.codex32_share_collection,
+                "entry_method": "scan",
+            },
+            skip_current_view=True,
+        )
+
+
+    def _codex32_collection_scan_error(self, text: str) -> Destination:
+        return Destination(
+            ErrorView,
+            view_args={
+                "title": _("Error"),
+                "status_headline": _("Invalid codex32 share"),
+                "text": text,
+                "button_text": _("Continue"),
+                "next_destination": self._codex32_collection_destination(),
+                "show_back_button": False,
+            },
+            skip_current_view=True,
+        )
+
+
     def run(self):
         from seedsigner.gui.screens.scan_screens import ScanScreen
 
@@ -69,6 +104,11 @@ class ScanView(View):
                 # Report QR types in more human-readable text (e.g. QRType
                 # `seed__compactseedqr` as "seed: compactseedqr").
                 # TODO: cleanup l10n presentation
+                if self.codex32_collect_mode:
+                    return self._codex32_collection_scan_error(
+                        _(self.invalid_qr_type_message)
+                        + f' Received "{self.decoder.qr_type.replace("__", ": ").replace("_", " ")}" format.'
+                    )
                 return Destination(ErrorView, view_args=dict(
                     title="Error",
                     status_headline=_("Wrong QR Type"),
@@ -98,6 +138,7 @@ class ScanView(View):
                             "auto_submit_share_data": True,
                             "entry_method": "scan",
                         },
+                        skip_current_view=True,
                     )
 
                 codex = codex32_model.parse_codex32_share(codex32_share)
@@ -112,6 +153,7 @@ class ScanView(View):
                             "auto_submit_share_data": True,
                             "entry_method": "scan",
                         },
+                        skip_current_view=True,
                     )
 
                 codex = codex32_model.validate_codex32_s_share(codex32_share)
@@ -217,10 +259,18 @@ class ScanView(View):
                 return Destination(NotYetImplementedView)
 
         elif self.decoder.is_invalid:
+            if self.codex32_collect_mode:
+                return self._codex32_collection_scan_error(
+                    _("QRCode is invalid or is not a codex32 share.")
+                )
             # For now, don't even try to re-do the attempted operation, just reset and
             # start everything over.
             self.controller.resume_main_flow = None
             return Destination(ScanInvalidQRTypeView)
+
+        if self.codex32_collect_mode:
+            # Closing/canceling the scanner must not abandon already-entered shares.
+            return self._codex32_collection_destination()
 
         return Destination(MainMenuView)
 

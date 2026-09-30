@@ -242,15 +242,6 @@ class Codex32String:
             raise CodexError(f"Invalid target share index '{target}'")
 
         first_share = shares[0]
-        if first_share.k == "0":
-            raise CodexError("An unshared secret cannot be used for interpolation")
-
-        threshold = int(first_share.k)
-        if len(shares) != threshold:
-            raise CodexError(
-                f"Interpolation requires exactly {threshold} shares, got {len(shares)}"
-            )
-
         indices = [share.share_idx.lower() for share in shares]
         if len(set(indices)) != len(indices):
             raise CodexError("Duplicate share indices detected")
@@ -261,6 +252,20 @@ class Codex32String:
                 raise CodexError("Shares must be the same length for interpolation")
             if share.k != first_share.k or share.ident != first_share.ident:
                 raise CodexError("Shares must have matching thresholds and identifiers")
+
+        # Interpolation at a supplied point is the identity operation. Validate the
+        # set first, then return the exact share without requiring k inputs.
+        if target.lower() in indices:
+            return shares[indices.index(target.lower())]
+
+        if first_share.k == "0":
+            raise CodexError("An unshared secret cannot be used for interpolation")
+
+        threshold = int(first_share.k)
+        if len(shares) != threshold:
+            raise CodexError(
+                f"Interpolation requires exactly {threshold} shares, got {len(shares)}"
+            )
 
         interpolated = ms32_interpolate([s._data_part_values for s in shares], target_val)
         encoded = ms32_encode(interpolated)
