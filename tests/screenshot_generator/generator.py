@@ -78,6 +78,7 @@ from seedsigner.hardware.microsd import MicroSD
 from seedsigner.helpers import embit_utils
 from seedsigner.models.decode_qr import DecodeQR
 from seedsigner.models import codex32 as codex32_model
+from seedsigner.models.codex32_correction import suggest_correction
 from seedsigner.models.encode_qr import BaseQrEncoder
 from seedsigner.models.psbt_parser import OPCODES, PSBTParser
 from seedsigner.models.qr_type import QRType
@@ -163,6 +164,12 @@ codex32_seed = Codex32Seed(
     codex32_export_shares={"s": CODEX32_MASTER_SHARE},
     codex32_share_sources={"s": "entered"},
 )
+
+# Public test data for recovery screens; keep reconstruction provenance visible
+# even after a recorded fingerprint has been checked.
+codex32_reconstruction = suggest_correction(CODEX32_MASTER_SHARE[:12] + "?" + CODEX32_MASTER_SHARE[13:])
+assert codex32_reconstruction is not None
+assert codex32_reconstruction.corrected == CODEX32_MASTER_SHARE
 
 MULTISIG_WALLET_DESCRIPTOR = """wsh(sortedmulti(1,[22bde1a9/48h/1h/0h/2h]tpubDFfsBrmpj226ZYiRszYi2qK6iGvh2vkkghfGB2YiRUVY4rqqedHCFEgw12FwDkm7rUoVtq9wLTKc6BN2sxswvQeQgp7m8st4FP8WtP8go76/{0,1}/*,[73c5da0a/48h/1h/0h/2h]tpubDFH9dgzveyD8zTbPUFuLrGmCydNvxehyNdUXKJAQN8x4aZ4j6UZqGfnqFrD4NqyaTVGKbvEW54tsvPTK2UoSbCC1PJY8iCNiwTL3RWZEheQ/{0,1}/*))#3jhtf6yx"""
 
@@ -326,6 +333,14 @@ def generate_screenshots(locale):
 
 
         @contextmanager
+        def mock_codex32_pending_seed():
+            # Recovery now reads the seed from storage, as the real entry flow does.
+            # Restore the mnemonic seed before generating unrelated seed screens.
+            with patch.object(controller.storage, "pending_seed", codex32_seed):
+                yield
+
+
+        @contextmanager
         def mock_single_sig_psbt_loaded():
             with mock_load_psbt(BASE64_SINGLE_SIG_PSBT):
                 yield
@@ -441,7 +456,32 @@ def generate_screenshots(locale):
                     dict(entered_shares=2, total_shares=3, share_num=2),
                     screenshot_name="Codex32ShareSuccessView",
                 ),
-                ScreenshotConfig(seed_views.Codex32MasterShareSuccessView, dict(share_data=CODEX32_MASTER_SHARE), screenshot_name="Codex32MasterShareSuccessView"),
+                ScreenshotConfig(
+                    seed_views.Codex32MasterShareSuccessView,
+                    screenshot_name="Codex32MasterShareSuccessView",
+                    mock_context_manager=mock_codex32_pending_seed,
+                ),
+                ScreenshotConfig(
+                    seed_views.Codex32MasterShareSuccessView,
+                    dict(corrections={"s": (codex32_reconstruction, True)}),
+                    screenshot_name="Codex32MasterShareSuccessView_reconstructed",
+                    mock_context_manager=mock_codex32_pending_seed,
+                ),
+                ScreenshotConfig(
+                    seed_views.Codex32MasterShareSuccessView,
+                    dict(
+                        corrections={"s": (codex32_reconstruction, True)},
+                        fingerprint_check=("entered", codex32_seed.get_fingerprint(SettingsConstants.MAINNET).lower()),
+                    ),
+                    screenshot_name="Codex32MasterShareSuccessView_reconstructed_checked",
+                    mock_context_manager=mock_codex32_pending_seed,
+                ),
+                ScreenshotConfig(
+                    seed_views.Codex32MasterShareSuccessView,
+                    dict(show_options=True),
+                    screenshot_name="Codex32MasterShareSuccessView_options",
+                    mock_context_manager=mock_codex32_pending_seed,
+                ),
                 ScreenshotConfig(seed_views.Codex32MasterSecretWarningView, dict(share_data=CODEX32_MASTER_SHARE), screenshot_name="Codex32MasterSecretWarningView"),
                 ScreenshotConfig(
                     seed_views.Codex32MasterSecretDisplayView,
