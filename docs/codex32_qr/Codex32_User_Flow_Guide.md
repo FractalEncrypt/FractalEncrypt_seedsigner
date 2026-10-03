@@ -10,7 +10,7 @@ This specifically covers your scenario:
 - User may **not** have completed the extra checksum-validation worksheet yet
 - User may not have an `S` share yet
 
-SeedSigner is used to **verify** and recover from hand-calculated shares. It does not short-circuit the trustless process by computing a replacement checksum for users.
+SeedSigner is used to **verify** and recover from hand-calculated shares. Manual entry can offer bounded corrections, which require review and confirmation from the backup. Unreadable characters use a separate reconstruction path. It does not offer a share-creation or checksum-appending command.
 
 ---
 
@@ -39,6 +39,18 @@ Compatibility note:
 9. `Codex32MasterShareSuccessView` (threshold reached, `S` recovered or validated)
 10. `Codex32MasterSecretWarningView`
 11. `Codex32MasterSecretDisplayView` (Boxes 1-24, then 25-48)
+
+Correction entry may additionally use `Codex32CorrectionReviewView`,
+`Codex32CorrectionDetailsView`, `Codex32CorrectionCauseView`, `Codex32BackupRepairView`,
+`Codex32CorrectionEntryView`, `Codex32CorrectionMismatchView`,
+`Codex32CorrectionProofView`, `Codex32ReconstructionAcceptView`, and
+`Codex32LargeRecoveryWarningView`. After recovery, `Codex32RecoveryReviewView`
+lets the user revisit entered shares while comparing the recovered fingerprint.
+The recovered-seed screen offers **Check Fingerprint**, **Load Seed**, and
+**More Options**. A fingerprint check supports optional eight-character entry,
+visual comparison, or guidance without a previously recorded fingerprint.
+**More Options** holds master-seed display and entered-share review. A match
+is an accidental-error check; it does not remove correction history.
 
 ## Backup/export after seed is loaded
 
@@ -91,13 +103,24 @@ If the share header doesn’t match the current share set (threshold/identifier)
 the error explicitly calls out the **share-set mismatch** (rather than just a
 generic “invalid header”).
 
-User choices there:
+When a correction is available, user choices there are **View Correction**,
+**Review & Edit**, and **Discard Invalid Share**. The correction is displayed
+with numbered, highlighted boxes, followed by pages of `entered → proposed`
+pairs. The user distinguishes a typing mistake from a backup needing repair;
+readable changed characters must then be re-entered into cleared boxes from the
+backup. Annotated repairs remain unverified until independently checked. See
+[error correction and verification](Codex32_Error_Correction.md) for unreadable
+characters, large-recovery warnings, and fingerprint comparison.
+
+Otherwise, user choices there are:
 
 1. **Review & edit** (fix the entered characters)
 2. **Discard invalid share** (choose whether to **enter or scan** the next share)
 3. **Discard all shares**
 
-This preserves the trustless process: the user fixes worksheet/math/input; SeedSigner does not generate a substitute checksum share.
+Suggestions are not accepted automatically. When a worksheet's own calculation
+is uncertain, verify it using the worksheet process; a checksum-valid completion
+does not prove the intended seed.
 
 ## Phase D: Build up to threshold `k`
 
@@ -183,7 +206,7 @@ Practical operator workflow:
 3. Invalid? -> fix/re-enter (or discard)
 4. Valid -> success screen -> enter/scan next share
 5. Repeat until `k` valid shares
-6. Master share success -> display key and/or load seed
+6. Recovered seed -> optional recorded-fingerprint check -> load seed (More Options: display master seed or review entered shares)
 7. Finalize seed
 8. Use seed for normal SeedSigner operations
 9. Backup via Codex32 secret display and/or Codex32QR export + confirmation scan

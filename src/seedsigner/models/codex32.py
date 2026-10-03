@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING
 from collections.abc import Mapping
 from itertools import combinations
 from dataclasses import dataclass, field
@@ -11,6 +12,9 @@ from .codex32_min import Codex32String, CodexError, _is_single_case
 from embit import bip39
 
 logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from .codex32_correction import Codex32Correction
 
 ERROR_HEADER = "header"
 ERROR_DATA = "data"
@@ -211,6 +215,8 @@ class Codex32ShareCollection:
     ident: str
     case: str
     shares: list[Codex32String] = field(default_factory=list)
+    # The flag marks reconstructions or repairs checked against an amended backup.
+    corrections: dict[str, tuple[Codex32Correction, bool]] = field(default_factory=dict, repr=False)
 
     @classmethod
     def from_first_share(cls, share: Codex32String) -> "Codex32ShareCollection":
@@ -390,6 +396,7 @@ class Codex32ShareCollection:
             wipe_codex32_share(share)
 
         self.shares = []
+        self.corrections.clear()
         self.threshold = 0
         self.ident = ""
         self.case = "lower"

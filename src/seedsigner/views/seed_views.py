@@ -289,6 +289,8 @@ class Codex32EntryView(View):
         replace_existing: bool = False,
         auto_submit_share_data: bool = False,
         entry_method: str = "manual",
+        correction_record: tuple | None = None,
+        resolve_unknowns: bool = False,
     ):
         super().__init__()
         self.share_num = share_num
@@ -299,6 +301,8 @@ class Codex32EntryView(View):
         self.replace_existing = replace_existing
         self.auto_submit_share_data = auto_submit_share_data
         self.entry_method = entry_method
+        self.correction_record = correction_record
+        self.resolve_unknowns = resolve_unknowns
 
 
     @staticmethod
@@ -321,10 +325,11 @@ class Codex32EntryView(View):
                 codex32_backup_warning=share_collection.backup_metadata_warning_required,
             )
             view.controller.storage.set_pending_seed(seed)
+            corrections = {idx: record for idx, record in share_collection.corrections.items() if idx in share_map}
             # The seed now owns independent entropy and metadata copies. Release
             # the redundant parsed-share collection before leaving recovery.
             share_collection.wipe()
-            return Destination(Codex32MasterShareSuccessView)
+            return Destination(Codex32MasterShareSuccessView, {"corrections": corrections})
 
         return Destination(
             Codex32ShareSuccessView,
@@ -358,6 +363,7 @@ class Codex32EntryView(View):
                 start_page=self.start_page,
                 share_data=self.share_data,
                 share_collection=self.share_collection,
+                resolve_unknowns=self.resolve_unknowns,
             )
 
             if ret == RET_CODE__BACK_BUTTON:
@@ -365,6 +371,27 @@ class Codex32EntryView(View):
         try:
             codex = codex32_model.parse_codex32_share(ret)
         except codex32_model.Codex32InputError as exc:
+            correction_flow = None
+            correction_attempted = self.entry_method == "manual"
+            # Header consistency is checked before the checksum in codex32_min.
+            # A wrong threshold may itself be a correctable typo. Only preserve
+            # this structural error directly when the entered checksum is valid.
+            if correction_attempted and str(exc) == "Codex32 share index must be 's' when threshold is 0":
+                from seedsigner.models.codex32_min import CHARSET, ms32_verify_checksum
+                cleaned = codex32_model.sanitize_codex32_input(ret).lower()
+                if ms32_verify_checksum([CHARSET.index(c) for c in cleaned[3:]]):
+                    correction_attempted = False
+            if correction_attempted:
+                from seedsigner.models.codex32_correction import suggest_correction
+                from .codex32_views import CorrectionFlow
+
+                locked = self.share_collection.prefix() if self.share_collection else "MS1"
+                proposal = suggest_correction(ret, immutable_prefix=locked)
+                if proposal:
+                    correction_flow = CorrectionFlow(
+                        proposal, self.share_num, self.prefill, self.share_collection,
+                        self.replace_existing, self.entry_method,
+                    )
             return Destination(
                 Codex32ShareInvalidView,
                 view_args={
@@ -375,6 +402,9 @@ class Codex32EntryView(View):
                     "error_detail": str(exc),
                     "share_collection": self.share_collection,
                     "entry_method": self.entry_method,
+                    "correction_flow": correction_flow,
+                    "correction_attempted": correction_attempted,
+                    "replace_existing": self.replace_existing,
                 },
                 skip_current_view=True,
             )
@@ -405,7 +435,9 @@ class Codex32EntryView(View):
                 codex32_share_sources={"s": "entered"},
             )
             self.controller.storage.set_pending_seed(seed)
-            return Destination(Codex32MasterShareSuccessView)
+            corrections = {"s": self.correction_record} if self.correction_record else {}
+            self.correction_record = None
+            return Destination(Codex32MasterShareSuccessView, {"corrections": corrections})
 
         try:
             if self.share_collection is None:
@@ -422,6 +454,7 @@ class Codex32EntryView(View):
                         "share_data": ret,
                         "share_collection": self.share_collection,
                         "entry_method": self.entry_method,
+                        "correction_record": self.correction_record,
                     },
                     skip_current_view=True,
                 )
@@ -443,6 +476,12 @@ class Codex32EntryView(View):
                 skip_current_view=True,
             )
 
+        index = codex.share_idx.lower()
+        if self.correction_record:
+            self.share_collection.corrections[index] = self.correction_record
+        else:
+            self.share_collection.corrections.pop(index, None)
+        self.correction_record = None
         return self._destination_from_share_collection(
             view=self,
             share_collection=self.share_collection,
@@ -462,6 +501,7 @@ class Codex32ShareConflictConfirmView(View):
         share_data: str,
         share_collection: codex32_model.Codex32ShareCollection,
         entry_method: str = "manual",
+        correction_record: tuple | None = None,
     ):
         super().__init__()
         self.share_num = share_num
@@ -469,6 +509,7 @@ class Codex32ShareConflictConfirmView(View):
         self.share_data = share_data
         self.share_collection = share_collection
         self.entry_method = entry_method
+        self.correction_record = correction_record
 
     def run(self):
         button_data = [self.REPLACE, self.KEEP_EXISTING]
@@ -498,6 +539,12 @@ class Codex32ShareConflictConfirmView(View):
         try:
             codex = codex32_model.parse_codex32_share(self.share_data)
             self.share_collection.add_share(codex, replace_existing=True)
+            index = codex.share_idx.lower()
+            if self.correction_record:
+                self.share_collection.corrections[index] = self.correction_record
+            else:
+                self.share_collection.corrections.pop(index, None)
+            self.correction_record = None
         except codex32_model.Codex32InputError as exc:
             return Destination(
                 Codex32ShareInvalidView,
@@ -524,6 +571,7 @@ class Codex32ShareConflictConfirmView(View):
 
 
 class Codex32ShareInvalidView(View):
+    CORRECTION = ButtonOption("View Correction")
     EDIT = ButtonOption("Review & Edit")
     DISCARD_INVALID = ButtonOption("Discard Invalid Share")
     DISCARD_ALL = ButtonOption("Discard All Shares", button_label_color="red")
@@ -537,6 +585,9 @@ class Codex32ShareInvalidView(View):
         error_detail: str | None = None,
         share_collection: codex32_model.Codex32ShareCollection | None = None,
         entry_method: str = "manual",
+        correction_flow=None,
+        correction_attempted: bool = False,
+        replace_existing: bool = False,
     ):
         super().__init__()
         self.share_num = share_num
@@ -546,6 +597,9 @@ class Codex32ShareInvalidView(View):
         self.error_detail = error_detail
         self.share_collection = share_collection
         self.entry_method = entry_method
+        self.correction_flow = correction_flow
+        self.correction_attempted = correction_attempted
+        self.replace_existing = replace_existing
 
 
     def _get_error_text(self) -> str:
@@ -555,6 +609,8 @@ class Codex32ShareInvalidView(View):
             and "Share header mismatch" in self.error_detail
         ):
             return _("Share does not match the current share set (threshold/identifier mismatch).")
+        if self.error_detail == "Codex32 share index must be 's' when threshold is 0":
+            return _("Threshold 0 requires share index S. Check boxes 4 and 9.")
         if self.error_type == codex32_model.ERROR_HEADER:
             return _("Invalid header; check MS1, threshold, identifier, and share index.")
         if self.error_type == codex32_model.ERROR_DATA:
@@ -569,15 +625,41 @@ class Codex32ShareInvalidView(View):
 
     def run(self):
         button_data = [self.EDIT, self.DISCARD_INVALID, self.DISCARD_ALL]
-        selected_menu_num = self.run_screen(
-            DireWarningScreen,
-            title=_("Invalid codex32 share"),
-            status_icon_name=SeedSignerIconConstants.ERROR,
-            status_headline=None,
-            text=self._get_error_text(),
-            show_back_button=False,
-            button_data=button_data,
-        )
+        if self.correction_flow:
+            button_data = [self.CORRECTION, self.EDIT, self.DISCARD_INVALID]
+        if self.correction_attempted and not self.correction_flow:
+            selected_menu_num = self.run_screen(
+                seed_screens.Codex32StatusScreen,
+                title=_("No Correction Found"),
+                text=_("Errors or damage may exceed device limits. Review numbered backup boxes."),
+                matched=False, body_padding=2,
+                show_back_button=False, button_data=button_data,
+            )
+        elif self.error_detail == "Codex32 share index must be 's' when threshold is 0":
+            selected_menu_num = self.run_screen(
+                seed_screens.Codex32MessageScreen,
+                title=_("Invalid Share Header"), text=self._get_error_text(),
+                show_back_button=False, button_data=button_data,
+            )
+        else:
+            selected_menu_num = self.run_screen(
+                DireWarningScreen,
+                title=_("Invalid codex32 share"),
+                status_icon_name=SeedSignerIconConstants.ERROR,
+                status_headline=None,
+                text=_("Invalid entry. Correction available.") if self.correction_flow else self._get_error_text(),
+                show_back_button=False,
+                button_data=button_data,
+            )
+
+        if button_data[selected_menu_num] == self.CORRECTION:
+            from .codex32_views import Codex32CorrectionReviewView, Codex32LargeRecoveryWarningView
+
+            flow = self.correction_flow
+            self.correction_flow = None
+            self.share_data = None
+            target = Codex32LargeRecoveryWarningView if flow.proposal.large_recovery else Codex32CorrectionReviewView
+            return Destination(target, {"flow": flow}, skip_current_view=True)
 
         if button_data[selected_menu_num] == self.EDIT:
             destination = Destination(
@@ -588,14 +670,17 @@ class Codex32ShareInvalidView(View):
                     "share_data": self.share_data,
                     "share_collection": self.share_collection,
                     "entry_method": self.entry_method,
+                    "replace_existing": self.replace_existing,
                 },
                 skip_current_view=True,
             )
             self.share_data = None
+            self.correction_flow = None
             return destination
 
         elif button_data[selected_menu_num] == self.DISCARD_INVALID:
             self.share_data = None
+            self.correction_flow = None
             return Destination(
                 Codex32ShareEntryMethodView,
                 view_args={
@@ -768,12 +853,20 @@ class Codex32ShareSuccessView(View):
 
 
 class Codex32MasterShareSuccessView(View):
-    DISPLAY = ButtonOption("Show codex32 Master Seed")
+    DISPLAY = ButtonOption("Show Master Seed")
     LOAD = ButtonOption("Load Seed")
+    REVIEW = ButtonOption("Review Entered Shares")
+    CHECK = ButtonOption("Check Fingerprint")
+    MORE = ButtonOption("More Options")
+    RETURN = ButtonOption("Return to Fingerprint")
 
-    def __init__(self, share_data: str | None = None):
+    def __init__(self, share_data: str | None = None, corrections: dict | None = None,
+                 fingerprint_check: tuple | None = None, show_options: bool = False):
         super().__init__()
         self.share_data = codex32_model.normalize_codex32_display(share_data) if share_data else None
+        self.corrections = corrections if corrections is not None else {}
+        self.fingerprint_check = fingerprint_check
+        self.show_options = show_options
 
 
     def _resolve_share_data(self) -> str | None:
@@ -787,14 +880,44 @@ class Codex32MasterShareSuccessView(View):
         return None
 
     def run(self):
-        button_data = [self.DISPLAY, self.LOAD]
-        selected_menu_num = self.run_screen(
-            seed_screens.Codex32MasterShareSuccessScreen,
-            button_data=button_data,
-        )
+        pending_seed = self.controller.storage.get_pending_seed()
+        if not isinstance(pending_seed, Codex32Seed):
+            return Destination(MainMenuView, clear_history=True)
+        fingerprint = pending_seed.get_fingerprint(self.settings.get_value(SettingsConstants.SETTING__NETWORK)).lower()
+        # A comparison applies only to this recovered fingerprint. It never removes
+        # correction provenance or changes the seed/backup metadata.
+        check = self.fingerprint_check
+        method = check[0] if check and check[1] == fingerprint and check[0] in ("entered", "visual") else ""
+        return_args = {"corrections": self.corrections, "fingerprint_check": check if method else None}
+        if self.show_options:
+            button_data = [self.DISPLAY]
+            if "entered" in (pending_seed.codex32_share_sources or {}).values():
+                button_data.append(self.REVIEW)
+            button_data.append(self.RETURN)
+            selected_menu_num = self.run_screen(ButtonListScreen, title=_("Recovery Options"), button_data=button_data)
+            if selected_menu_num == RET_CODE__BACK_BUTTON or button_data[selected_menu_num] == self.RETURN:
+                return Destination(Codex32MasterShareSuccessView, return_args, skip_current_view=True)
+        else:
+            button_data = [self.CHECK, self.LOAD, self.MORE]
+            selected_menu_num = self.run_screen(
+                seed_screens.Codex32MasterShareSuccessScreen,
+                button_data=button_data, fingerprint=fingerprint, fingerprint_check=method,
+                corrected_share=bool(self.corrections),
+                unverified_correction=any(record[1] for record in self.corrections.values()),
+            )
+        if selected_menu_num != RET_CODE__BACK_BUTTON and button_data[selected_menu_num] == self.MORE:
+            return Destination(Codex32MasterShareSuccessView, {**return_args, "show_options": True}, skip_current_view=True)
+        if selected_menu_num != RET_CODE__BACK_BUTTON and button_data[selected_menu_num] == self.CHECK:
+            from .codex32_views import Codex32FingerprintCheckView
+            return Destination(Codex32FingerprintCheckView, return_args, skip_current_view=True)
 
         if selected_menu_num == RET_CODE__BACK_BUTTON:
+            self.corrections.clear()
             return Destination(SeedDiscardView)
+
+        if button_data[selected_menu_num] == self.REVIEW:
+            from .codex32_views import Codex32RecoveryReviewView
+            return Destination(Codex32RecoveryReviewView, {"corrections": self.corrections}, skip_current_view=True)
 
         if button_data[selected_menu_num] == self.DISPLAY:
             share_data = self._resolve_share_data()
@@ -809,7 +932,8 @@ class Codex32MasterShareSuccessView(View):
         elif button_data[selected_menu_num] == self.LOAD:
             self.share_data = None
             self.controller.codex32_temp_share = None
-            return Destination(SeedFinalizeView)
+            self.corrections.clear()
+            return Destination(SeedFinalizeView, clear_history=True)
 
 
 class Codex32MasterSecretWarningView(View):
@@ -900,6 +1024,7 @@ class Codex32MasterSecretDisplayView(View):
             chunk_size=24,
             boxes_label=boxes_label,
             button_data=button_data,
+            display_back_button=True,
         )
 
         if selected_menu_num == RET_CODE__BACK_BUTTON:

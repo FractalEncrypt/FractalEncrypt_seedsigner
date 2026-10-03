@@ -1117,6 +1117,8 @@ class KeyboardScreen(BaseTopNavScreen):
         * keys_to_values: Optional mapping from key_charset to input value (e.g. dice icon to digit).
         * return_after_n_chars: exits and returns the user's input after n characters.
         * show_save_button: Render a KEY3 soft button for save & exit
+        * any_button_selects: Let joystick press and side buttons select keys; KEY3
+          still saves when show_save_button is enabled
         * initial_value: initialize the TextEntryDisplay with an existing string
     """
     rows: int = None
@@ -1128,6 +1130,7 @@ class KeyboardScreen(BaseTopNavScreen):
     keys_to_values: dict = None
     return_after_n_chars: int = None
     show_save_button: bool = False
+    any_button_selects: bool = False
     initial_value: str = ""
     from dataclasses import dataclass, field
     custom_additional_keys: dict = field(default_factory=lambda: Keyboard.ADDITIONAL_KEYS)    
@@ -1224,8 +1227,14 @@ class KeyboardScreen(BaseTopNavScreen):
         # Start the interactive update loop
         while True:
             input = self.hw_inputs.wait_for(
-                HardwareButtonsConstants.KEYS__LEFT_RIGHT_UP_DOWN + [HardwareButtonsConstants.KEY_PRESS, HardwareButtonsConstants.KEY3]
+                HardwareButtonsConstants.KEYS__LEFT_RIGHT_UP_DOWN + (
+                    HardwareButtonsConstants.KEYS__ANYCLICK if self.any_button_selects
+                    else [HardwareButtonsConstants.KEY_PRESS, HardwareButtonsConstants.KEY3]
+                )
             )
+            if (self.any_button_selects and input in HardwareButtonsConstants.KEYS__ANYCLICK
+                    and not (self.show_save_button and input == HardwareButtonsConstants.KEY3)):
+                input = HardwareButtonsConstants.KEY_PRESS
 
             with self.renderer.lock:
                 # Track if we need to update the title after input changes

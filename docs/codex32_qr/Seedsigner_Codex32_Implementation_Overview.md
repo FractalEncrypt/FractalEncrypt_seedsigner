@@ -87,7 +87,7 @@ Our implementation (completed in SeedSigner) bridges the codex32 analog world wi
 
 ### 4.1. Strict Trustless Validation
 When a user manually enters a codex32 share into the SeedSigner, the device validates the structure, length, and checksum. 
-- **No Auto-correction:** To preserve the trustless nature of codex32, SeedSigner will *not* guess or auto-correct a bad checksum. If the user's manual math on their worksheet was wrong, SeedSigner forces them to find and fix the error on paper. 
+- **Confirmed corrections:** Invalid manual entries may offer a bounded correction suggestion. SeedSigner highlights the proposed changes, then requires the changed boxes to be re-entered from the backup before accepting a transcription correction. Truly unreadable characters use a separate reconstruction warning and acceptance path. The recovered master fingerprint is shown for comparison with a trusted record. See [error correction and verification](Codex32_Error_Correction.md).
 
 ### 4.2. Codex32 QR Support
 Typing 48 characters with a joystick can be tedious. We engineered a specific QR code profile (`Codex32QR/v1-48`) which encodes the codex32 text into a dense, scannable 29x29 format. 

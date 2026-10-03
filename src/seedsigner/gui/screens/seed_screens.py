@@ -10,7 +10,7 @@ from typing import List
 from seedsigner.hardware.buttons import HardwareButtons, HardwareButtonsConstants
 from seedsigner.helpers.qr import QR
 from seedsigner.gui.components import (Button, FontAwesomeIconConstants, Fonts, FormattedAddress, IconButton,
-    IconTextLine, SeedSignerIconConstants, TextArea, TopNav, GUIConstants, reflow_text_into_pages)
+    Icon, IconTextLine, SeedSignerIconConstants, TextArea, TopNav, GUIConstants, reflow_text_into_pages)
 from seedsigner.gui.keyboard import Keyboard, TextEntryDisplay
 from seedsigner.gui.renderer import Renderer
 from seedsigner.models import codex32 as codex32_model
@@ -435,13 +435,145 @@ class Codex32ShareSuccessScreen(LargeIconStatusScreen):
 
 
 @dataclass
-class Codex32MasterShareSuccessScreen(LargeIconStatusScreen):
+class Codex32MessageScreen(ButtonListScreen):
+    text: str = ""
+
     def __post_init__(self):
-        self.title = _("Success!")
-        self.status_headline = _("Master seed valid")
-        self.text = _("Codex32 master seed recovered.")
         self.is_bottom_list = True
         super().__post_init__()
+        self.components.append(TextArea(
+            text=self.text, screen_y=self.top_nav.height + GUIConstants.COMPONENT_PADDING,
+            height=self.buttons[0].screen_y - self.top_nav.height - 2 * GUIConstants.COMPONENT_PADDING,
+            font_size=14, font_color=GUIConstants.WARNING_COLOR,
+            is_text_centered=True,
+        ))
+
+
+@dataclass
+class Codex32CorrectionDetailsScreen(ButtonListScreen):
+    changes: tuple[tuple[int, str, str], ...] = ()
+    changes_label: str = ""
+    repair_mode: bool = False
+
+    def __post_init__(self):
+        self.title = _("Repair Your Backup") if self.repair_mode else _("Review Changes")
+        self.is_bottom_list = True
+        super().__post_init__()
+        y = self.top_nav.height + GUIConstants.COMPONENT_PADDING
+        label_size = 12 if self.repair_mode else 14
+        for text, font_size, color in (
+            (self.changes_label, label_size, GUIConstants.BODY_FONT_COLOR),
+            (_("Entered → Proposed"), label_size, GUIConstants.LABEL_FONT_COLOR),
+            (_("Keep original; mark repairs.\nVerify wallet after recovery.") if self.repair_mode else
+             _("Compare with your backup."), 12, GUIConstants.BODY_FONT_COLOR),
+        ):
+            line = TextArea(text=text, screen_y=y, font_size=font_size,
+                            # OpenSans lacks this arrow; Inconsolata supplies it.
+                            font_name=GUIConstants.FIXED_WIDTH_FONT_NAME if "→" in text else None,
+                            font_color=color, is_text_centered=True)
+            self.components.append(line)
+            y += line.height + (2 if self.repair_mode else 4)
+        for number, entered, proposed in self.changes:
+            line = TextArea(
+                text=_("Box {}: {} → {}").format(number, entered, proposed),
+                screen_y=y, font_size=16 if self.repair_mode else 20, font_color=GUIConstants.WARNING_COLOR,
+                font_name=GUIConstants.FIXED_WIDTH_FONT_NAME,
+                is_text_centered=True,
+            )
+            self.components.append(line)
+            y += line.height + (4 if self.repair_mode else 6)
+
+
+@dataclass
+class Codex32MasterShareSuccessScreen(ButtonListScreen):
+    fingerprint: str = ""
+    unverified_correction: bool = False
+    corrected_share: bool = False
+    fingerprint_check: str = ""
+
+    def __post_init__(self):
+        self.title = _("Recovered Seed")
+        self.is_bottom_list = True
+        super().__post_init__()
+        self.components.append(IconTextLine(
+            icon_name=SeedSignerIconConstants.FINGERPRINT,
+            icon_color=GUIConstants.INFO_COLOR,
+            label_text=_("Fingerprint"), value_text=self.fingerprint.lower(),
+            font_size=GUIConstants.get_body_font_size() + 2,
+            is_text_centered=True, screen_y=self.top_nav.height,
+        ))
+        comparison = _("Compare saved fingerprint.")
+        if self.fingerprint_check == "entered":
+            comparison = _("Saved fingerprint matches.")
+        elif self.fingerprint_check == "visual":
+            comparison = _("Compared visually.")
+        # The fingerprint check must not replace the status of repaired/unknown
+        # characters. Two independent lines retain both facts above three buttons.
+        lines = []
+        if self.unverified_correction:
+            lines.append(_("Share repairs unverified."))
+        elif self.corrected_share:
+            lines.append(_("Share entry corrected."))
+        lines.append(comparison)
+        self.components.append(TextArea(
+            text="\n".join(lines), screen_y=self.top_nav.height + 40,
+            height=self.buttons[0].screen_y - self.top_nav.height - 42,
+            font_size=14, is_text_centered=True,
+            font_color=GUIConstants.WARNING_COLOR if self.unverified_correction else GUIConstants.BODY_FONT_COLOR,
+        ))
+
+
+@dataclass
+class Codex32FingerprintEntryScreen(KeyboardScreen):
+    """Use the standard keyboard; the eighth hex character submits for comparison."""
+
+    def __post_init__(self):
+        self.title = _("Enter Fingerprint")
+        self.rows = 4
+        self.cols = 5
+        self.keys_charset = "0123456789abcdef"
+        self.return_after_n_chars = 8
+        self.any_button_selects = True
+        self.show_save_button = False
+        self.initial_value = ""
+        self.custom_additional_keys = [Keyboard.KEY_BACKSPACE_4]
+        super().__post_init__()
+
+
+@dataclass
+class Codex32StatusScreen(ButtonListScreen):
+    """Keep the standard status glyph large while fitting a compact message."""
+    text: str = ""
+    matched: bool = False
+    unverified_correction: bool = False
+    body_padding: int = GUIConstants.COMPONENT_PADDING
+
+    def __post_init__(self):
+        self.is_bottom_list = True
+        super().__post_init__()
+        top = self.top_nav.height + self.body_padding
+        height = self.buttons[0].screen_y - top - self.body_padding
+        icon = Icon(
+            icon_name=SeedSignerIconConstants.SUCCESS if self.matched else SeedSignerIconConstants.ERROR,
+            icon_color=GUIConstants.SUCCESS_COLOR if self.matched else GUIConstants.ERROR_COLOR,
+            icon_size=64,
+            screen_x=GUIConstants.EDGE_PADDING,
+        )
+        icon.screen_y = top + max(0, (height - icon.height) // 2)
+        self.components.append(icon)
+        text_x = icon.screen_x + icon.width + GUIConstants.COMPONENT_PADDING
+        self.components.append(TextArea(
+            text=self.text, screen_x=text_x, screen_y=top,
+            width=self.canvas_width - text_x - GUIConstants.EDGE_PADDING,
+            edge_padding=0, height=height, font_size=14,
+            font_color=GUIConstants.WARNING_COLOR if self.unverified_correction else GUIConstants.BODY_FONT_COLOR,
+            is_text_centered=True,
+        ))
+
+
+@dataclass
+class Codex32FingerprintResultScreen(Codex32StatusScreen):
+    """Display a recorded-fingerprint comparison and its verification limits."""
 
 
 @dataclass
@@ -453,13 +585,18 @@ class Codex32MasterSecretDisplayScreen(ButtonListScreen):
     rows: int = 3
     cols: int = 8
     boxes_label: str | None = None
+    highlight_indices: tuple[int, ...] = ()
+    display_title: str | None = None
+    display_back_button: bool = False
 
     def __post_init__(self):
-        if self.share_idx.lower() == "s":
+        if self.display_title:
+            self.title = self.display_title
+        elif self.share_idx.lower() == "s":
             self.title = _("Codex32 master seed")
         else:
             self.title = _("Codex32 Share {}").format(self.share_idx.upper())
-        self.show_back_button = False
+        self.show_back_button = self.display_back_button
         self.is_bottom_list = True
         super().__post_init__()
 
@@ -473,6 +610,8 @@ class Codex32MasterSecretDisplayScreen(ButtonListScreen):
             GUIConstants.FIXED_WIDTH_EMPHASIS_FONT_NAME,
             GUIConstants.get_body_font_size(),
         )
+        # Fit two-digit numbers plus '*' inside adjacent 24-box grid cells.
+        self.changed_num_font = Fonts.get_font(GUIConstants.FIXED_WIDTH_EMPHASIS_FONT_NAME, 14)
         self.number_gap = 2
         self.box_gap_x = max(2, int(GUIConstants.COMPONENT_PADDING / 2))
         self.group_gap_x = GUIConstants.COMPONENT_PADDING * 2
@@ -521,10 +660,13 @@ class Codex32MasterSecretDisplayScreen(ButtonListScreen):
                 if col >= int(self.cols / 2):
                     x += self.group_gap_x
                 rect = (x, row_boxes_y, x + self.box_width, row_boxes_y + self.box_height)
+                changed = index in self.highlight_indices
                 self.image_draw.rounded_rectangle(
                     rect,
-                    outline=GUIConstants.ACCENT_COLOR,
+                    outline=(GUIConstants.WARNING_COLOR if changed else
+                             GUIConstants.LABEL_FONT_COLOR if self.highlight_indices else GUIConstants.ACCENT_COLOR),
                     fill=GUIConstants.BUTTON_BACKGROUND_COLOR,
+                    width=2 if changed else 1,
                     radius=4,
                 )
 
@@ -533,9 +675,9 @@ class Codex32MasterSecretDisplayScreen(ButtonListScreen):
                         x + int(self.box_width / 2),
                         row_numbers_y + self.num_height,
                     ),
-                    str(index + 1),
+                    str(index + 1) + ("*" if changed else ""),
                     fill=GUIConstants.BODY_FONT_COLOR,
-                    font=self.box_num_font,
+                    font=self.changed_num_font if changed else self.box_num_font,
                     anchor="ms",
                 )
 
@@ -546,7 +688,8 @@ class Codex32MasterSecretDisplayScreen(ButtonListScreen):
                         row_boxes_y + self.box_height - int((self.box_height - self.char_height) / 2),
                     ),
                     char_text,
-                    fill=GUIConstants.ACCENT_COLOR,
+                    fill=(GUIConstants.WARNING_COLOR if changed else
+                          GUIConstants.BODY_FONT_COLOR if self.highlight_indices else GUIConstants.ACCENT_COLOR),
                     font=self.box_char_font,
                     anchor="ms",
                 )
@@ -573,12 +716,15 @@ class Codex32EntryScreen(BaseTopNavScreen):
     locked_prefix_len: int = 0
     review_mode: bool = False
     duplicate_warning_index: str | None = None
+    allow_unknown: bool = True
+    reentry_indices: tuple[int, ...] = ()
+    resolve_unknowns: bool = False
 
     def __post_init__(self):
         self.title = _("Share {}").format(self.share_num)
         super().__post_init__()
 
-        self.allowed_chars = CODEX32_CHARSET
+        self.allowed_chars = CODEX32_CHARSET + ("?" if self.allow_unknown and not self.resolve_unknowns else "")
         self.values = ["" for _ in range(self.total_len)]
         if self.share_collection:
             self.locked_prefix_len = len(self.prefill)
@@ -592,11 +738,15 @@ class Codex32EntryScreen(BaseTopNavScreen):
             for index, ch in enumerate(self.prefill.upper()[: self.locked_prefix_len]):
                 self.values[index] = ch
 
+        for index in self.reentry_indices:
+            if not self.locked_prefix_len <= index < self.total_len:
+                raise ValueError("Correction re-entry cannot include a locked box")
+            self.values[index] = ""
+
+        self.unknown_indices = tuple(i for i, value in enumerate(self.values) if value == "?") if self.resolve_unknowns else ()
         if self.share_data:
-            try:
-                self.cursor_index = self.values.index("")
-            except ValueError:
-                self.cursor_index = self.total_len - 1
+            pending = self._first_empty_index()
+            self.cursor_index = pending if pending < self.total_len else self.total_len - 1
         else:
             self.cursor_index = min(len(self.prefill), self.total_len)
         self.active_page = self.cursor_index // self.window_size
@@ -605,7 +755,7 @@ class Codex32EntryScreen(BaseTopNavScreen):
         if self.start_page is not None:
             self._set_page(self.start_page)
 
-        self.review_mode = self.share_data is not None
+        self.review_mode = self.share_data is not None and not self.reentry_indices and not self.resolve_unknowns
 
         self.box_num_font = Fonts.get_font(GUIConstants.FIXED_WIDTH_EMPHASIS_FONT_NAME, GUIConstants.get_body_font_size())
         self.box_char_font = Fonts.get_font(GUIConstants.FIXED_WIDTH_EMPHASIS_FONT_NAME, GUIConstants.get_button_font_size() + 6)
@@ -672,10 +822,13 @@ class Codex32EntryScreen(BaseTopNavScreen):
         )
         self.keyboard.set_selected_key(selected_letter=self.allowed_chars[0])
 
-        self.warning_flash_count = 0
+        self.warning_flash_count = 1 if self.reentry_indices else 0
+        if self.reentry_indices:
+            self.warning_message = self.warning_message_default
+        self.unknown_hint_shown = False
         self.warning_y = self.boxes_y + self.box_height + int(GUIConstants.COMPONENT_PADDING / 2)
 
-        self.focus_area = "boxes" if self.share_data else "keyboard"
+        self.focus_area = "boxes" if self.review_mode else "keyboard"
         self.top_nav_return_target = None
 
         self._update_top_nav_title()
@@ -693,6 +846,9 @@ class Codex32EntryScreen(BaseTopNavScreen):
 
 
     def _get_top_nav_title(self) -> str:
+        if self.reentry_indices:
+            start = self.active_page * self.window_size + 1
+            return _("Re-enter {}-{}").format(start, min(start + self.window_size - 1, self.total_len))
         share_label = _("Share {}").format(self.share_num)
         return f"{share_label}: {self._get_page_label()}"
 
@@ -722,14 +878,27 @@ class Codex32EntryScreen(BaseTopNavScreen):
             page_index = self.active_page
         page_start = page_index * self.window_size
         page_end = min(page_start + self.window_size, self.total_len)
-        return all(self.values[idx] for idx in range(page_start, page_end))
+        return all(not self._needs_input(idx) for idx in range(page_start, page_end))
+
+
+    def _needs_input(self, index: int) -> bool:
+        return not self.values[index] or (self.resolve_unknowns and self.values[index] == "?")
+
+
+    def _is_entry_complete(self) -> bool:
+        return self._first_empty_index() == self.total_len
 
 
     def _first_empty_index(self) -> int:
-        for index, value in enumerate(self.values):
-            if not value:
+        for index in range(self.total_len):
+            if self._needs_input(index):
                 return index
         return self.total_len
+
+
+    def _is_editable_index(self, index: int) -> bool:
+        return (self.locked_prefix_len <= index < self.total_len
+                and (not self.reentry_indices or index in self.reentry_indices))
 
 
     def _flash_warning(self, message: str | None = None):
@@ -769,6 +938,14 @@ class Codex32EntryScreen(BaseTopNavScreen):
         self.right_arrow.is_selected = self.focus_area == "right_arrow"
         self.right_arrow.render()
 
+        if self.resolve_unknowns:
+            for row in self.keyboard.keys:
+                for key in row:
+                    if key.code == Keyboard.KEY_OK["code"]:
+                        complete = self._is_entry_complete()
+                        if key.is_active != complete:
+                            key.is_active = complete
+                            key.render_key()
         page_start = self.active_page * self.window_size
         active_box = None
         if self.cursor_index <= self.total_len - 1:
@@ -793,7 +970,7 @@ class Codex32EntryScreen(BaseTopNavScreen):
                 radius=4,
             )
 
-            num_text = str(index + 1)
+            num_text = str(index + 1) + ("*" if index in self.reentry_indices else "")
             num_height = self._get_font_height(self.box_num_font)
             self.image_draw.text(
                 (
@@ -835,10 +1012,12 @@ class Codex32EntryScreen(BaseTopNavScreen):
         page_start = self.active_page * self.window_size
         page_end = page_start + self.window_size
         for idx in range(page_start, min(page_end, self.total_len)):
-            if not self.values[idx]:
+            if self._needs_input(idx):
                 self.cursor_index = idx
                 return
-        self.cursor_index = min(page_end - 1, self.total_len - 1)
+        affected = self.reentry_indices or self.unknown_indices
+        candidates = [i for i in affected if page_start <= i < page_end]
+        self.cursor_index = min(candidates) if candidates else min(page_end - 1, self.total_len - 1)
 
 
     def _flash_button(self, button: IconButton):
@@ -875,12 +1054,22 @@ class Codex32EntryScreen(BaseTopNavScreen):
         if self.active_page <= 0:
             return
         self._flash_button(self.left_arrow)
-        self._set_page(self.active_page - 1)
+        previous = self.active_page - 1
+        affected = self.reentry_indices or (self.unknown_indices if not self._is_entry_complete() else ())
+        if affected:
+            pages = [i // self.window_size for i in affected if i // self.window_size < self.active_page]
+            if not pages:
+                return
+            previous = max(pages)
+        self._set_page(previous)
         if self.review_mode and self.focus_area in ["boxes", "left_arrow", "right_arrow"]:
             self.focus_area = "boxes"
         else:
             self.focus_area = "keyboard"
         self.top_nav_return_target = None
+        if (self.reentry_indices or self.resolve_unknowns) and self.focus_area == "keyboard":
+            self.keyboard.get_selected_key().is_selected = True
+            self.keyboard.render_keys()
         self._render_boxes()
 
 
@@ -890,12 +1079,22 @@ class Codex32EntryScreen(BaseTopNavScreen):
         if not self._is_page_complete():
             return
         self._flash_button(self.right_arrow)
-        self._set_page(self.active_page + 1)
+        following = self.active_page + 1
+        affected = self.reentry_indices or (self.unknown_indices if not self._is_entry_complete() else ())
+        if affected:
+            pages = [i // self.window_size for i in affected if i // self.window_size > self.active_page]
+            if not pages:
+                return
+            following = min(pages)
+        self._set_page(following)
         if self.review_mode and self.focus_area in ["boxes", "left_arrow", "right_arrow"]:
             self.focus_area = "boxes"
         else:
             self.focus_area = "keyboard"
         self.top_nav_return_target = None
+        if (self.reentry_indices or self.resolve_unknowns) and self.focus_area == "keyboard":
+            self.keyboard.get_selected_key().is_selected = True
+            self.keyboard.render_keys()
         self._render_boxes()
 
 
@@ -1086,7 +1285,7 @@ class Codex32EntryScreen(BaseTopNavScreen):
                     continue
 
                 if input == HardwareButtonsConstants.KEY2:
-                    if all(self.values):
+                    if self._is_entry_complete():
                         return "".join(self.values)
                     continue
 
@@ -1104,6 +1303,15 @@ class Codex32EntryScreen(BaseTopNavScreen):
 
                 if ret_val in Keyboard.ADDITIONAL_KEYS and input == HardwareButtonsConstants.KEY_PRESS:
                     if ret_val == Keyboard.KEY_BACKSPACE["code"]:
+                        if self.reentry_indices:
+                            editable = [i for i in self.reentry_indices if i <= self.cursor_index]
+                            if editable:
+                                self.cursor_index = max(editable)
+                                self.values[self.cursor_index] = ""
+                                self._set_page(self.cursor_index // self.window_size)
+                                self._render_boxes()
+                            self.renderer.show_image()
+                            continue
                         if self.cursor_index < self.locked_prefix_len:
                             self._flash_warning(_("Header locked"))
                             self._render_boxes()
@@ -1131,18 +1339,19 @@ class Codex32EntryScreen(BaseTopNavScreen):
                             self.values[self.cursor_index] = ""
                             self._render_boxes()
                     elif ret_val == Keyboard.KEY_OK["code"]:
-                        if all(self.values):
+                        if self._is_entry_complete():
                             return "".join(self.values)
 
                 elif input == HardwareButtonsConstants.KEY_PRESS and ret_val in self.allowed_chars:
                     if self.cursor_index < self.total_len:
-                        if self.cursor_index < self.locked_prefix_len:
-                            self._flash_warning(_("Header locked"))
+                        if not self._is_editable_index(self.cursor_index):
+                            self._flash_warning(_("Box locked"))
                             self._render_boxes()
                             continue
                         if (
                             self.cursor_index == CODEX32_THRESHOLD_POSITION
                             and ret_val.upper() not in CODEX32_THRESHOLD_ALLOWED_CHARS
+                            and ret_val != "?"
                         ):
                             self._flash_warning(_("Box 4 must be a number"))
                             self._render_boxes()
@@ -1153,6 +1362,25 @@ class Codex32EntryScreen(BaseTopNavScreen):
                             self._render_boxes()
                             continue
                         self.values[self.cursor_index] = ret_val.upper()
+                        if ret_val == "?" and not self.unknown_hint_shown:
+                            self.unknown_hint_shown = True
+                            self._flash_warning(_("? marks an unreadable character"))
+                        if self.reentry_indices or self.resolve_unknowns:
+                            next_empty = self._first_empty_index()
+                            if next_empty == self.total_len:
+                                self.cursor_index = self.total_len
+                                self._select_keyboard_key(Keyboard.KEY_OK["code"])
+                                self.focus_area = "keyboard"
+                            elif next_empty // self.window_size != self.active_page:
+                                self.keyboard.get_selected_key().is_selected = False
+                                self.focus_area = "right_arrow" if next_empty // self.window_size > self.active_page else "left_arrow"
+                            else:
+                                self._set_page(self.active_page)
+                                self.focus_area = "keyboard"
+                            self.keyboard.render_keys()
+                            self._render_boxes()
+                            self.renderer.show_image()
+                            continue
                         if self.share_collection and self.cursor_index == CODEX32_SHARE_INDEX_POSITION:
                             share_idx = self.values[self.cursor_index].lower()
                             if share_idx in self.share_collection.share_indices:
@@ -1171,7 +1399,7 @@ class Codex32EntryScreen(BaseTopNavScreen):
                             selected_key.is_selected = False
                             selected_key.render_key()
                             self.focus_area = "right_arrow"
-                        if all(self.values) and (is_last_box or self.review_mode):
+                        if self._is_entry_complete() and is_last_box:
                             self.focus_area = "keyboard"
                             self._select_keyboard_key(Keyboard.KEY_OK["code"])
                             self.keyboard.render_keys()

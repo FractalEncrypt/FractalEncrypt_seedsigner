@@ -375,7 +375,7 @@ class TestSeedFlows(FlowTest):
 
     def test_codex32_master_share_success_back_routes_to_seed_discard(self):
         self.controller.storage.set_pending_seed(
-            Seed("abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about".split())
+            Codex32Seed(CODEX32_TEST_SEED_BYTES, codex32_master_share=CODEX32_TEST_SECRET)
         )
 
         self.run_sequence(
@@ -947,8 +947,9 @@ class TestSeedFlows(FlowTest):
         view = seed_views.Codex32MasterSecretDisplayView(page_index=0)
         view.controller.codex32_temp_share = CODEX32_TEST_SECRET
 
-        with patch.object(view, "run_screen", return_value=RET_CODE__BACK_BUTTON):
+        with patch.object(view, "run_screen", return_value=RET_CODE__BACK_BUTTON) as screen:
             view.run()
+            assert screen.call_args.kwargs["display_back_button"] is True
 
         assert view.controller.codex32_temp_share is None
 
@@ -957,8 +958,9 @@ class TestSeedFlows(FlowTest):
         view = seed_views.Codex32MasterSecretDisplayView(page_index=1)
         view.controller.codex32_temp_share = CODEX32_TEST_SECRET
 
-        with patch.object(view, "run_screen", return_value=RET_CODE__BACK_BUTTON):
+        with patch.object(view, "run_screen", return_value=RET_CODE__BACK_BUTTON) as screen:
             view.run()
+            assert screen.call_args.kwargs["display_back_button"] is True
 
         assert view.controller.codex32_temp_share == CODEX32_TEST_SECRET
 
