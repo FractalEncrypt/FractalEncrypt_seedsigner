@@ -1,5 +1,8 @@
 # Build an offline, airgapped Bitcoin signing device for less than $50!
 
+> **Experimental Codex32 error correction fork - public test seeds and testnet/regtest only. No real backups or funds.**
+> See [fork-specific build and tester instructions](docs/codex32_qr/Codex32_Experimental_Build_and_Test.md). Mainnet is not disabled by this build. This is not an official SeedSigner release.
+
 ![Image of SeedSigners in Mini Pill Enclosures](docs/img/Mini_Pill_Main_Photo.jpg)
 
 ---------------
@@ -354,7 +357,9 @@ Letter templates(8.5in * 11in):
 ---------------
 
 # Build from Source
-See the [SeedSigner OS repo](https://github.com/SeedSigner/seedsigner-os/) for instructions.
+For this experimental fork, use the [Codex32 build and tester guide](docs/codex32_qr/Codex32_Experimental_Build_and_Test.md), which pins the application and OS revisions and prepares the required version metadata. Maintainers can use the [experimental release checklist](docs/codex32_qr/Codex32_Experimental_Release_Checklist.md).
+
+The [SeedSigner OS repo](https://github.com/SeedSigner/seedsigner-os/) contains the general upstream instructions.
 
 # Developer Local Build Instructions
 Raspberry Pi OS is commonly used for development. See the [Raspberry Pi OS Build Instructions](docs/raspberry_pi_os_build_instructions.md)
