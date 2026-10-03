@@ -127,17 +127,133 @@ has not been established. The maintainer's staged image uses a different version
 file timestamp. A published release should supply its exact metadata and build
 receipt; equal application commits alone do not imply equal firmware hashes.
 
-## Safe tester smoke checks
+## Public BIP93 recovery vectors: text and QR
 
-Use only these public shares (threshold 2, identifier NAME):
+**Public test data: never fund these wallets.** These QRs are seed/share inputs
+for **SeedSigner**, not xpub exports for the coordinator. Each QR contains only
+one uppercase 48-character Codex32 string, with no label or URI wrapper. Vector
+3's lowercase text and uppercase QR encode the same share; mixed case is invalid.
+Click an image to open/download its full 296x296 PNG. Keep the white border when
+printing, and cover neighboring codes so the camera scans the intended share.
+
+These include all split shares and principal recovered secrets from the BIP93
+48-character vectors 1-3. Longer vectors 4-8 are outside this device guide's 48-box scope;
+alternative padding examples are omitted to keep the listed share sets unambiguous; see [BIP93's full test vectors](https://github.com/bitcoin/bips/blob/master/bip-0093.mediawiki#test-vectors).
+The [plain-text set](test_vectors/bip93_128bit_vectors.txt) and
+[payload/hash manifest](test_vectors/bip93_128bit_vectors.json) are downloadable.
+Fingerprints below are computed from the published seed bytes, not printed by BIP93.
+
+For the complete device walkthrough, see the [Codex32 User Flow Guide](Codex32_User_Flow_Guide.md).
+
+### Vector 2: k=2, identifier NAME
+
+Recover with A + C; D is the published additional share. Any two of A/C/D recover the same seed.
 
 ```text
-A: MS12NAMEA320ZYXWVUTSRQPNMLKJHGFEDCAXRPP870HKKQRM
-C: MS12NAMECACDEFGHJKLMNPQRSTUVWXYZ023FTR2GDZMPY6PN
-Expected recovered master fingerprint: fab6868a
+Share A: MS12NAMEA320ZYXWVUTSRQPNMLKJHGFEDCAXRPP870HKKQRM
+Share C: MS12NAMECACDEFGHJKLMNPQRSTUVWXYZ023FTR2GDZMPY6PN
+Share D: MS12NAMEDLL4F8JLH4E5VDVULDLFXU2JHDNLSM97XVENRXEG
 ```
 
-These are public test data; never send funds to their wallets.
+| Share A | Share C | Share D |
+| --- | --- | --- |
+| <img src="test_vectors/bip93-v2-share-a.png" width="222" alt="PUBLIC TEST ONLY: BIP93 vector 2, share A"> | <img src="test_vectors/bip93-v2-share-c.png" width="222" alt="PUBLIC TEST ONLY: BIP93 vector 2, share C"> | <img src="test_vectors/bip93-v2-share-d.png" width="222" alt="PUBLIC TEST ONLY: BIP93 vector 2, share D"> |
+
+Expected recovered S-share:
+
+```text
+MS12NAMES6XQGUZTTXKEQNJSJZV4JV3NZ5K3KWGSPHUH6EVW
+```
+
+Seed hex: `d1808e096b35b209ca12132b264662a5`
+
+Master fingerprint: **`fab6868a`**
+
+<details>
+<summary>Recovered S QR (direct-secret import; bypasses share recovery)</summary>
+
+<img src="test_vectors/bip93-v2-secret.png" width="222" alt="PUBLIC TEST ONLY: BIP93 vector 2, share S">
+
+</details>
+
+### Vector 3: k=3, identifier cash
+
+Start with a + c + d. Any three distinct shares from a/c/d/e/f recover the same seed.
+
+```text
+Share a: ms13casha320zyxwvutsrqpnmlkjhgfedca2a8d0zehn8a0t
+Share c: ms13cashcacdefghjklmnpqrstuvwxyz023949xq35my48dr
+Share d: ms13cashd0wsedstcdcts64cd7wvy4m90lm28w4ffupqs7rm
+Share e: ms13casheekgpemxzshcrmqhaydlp6yhms3ws7320xyxsar9
+Share f: ms13cashf8jh6sdrkpyrsp5ut94pj8ktehhw2hfvyrj48704
+```
+
+| Share A | Share C | Share D |
+| --- | --- | --- |
+| <img src="test_vectors/bip93-v3-share-a.png" width="222" alt="PUBLIC TEST ONLY: BIP93 vector 3, share A"> | <img src="test_vectors/bip93-v3-share-c.png" width="222" alt="PUBLIC TEST ONLY: BIP93 vector 3, share C"> | <img src="test_vectors/bip93-v3-share-d.png" width="222" alt="PUBLIC TEST ONLY: BIP93 vector 3, share D"> |
+
+| Share E | Share F |
+| --- | --- |
+| <img src="test_vectors/bip93-v3-share-e.png" width="222" alt="PUBLIC TEST ONLY: BIP93 vector 3, share E"> | <img src="test_vectors/bip93-v3-share-f.png" width="222" alt="PUBLIC TEST ONLY: BIP93 vector 3, share F"> |
+
+Expected recovered S-share:
+
+```text
+ms13cashsllhdmn9m42vcsamx24zrxgs3qqjzqud4m0d6nln
+```
+
+Seed hex: `ffeeddccbbaa99887766554433221100`
+
+Master fingerprint: **`1e50c111`**
+
+<details>
+<summary>Recovered S QR (direct-secret import; bypasses share recovery)</summary>
+
+<img src="test_vectors/bip93-v3-secret.png" width="222" alt="PUBLIC TEST ONLY: BIP93 vector 3, share S">
+
+</details>
+
+### Vector 1: standalone secret, k=0, identifier test
+
+Use this to test direct-secret loading, or as a third distinct signer for an
+optional 2-of-3 test wallet. No share collection is needed.
+
+```text
+ms10testsxxxxxxxxxxxxxxxxxxxxxxxxxx4nzvca9cmczlw
+```
+
+<img src="test_vectors/bip93-v1-secret.png" width="222" alt="PUBLIC TEST ONLY: BIP93 vector 1, share S">
+
+Seed hex: `318c6318c6318c6318c6318c6318c631`
+
+Master fingerprint: **`3f3521a6`**
+
+### Recover and load a signer
+
+1. Start a fresh share collection: **Load a Seed -> Scan Codex32 Share** (or
+   **Enter Codex32 Seed** for an EC trial). Scan/enter vector 2 A, then C; or
+   vector 3 a, then c, then d. Do not mix NAME and cash. Start a new collection
+   between vectors, rather than trying to append a different seed's shares.
+2. At **Recovered Seed**, compare the fingerprint to the public expectation
+   above. **Check Fingerprint -> Enter Fingerprint** exercises exact entry;
+   visual comparison is also available. Keep any reconstruction caveat visible.
+3. To check the expected S text, choose **More Options -> Show Master Seed**
+   and review both numbered pages. Return to the recovered-seed screen.
+4. Choose **Load Seed**, then **Finalize** if prompted. This loads one signing
+   seed. Keep track of it by fingerprint: NAME `fab6868a`, cash `1e50c111`.
+5. Repeat for the other vector when preparing multisig. You can reuse one physical
+   SeedSigner: recover/export one signer at a time. Reload its shares when needed.
+
+The hex above is the BIP32 seed itself, not BIP39 mnemonic entropy. Do not
+convert it into BIP39 words or import a backup/share QR into the coordinator's
+software-wallet seed importer; those paths either change the wallet or put the
+secret into the coordinator. The intended flow exports public account keys only.
+
+## Safe tester smoke checks
+
+Use vector 2 A/C above. Manual entry exercises Codex32 correction; the clean QRs
+exercise scanning and threshold recovery. Invalid QR payloads are rejected rather
+than offered Codex32 character corrections.
 
 - Recover clean A + C and compare the fingerprint.
 - Enter A with one deliberate substitution. Review `entered -> proposed`, check
@@ -163,3 +279,141 @@ authentication. Verify policy and known addresses when testing wallet integratio
 Report the application revision, board, display/language, test input positions,
 expected/actual behavior, and photographs using public test data. Do not post
 private shares, real fingerprints, xpubs, or wallet details with a bug report.
+
+
+## Export public keys and create coordinator test wallets
+
+Codex32's k-of-N threshold recovers **one seed**. It is independent of a wallet's
+m-of-n signature policy. A and C from NAME are not two cosigners: they recover the
+same signer. For the following 2-of-2 multisig, use NAME and cash as distinct
+signers; optionally add vector 1's `3f3521a6` for a 2-of-3 variant.
+
+### Shared setup and SeedSigner export
+
+1. Set SeedSigner's **Settings -> Advanced -> Bitcoin network -> Testnet** (or Regtest when supported
+   by your chosen coordinator/setup). Set the same network in the coordinator
+   before creating the wallet. Testnet/regtest coin-type derivation is `1'`;
+   addresses depend on the selected network. The references here use Testnet.
+2. Load the recovered seed as described above. Enable the needed **Single Sig**
+   and **Multisig** options in Settings if either menu is hidden. Select
+   **Native Segwit** and account 0 for this test.
+3. From the loaded seed, choose **Export Xpub -> Single Sig -> Native Segwit**
+   for a single-sig wallet, or **Export Xpub -> Multisig -> Native Segwit** for
+   a multisig cosigner. Export these separately: their account paths differ.
+4. At **Xpub QR Format**, use **Animated (default)** for a compatible UR account
+   scanner, such as Sparrow's SeedSigner importer. Current menus use format
+   names, not Sparrow/Nunchuk buttons. If your coordinator expects the static
+   public-key format, choose **Static** instead. Keep all animated frames visible
+   until the coordinator completes its scan; lower QR density if needed.
+5. Read the privacy warning, check the displayed fingerprint/path/key details,
+   then choose **Export Xpub**. The coordinator scans this device-displayed QR,
+   not the seed/share QRs above. An xpub export contains public key information.
+
+| Wallet test | Script | Account path (Testnet) |
+| --- | --- | --- |
+| Single Sig, Native Segwit | P2WPKH | `m/84'/1'/0'` |
+| Multisig, Native Segwit | P2WSH | `m/48'/1'/0'/2'` |
+
+`h` and `'` both mean hardened derivation. Coordinators may show tpub/vpub/Vpub
+encodings of account keys; the prefix alone does not determine the whole wallet
+policy. Preserve the fingerprint, full origin path, account, script and network.
+The [computed reference file](test_vectors/testnet_wallet_references.json)
+includes normalized tpubs and exact first receive/change addresses. These wallet
+references are computed locally, not additional published BIP93 vectors.
+
+### Sparrow: single-sig
+
+1. Start Sparrow on Testnet and confirm its network indicator. Create a new
+   wallet named `Codex32 NAME single-sig TEST` (**File -> New Wallet**).
+2. Choose **Single Signature**, **Native Segwit (P2WPKH)**. In its keystore,
+   choose **Airgapped Hardware Wallet -> SeedSigner -> Scan**.
+3. Scan NAME's **Single Sig** xpub export from SeedSigner. Check fingerprint
+   `fab6868a` and path `m/84'/1'/0'`. Choose **Apply** and finish the wallet setup.
+4. Compare receive address 0 and change address 0 to the references below and to
+   SeedSigner's **Address Explorer**. Save/export the wallet configuration.
+   The coordinator has a watch-only keystore; signing still happens on SeedSigner.
+
+Repeat with cash (`1e50c111`) if you want a second single-sig test.
+See the [official SeedSigner/Sparrow export walkthrough](https://github.com/SeedSigner/seedsigner/blob/dev/docs/dice_verification.md#create-new-wallet-from-seed-in-sparrow-wallet-to-see-xpubzpub-and-addresses)
+and [Sparrow's keystore documentation](https://sparrowwallet.com/docs/quick-start.html).
+Use the Codex32 recovery steps here in place of that walkthrough's seed creation.
+
+### Sparrow: 2-of-2 multisig
+
+1. Create a separate wallet named `Codex32 NAME+cash 2of2 TEST` and choose
+   **Multi Signature**, **2 of 2**, **Native Segwit (P2WSH)**.
+2. In keystore 1, choose **Airgapped Hardware Wallet -> SeedSigner -> Scan**.
+   Scan NAME's **Multisig** xpub export; check `fab6868a` and `m/48'/1'/0'/2'`.
+3. In keystore 2, scan cash's **Multisig** export; check `1e50c111` and the same
+   path. Verify the two keys are distinct. Choose **Apply** to create the wallet.
+4. Save the wallet file and export its descriptor/configuration. Retain both
+   cosigner fingerprints, origin paths, xpubs, sorted key policy, threshold,
+   script type and network. A fingerprint or the seeds alone does not specify
+   the complete multisig wallet.
+5. In Sparrow use **File -> Export Wallet -> Output Descriptor -> Show QR**
+   (or the SeedSigner-compatible policy export offered by that version). Scan
+   that public wallet-policy QR into SeedSigner when prompted by **Address
+   Explorer** or address verification. Compare first receive/change addresses. Do not scan a
+   PSBT where a wallet-policy QR is expected, or vice versa.
+
+For the optional 2-of-3 variant, add vector 1's separate multisig export as a
+third keystore, then select 2-of-3. Its addresses differ from the 2-of-2 references.
+
+### Nunchuk (or another coordinator)
+
+Nunchuk's desktop/mobile menu labels differ by release. Use the public-key /
+air-gapped signer import, not a software-key seed import. Start by switching its
+[network settings to Testnet](https://resources.nunchuk.io/getting-started/networksettings/).
+If the installed version lacks the required test network or QR format, use a
+compatible test build/coordinator; do not switch this exercise to mainnet.
+
+1. Use **Add Key** and the air-gapped/public-key import workflow. Name the signer
+   `Codex32 NAME TEST`, scan the appropriate SeedSigner xpub export, and review
+   `fab6868a`, script, network and origin path. Use the QR format accepted by that Nunchuk version: animated export needs a
+   compatible UR account scanner; try **Static** only where its import supports
+   origin/path/account-key text. If QR import is unavailable but manual public
+   signer import exists, enter the device-exported fingerprint, path and account
+   key there, and record the QR interoperability limitation.
+2. For [single-sig](https://resources.nunchuk.io/getting-started/createsinglesigwallet/),
+   create a wallet with that one single-sig account key and one required signature.
+   Review the wallet and create it. Save the wallet/BSMS configuration.
+3. For [multisig](https://resources.nunchuk.io/getting-started/singledevicemultisig/),
+   import two distinct **Multisig** account keys, NAME and cash, with the BIP48
+   paths above. Create a wallet, assign both keys, require two signatures, review
+   Native Segwit and the entire policy, then create and back up its BSMS/config.
+4. Compare addresses against the same policy references below. For another
+   coordinator, use its corresponding watch-only xpub/signer import and preserve
+   all origin/policy fields. If it rejects a format, record the exact version and
+   error instead of substituting secret imports or changing derivation blindly.
+
+These coordinator instructions are based on application code and official docs.
+The new guide has not been exercised end-to-end in every coordinator/version;
+please report the version, QR format, network and any interoperability issue.
+
+[Sparrow's descriptor exporter](https://github.com/sparrowwallet/sparrow/blob/master/src/main/java/com/sparrowwallet/sparrow/io/Descriptor.java)
+provides a scannable public wallet-policy export.
+
+### Address and repeat-recovery checks
+
+| Testnet wallet | Receive address 0 | Change address 0 |
+| --- | --- | --- |
+| Vector 2 single-sig | `tb1qd8lkxcn54rt5jhdwlaawvfgc97zyun3as4p3lj` | `tb1qezqrac2z7hnhwgex5cqg527em89fypxpu2qhad` |
+| Vector 3 single-sig | `tb1qcnfn2zgjjgavcl6svj0gt6undzd64n2q04p3pw` | `tb1q2zvanfeh0sw8uuqmz5qe2kmaektsrvtc2zw8c8` |
+| NAME+cash 2-of-2 sortedmulti | `tb1q9p4mnuuct36kd5mzcyxyfrl9jlu6h40zllffnl3pjqnm97ql2wsswat9fd` | `tb1q8fx9axn6pas9hdjhk5v38zcxku5vgkunpsnqugtv0epxp4ad3vlsumh0em` |
+
+Addresses are for account 0 and the exact policies above. An empty balance is
+expected and is not a recovery-integrity test. Match the descriptor/account key
+and known addresses, not merely an eight-character fingerprint or lack of funds.
+
+After saving the coordinator wallet and policy, power down SeedSigner. Recover
+from the same public share set again (for example use a corrected manual entry
+on the second run), compare the fingerprint, re-export the same account, and
+verify the same account key and addresses. This checks repeat recovery across a
+power cycle. Policy export/re-import should also reproduce those addresses.
+
+Signing is a separate optional test: in a coordinator on your disposable regtest
+setup, create a PSBT, scan it with the appropriate recovered seed, review outputs
+and change, sign, and scan the signed PSBT back into the coordinator. A 2-of-2
+wallet needs both distinct signers; one public test seed can sign only its own
+cosigner inputs. The funded/signing test is not required to confirm key export
+or address agreement, and these published keys must never protect real funds.

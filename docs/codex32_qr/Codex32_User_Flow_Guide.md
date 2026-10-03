@@ -152,8 +152,12 @@ Once `k` valid compatible shares are present, SeedSigner recovers/validates `S` 
 
 User can then:
 
-1. **Show Codex32 Key** -> warning -> two-page master display (boxes 1-24 then 25-48)
-2. **Load seed** -> continue to finalize and load into SeedSigner
+1. **Check Fingerprint** -> enter a previously recorded fingerprint, compare visually, or continue without a record.
+2. **Load Seed** -> continue to finalize and load into SeedSigner.
+3. **More Options -> Show Master Seed** -> warning -> two-page master display (boxes 1-24 then 25-48). More Options also offers entered-share review where available.
+
+For public recovery QR vectors and coordinator single-sig/multisig testing, see the
+[experimental build and test guide](Codex32_Experimental_Build_and_Test.md#public-bip93-recovery-vectors-text-and-qr).
 
 ---
 
