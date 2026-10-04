@@ -86,7 +86,7 @@ from seedsigner.models.seed import Seed, Codex32Seed
 from seedsigner.models.settings import Settings
 from seedsigner.models.settings_definition import SettingsConstants, SettingsDefinition
 from seedsigner.views import (MainMenuView, PowerOptionsView, RestartView, RemoveMicroSDWarningView, NotYetImplementedView, UnhandledExceptionView, 
-    psbt_views, seed_views, settings_views, tools_views, scan_views)
+    psbt_views, seed_views, settings_views, tools_views, scan_views, codex32_views)
 from seedsigner.views.screensaver import OpeningSplashView
 from seedsigner.views.view import CameraConnectionErrorView, NetworkMismatchErrorView, OptionDisabledView, PowerOffView
 
@@ -480,6 +480,33 @@ def generate_screenshots(locale):
                     seed_views.Codex32MasterShareSuccessView,
                     dict(show_options=True),
                     screenshot_name="Codex32MasterShareSuccessView_options",
+                    mock_context_manager=mock_codex32_pending_seed,
+                ),
+                ScreenshotConfig(
+                    codex32_views.Codex32FingerprintResultView,
+                    dict(recorded_fingerprint=codex32_seed.get_fingerprint(SettingsConstants.MAINNET).lower()),
+                    screenshot_name="Codex32FingerprintResultView_match",
+                    mock_context_manager=mock_codex32_pending_seed,
+                ),
+                ScreenshotConfig(
+                    codex32_views.Codex32FingerprintResultView,
+                    dict(
+                        corrections={"s": (codex32_reconstruction, True)},
+                        recorded_fingerprint=codex32_seed.get_fingerprint(SettingsConstants.MAINNET).lower(),
+                    ),
+                    screenshot_name="Codex32FingerprintResultView_reconstructed_match",
+                    mock_context_manager=mock_codex32_pending_seed,
+                ),
+                ScreenshotConfig(
+                    codex32_views.Codex32FingerprintResultView,
+                    dict(visual_match=True),
+                    screenshot_name="Codex32FingerprintResultView_visual_match",
+                    mock_context_manager=mock_codex32_pending_seed,
+                ),
+                ScreenshotConfig(
+                    codex32_views.Codex32FingerprintResultView,
+                    dict(recorded_fingerprint="00000000"),
+                    screenshot_name="Codex32FingerprintResultView_mismatch",
                     mock_context_manager=mock_codex32_pending_seed,
                 ),
                 ScreenshotConfig(seed_views.Codex32MasterSecretWarningView, dict(share_data=CODEX32_MASTER_SHARE), screenshot_name="Codex32MasterSecretWarningView"),

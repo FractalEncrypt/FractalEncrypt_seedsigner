@@ -413,6 +413,8 @@ class Codex32FingerprintVisualView(Codex32FingerprintCheckView):
 
 
 class Codex32FingerprintResultView(Codex32FingerprintCheckView):
+    LOAD = ButtonOption("Load Seed")
+    MORE = ButtonOption("More Options")
     CONTINUE = ButtonOption("Return to Fingerprint")
     RETRY = ButtonOption("Try Again")
     REVIEW = ButtonOption("Review Entered Shares")
@@ -434,7 +436,7 @@ class Codex32FingerprintResultView(Codex32FingerprintCheckView):
             text = _("Saved fingerprint matches (32-bit check). Verify the wallet policy and a known address.")
             if any(record[1] for record in self.corrections.values()):
                 text = _("32-bit fingerprint match. Share repairs unverified. Check wallet policy and a known address.")
-            buttons = [self.CONTINUE, self.REVIEW]
+            buttons = [self.LOAD, self.MORE]
             title = _("Record Matches")
         else:
             text = (_("Record: {}\nSeed: {}\nReview shares.").format(recorded, fingerprint)
@@ -447,6 +449,15 @@ class Codex32FingerprintResultView(Codex32FingerprintCheckView):
         )
         if selected == RET_CODE__BACK_BUTTON:
             return Destination(Codex32FingerprintCheckView, self.navigation_args(), skip_current_view=True)
+        if matched and buttons[selected] == self.LOAD:
+            from .seed_views import SeedFinalizeView
+            self.controller.codex32_temp_share = None
+            self.corrections.clear()
+            return Destination(SeedFinalizeView, clear_history=True)
+        if matched and buttons[selected] == self.MORE:
+            destination = self.return_to_fingerprint("entered" if valid_record else "visual")
+            destination.view_args["show_options"] = True
+            return destination
         if buttons[selected] == self.REVIEW:
             return Destination(Codex32RecoveryReviewView, {"corrections": self.corrections}, skip_current_view=True)
         if buttons[selected] == self.RETRY:

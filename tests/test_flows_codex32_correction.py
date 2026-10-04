@@ -258,10 +258,11 @@ class TestCorrectionBoundaries(BaseTest):
 
 
 class TestFingerprintComparison(BaseTest):
-    def recover(self):
+    def recover(self, backup_warning=False):
         seed = Codex32Seed(model.parse_codex32_share(SECRET).data, codex32_master_share=SECRET,
                            codex32_export_shares={"a": SHARE_A, "c": SHARE_C},
-                           codex32_share_sources={"a": "entered", "c": "entered"})
+                           codex32_share_sources={"a": "entered", "c": "entered"},
+                           codex32_backup_warning=backup_warning)
         self.controller.storage.set_pending_seed(seed)
         return seed, {"a": (suggest_correction(DAMAGED), True)}
 
@@ -285,7 +286,7 @@ class TestFingerprintComparison(BaseTest):
         entry.run_screen = Mock(return_value="FAB6868A")
         destination = entry.run()
         result = destination.View_cls(**destination.view_args)
-        result.run_screen = Mock(return_value=0)
+        result.run_screen = Mock(return_value=1)
         returned = result.run()
         assert result.run_screen.call_args.kwargs["title"] == "Record Matches"
         assert returned.view_args["fingerprint_check"] == ("entered", "fab6868a")
@@ -293,10 +294,58 @@ class TestFingerprintComparison(BaseTest):
         assert self.controller.storage.pending_seed is seed
         assert seed.codex32_share_sources == {"a": "entered", "c": "entered"}
         success = returned.View_cls(**returned.view_args)
-        success.run_screen = Mock(return_value=0)
-        assert success.run().View_cls == views.Codex32FingerprintCheckView
-        assert success.run_screen.call_args.kwargs["fingerprint_check"] == "entered"
-        assert success.run_screen.call_args.kwargs["unverified_correction"] is True
+        assert returned.view_args["show_options"] is True
+        success.run_screen = Mock(return_value=2)
+        returned = success.run()
+        assert [button.button_label for button in success.run_screen.call_args.kwargs["button_data"]] == [
+            "Show Master Seed", "Review Entered Shares", "Return to Fingerprint"]
+        assert returned.view_args["fingerprint_check"] == ("entered", "fab6868a")
+        fingerprint = returned.View_cls(**returned.view_args)
+        fingerprint.run_screen = Mock(return_value=0)
+        assert fingerprint.run().View_cls == views.Codex32FingerprintCheckView
+        assert fingerprint.run_screen.call_args.kwargs["fingerprint_check"] == "entered"
+        assert fingerprint.run_screen.call_args.kwargs["unverified_correction"] is True
+
+    def test_matching_record_can_load_seed_without_losing_backup_provenance(self):
+        for kwargs in ({"recorded_fingerprint": "fab6868a"}, {"visual_match": True}):
+            seed, corrections = self.recover(backup_warning=True)
+            original_sources = seed.codex32_share_sources.copy()
+            self.controller.codex32_temp_share = SECRET
+            result = views.Codex32FingerprintResultView(corrections, **kwargs)
+            result.run_screen = Mock(return_value=0)
+            destination = result.run()
+            assert [b.button_label for b in result.run_screen.call_args.kwargs["button_data"]] == ["Load Seed", "More Options"]
+            assert destination.View_cls == seed_views.SeedFinalizeView
+            assert destination.clear_history is True
+            assert self.controller.storage.pending_seed is seed
+            assert self.controller.codex32_temp_share is None
+            assert corrections == {}
+            assert seed.codex32_share_sources == original_sources
+            assert seed.codex32_backup_warning is True
+            assert seed.codex32_export_shares == {"a": SHARE_A, "c": SHARE_C}
+
+    def test_match_more_options_reuses_existing_menu_and_preserves_comparison(self):
+        for kwargs, method in (({"recorded_fingerprint": "fab6868a"}, "entered"),
+                               ({"visual_match": True}, "visual")):
+            for selection, target in ((0, seed_views.Codex32MasterSecretWarningView),
+                                      (1, views.Codex32RecoveryReviewView),
+                                      (2, seed_views.Codex32MasterShareSuccessView),
+                                      (RET_CODE__BACK_BUTTON, seed_views.Codex32MasterShareSuccessView)):
+                seed, corrections = self.recover()
+                result = views.Codex32FingerprintResultView(corrections, **kwargs)
+                result.run_screen = Mock(return_value=1)
+                destination = result.run()
+                assert destination.view_args["show_options"] is True
+                assert destination.view_args["fingerprint_check"] == (method, "fab6868a")
+                options = destination.View_cls(**destination.view_args)
+                options.run_screen = Mock(return_value=selection)
+                returned = options.run()
+                assert returned.View_cls == target
+                if selection in (2, RET_CODE__BACK_BUTTON):
+                    assert returned.view_args["fingerprint_check"] == (method, "fab6868a")
+                    assert returned.view_args["corrections"] is corrections
+                assert self.controller.storage.pending_seed is seed
+                assert corrections["a"][1] is True
 
     def test_partial_overlong_or_non_hex_entry_cannot_match(self):
         self.recover()
@@ -327,7 +376,7 @@ class TestFingerprintComparison(BaseTest):
         visual.run_screen = Mock(return_value=0)
         destination = visual.run()
         result = destination.View_cls(**destination.view_args)
-        result.run_screen = Mock(return_value=0)
+        result.run_screen = Mock(return_value=1)
         assert result.run().view_args["fingerprint_check"] == ("visual", "fab6868a")
         no_record = views.Codex32FingerprintNoRecordView(corrections)
         no_record.run_screen = Mock(return_value=0)

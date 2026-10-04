@@ -114,6 +114,11 @@ check menu, keyboard or visual comparison preserves the previous marker; a new
 mismatch or an explicit no-record choice clears it. They are never
 saved to disk or included in exports.
 
+After a typed or visual fingerprint match, **Record Matches** offers **Load Seed**
+and **More Options**. **Load Seed** continues to the usual seed-finalization screen.
+A match is a 32-bit error check; the wallet-policy and known-address reminder stays
+visible. **More Options** preserves the comparison and correction provenance.
+
 **More Options** holds **Show Master Seed**, **Review Entered Shares**, and
 **Return to Fingerprint**. **Review Entered Shares** returns to the
 original entry for a corrected share, or to the accepted text for a clean share.

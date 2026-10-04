@@ -278,7 +278,7 @@ class TestCorrectionEntryScreen(BaseTest):
     def test_fingerprint_results_use_standard_colored_status_icons_and_fit(self):
         from seedsigner.gui.components import SeedSignerIconConstants
         for matched, text, buttons in [
-            (True, "32-bit fingerprint match. Share repairs unverified. Check wallet policy and a known address.", [ButtonOption("Return to Fingerprint"), ButtonOption("Review Entered Shares")]),
+            (True, "32-bit fingerprint match. Share repairs unverified. Check wallet policy and a known address.", [ButtonOption("Load Seed"), ButtonOption("More Options")]),
             (False, "Record: fab6868b\nSeed: fab6868a\nReview shares.", [ButtonOption("Try Again"), ButtonOption("Review Entered Shares"), ButtonOption("Return to Fingerprint")]),
         ]:
             screen = self.build_screen(Codex32FingerprintResultScreen, title="Record Matches" if matched else "Record Mismatch", text=text, matched=matched, unverified_correction=True, button_data=buttons)
