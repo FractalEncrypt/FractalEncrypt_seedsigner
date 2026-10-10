@@ -1,0 +1,902 @@
+{
+  "release_candidate": "v0.8.7-codex32-alpha.0.1",
+  "release_title": "SeedSigner Codex32 Alpha 0.1",
+  "planned_tag_target": "87a4be4de12e24ce1c7f9e0bfcd6b78a535d3537",
+  "tag_created": false,
+  "github_release_created": false,
+  "prerelease_required": true,
+  "make_latest": false,
+  "runtime_application_commit": "87a4be4de12e24ce1c7f9e0bfcd6b78a535d3537",
+  "application_repository": "https://github.com/FractalEncrypt/FractalEncrypt_seedsigner.git",
+  "upstream_dev_commit_at_merge": "b2199c68b475eab0035b863b156f149757a1b4a6",
+  "os_repository": "https://github.com/SeedSigner/seedsigner-os.git",
+  "os_commit": "d13859392660fe512a753bc14ecd0edc86c35510",
+  "buildroot_commit": "bf2a2858aa675a14b60f1f9142c65b32652609c1",
+  "tested_board": "Pi Zero 1.3 (--pi0)",
+  "display": "SeedSigner Plus: operator reports testing with 240x240 and 320x240 settings during development; final focused navigation check at 240x240",
+  "build_arguments": "--pi0 --skip-repo --app-branch=codex32-ec-ux7-test",
+  "version_json": {
+    "name": "v0.8.7-Codex32-EC-UX7-test",
+    "fork": "FractalEncrypt",
+    "short_commit_hash": "87a4be4",
+    "timestamp": "2026-10-10T16:58:39+00:00"
+  },
+  "docker_builder_image_id": "sha256:c67fd2eaa3a88ee470b29b0756e4884060b041c97cf929d15f7996ff2aec7aa4",
+  "build_finished_utc": "2026-10-10T17:56:58.416695676Z",
+  "builder_exit_code": 0,
+  "image": {
+    "filename": "seedsigner_os.codex32-alpha-0.1.pi0.img",
+    "original_build_filename": "seedsigner_os.codex32-ec-ux7-test.pi0.img",
+    "bytes": 52428800,
+    "sha256": "5e7d16e84705211c59c0e8739722d7987fc93d490ec619b32c3db62e2e9df55a",
+    "renamed_without_content_change": true
+  },
+  "image_contents_verification": {
+    "method": "FAT16 kernel extracted without mounting; embedded initramfs parsed from kernel gzip streams; all 150 present prepared overlay files matched. One .git metadata file omitted by the builder.",
+    "embedded_version_checked": true,
+    "overlay_files_verified": 150,
+    "omitted_git_metadata": [
+      "opt/src/seedsigner/resources/seedsigner-translations/.git"
+    ],
+    "zimage_sha256": "d10825fc874dee7921d36f0f72267ea957a715abf21d172cb4f3b1b3e6a8a9f6"
+  },
+  "validation": {
+    "normal_tests": 616,
+    "optimized_correction_flow_entry_tests": 183,
+    "ci_run_url": "https://github.com/FractalEncrypt/FractalEncrypt_seedsigner/actions/runs/38069923034",
+    "ci_head_commit": "323c8efcd2b88c9b9871160cf77449650fa182aa",
+    "ci_python_versions": [
+      "3.10",
+      "3.12"
+    ],
+    "ci_conclusion": "success",
+    "native_render_dimensions": [
+      [
+        240,
+        240
+      ],
+      [
+        240,
+        320
+      ]
+    ],
+    "native_screens_unchanged_from_review": 76,
+    "locale_generation_runs_on_layout_review_candidate": 22,
+    "ux6_physical_checks": "Four focused checks passed per operator at 240x240",
+    "ux7_physical_check": "Focused Keep Saved Share navigation check passed per operator",
+    "device_completion_date": "2026-10-10",
+    "photo_evidence_scope": "Public final recovered fingerprint fab6868a only; intermediate navigation results operator-reported",
+    "signed_synthetic_psbt_signature_verified_on_runtime": "528031b63e4f8805e7f73fb3bb5355f630f53e86 (UX6)",
+    "signed_psbt_rerun_on_ux7": false,
+    "signing_source_and_models_unchanged_between_ux6_ux7": true
+  },
+  "reproducible_firmware_build_established": false,
+  "maintainer_signature_present": false,
+  "staged_input_scope": "155 selected prepared overlay/builder inputs, including generated fonts/translations/version metadata; this is not a complete SBOM or clean full build-tree claim. 150 overlay files verified inside shipped kernel; one Git metadata file omitted.",
+  "staged_inputs": [
+    {
+      "path": "Dockerfile",
+      "bytes": 685,
+      "sha256": "4353143060b59db3de90f090dc78591c17a0e2e409ba494cb5e42311d89ec80f"
+    },
+    {
+      "path": "docker-compose.yml",
+      "bytes": 265,
+      "sha256": "75f5d0406a700910a6cfaa1dbe08c47a8534fc688c80cc65287ca638d66d3c67"
+    },
+    {
+      "path": "opt/build.sh",
+      "bytes": 11316,
+      "sha256": "2f85c8f5c69a45ab00ab59ef66fb8d362bd1aae4ebda967f51e79eac8b3b0931"
+    },
+    {
+      "path": "opt/pi0/configs/pi0_defconfig",
+      "bytes": 2191,
+      "sha256": "3c85e8d0b3ac14f16f80e3ffb6ecca2467b2ec90b83ce55226fe34957e7d25e1"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/requirements.txt",
+      "bytes": 157,
+      "sha256": "d4e9c1f82402742b0ef11eed5c2a725a649e817d72c0171f2e02cd5bb982411d"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/main.py",
+      "bytes": 1593,
+      "sha256": "1c56f20156ea9aa97d1a76df9656f3b9e686ca938ea3d81a87c07027afaaa739"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/__init__.py",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/controller.py",
+      "bytes": 19516,
+      "sha256": "079a102b1be1eb4c832b2a158b01765a88921f7901697f52188d13411dd7f171"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/gui/__init__.py",
+      "bytes": 30,
+      "sha256": "dbcabb7d019bd42ebf2861fff87f66cbd004a652b0f5ea912505bc3b4dbe3258"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/gui/components.py",
+      "bytes": 81535,
+      "sha256": "a0db94d8409acaaa4c5a79cbaca22c4f27e01570443b15d295a18d38e7d4691f"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/gui/keyboard.py",
+      "bytes": 26375,
+      "sha256": "520a76f8716e46bae8509690dfb15cbfd91eb3208db5681ee5ea13b79a93eaef"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/gui/renderer.py",
+      "bytes": 4627,
+      "sha256": "fb6abf81cd10473f9c174549e6f9f2f524996e31139fa736d2b5e2a316c39b7e"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/gui/screens/__init__.py",
+      "bytes": 21,
+      "sha256": "a5496c911fdee0f9907e2d37723907443f11db5d81eb9559a8a527aba51a4b9f"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/gui/screens/psbt_screens.py",
+      "bytes": 34308,
+      "sha256": "0f30b41afb2d32d453cb63cc8ad95b877d3f36d70bfdcacf0226215bcea8b44e"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/gui/screens/scan_screens.py",
+      "bytes": 14692,
+      "sha256": "6811f8f40640f25a20b56e1e0bdbc8dee42b701f0426f69c2f5d2e408e0b7e9a"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/gui/screens/screen.py",
+      "bytes": 56896,
+      "sha256": "7d0c28a13aa3a84bfa49d42da0fc47b111b0ca5f908d8f7dd9d24ae58e30d61d"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/gui/screens/seed_screens.py",
+      "bytes": 115833,
+      "sha256": "2aef18d42b8fc9ba46a941c6ffab04fb205227dab96d81d30f546f9d1cabaedb"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/gui/screens/settings_screens.py",
+      "bytes": 19955,
+      "sha256": "4dbe7105cc728e17d331c1153a798f27e8e95e19455a6e13b46223bdef60dae2"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/gui/screens/tools_screens.py",
+      "bytes": 31920,
+      "sha256": "faa0d8541571fe76d59f0284468a97aa2765f54d30fa89f38a7ef569fb19c23a"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/gui/toast.py",
+      "bytes": 13536,
+      "sha256": "e4b8824ee9d26d1cbd3c0b54ba52a3feb3a612ae24da7e58ab0880531ae12396"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/hardware/__init__.py",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/hardware/buttons.py",
+      "bytes": 8136,
+      "sha256": "3d24e084b38ae9b3bee7d6b6658ee53c4acdba4804728f1f231fd07b8e5f9477"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/hardware/camera.py",
+      "bytes": 3341,
+      "sha256": "53e18d31272041e7597bec9a79c1b8898512d1634afb2a2fda3facb9a0bee698"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/hardware/displays/ST7789.py",
+      "bytes": 5177,
+      "sha256": "ca22c70e4ce860b99628cc8a1d142d82f56746a990b44d529a7d464d5408a437"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/hardware/displays/__init__.py",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/hardware/displays/display_driver.py",
+      "bytes": 3160,
+      "sha256": "1ca998f546a99200a8de655b9891f24292936f5e664fe4ab481a54ae96207c6f"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/hardware/displays/ili9341.py",
+      "bytes": 12942,
+      "sha256": "51cf78f0a8b5be781edddb4b09190d4d588d98f9c23bc4118d060f27828689fd"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/hardware/displays/st7789_mpy.py",
+      "bytes": 34004,
+      "sha256": "77b22390b9ae65211642ac15087ce59193dd25d24c6a4cea815fc6f3850d5f74"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/hardware/microsd.py",
+      "bytes": 2464,
+      "sha256": "89a466589e4d0578fbbbb4bd5e74a640a7b75d734ee12c9e7deceea0f63992a3"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/hardware/pivideostream.py",
+      "bytes": 1884,
+      "sha256": "2ca92c3efda205982a354527bf79b7b73a53cf1c34241f12c00ca87795f35d75"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/helpers/__init__.py",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/helpers/embit_utils.py",
+      "bytes": 7937,
+      "sha256": "b77093af4c67286045d007cf82eb9f8c41bf963997739190830618658482dd66"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/helpers/l10n.py",
+      "bytes": 164,
+      "sha256": "6b0b41c7371d2c27d65d2842b9a2ab9d705ae3cf24c52b2b3d0c3a3e8e201e54"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/helpers/mnemonic_generation.py",
+      "bytes": 4742,
+      "sha256": "7f49e588fb18daf5ce804d26fb20447a7112f7bb3a5ba397a498e00a5bdb2d5d"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/helpers/qr.py",
+      "bytes": 4915,
+      "sha256": "3eeff64f3fc6320eda3f4fb276c43554c329069a8afdef91cd242c2f9ace5f19"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/helpers/ur2/LICENSE",
+      "bytes": 2874,
+      "sha256": "efb96b08133726d9e028030202900d24468a57de1ba23dcbef6caca80745547d"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/helpers/ur2/__init__.py",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/helpers/ur2/bytewords.py",
+      "bytes": 5069,
+      "sha256": "202f3798edb70933793b90f4cc52f7e0bd08f7359b8868a7df4202b4b12787e0"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/helpers/ur2/cbor_lite.py",
+      "bytes": 11524,
+      "sha256": "aa5868bc2bf658894033a679e8ea198ad32630fffd64526e61428f800bd45ca8"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/helpers/ur2/constants.py",
+      "bytes": 188,
+      "sha256": "0c5f8101564d2d888b744d2f476a791f0b13f0d5d4f93c691c389a5829f31e6c"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/helpers/ur2/crc32.py",
+      "bytes": 1077,
+      "sha256": "0331b365388bb2f18f62ef087c559ab4f741261735250210685b97414d562667"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/helpers/ur2/fountain_decoder.py",
+      "bytes": 12455,
+      "sha256": "e70b9f0c349a822df4913dcea04cd4fcf0415f354c6369a16ef409ae6c368a77"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/helpers/ur2/fountain_encoder.py",
+      "bytes": 5407,
+      "sha256": "9aca78048a713798508b3a5298fd931f2dc78331617f858b12e8aed04d789081"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/helpers/ur2/fountain_utils.py",
+      "bytes": 1651,
+      "sha256": "4ebe6106f7649c98b3a696d1642f5b8def523b2fb74be3b85ded3bba653cb9f8"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/helpers/ur2/random_sampler.py",
+      "bytes": 1633,
+      "sha256": "1792e9649643c7b0cd97656fdbd6c1a4039af10b4a7fcf0a75f56fc4265ce253"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/helpers/ur2/ur.py",
+      "bytes": 519,
+      "sha256": "0ef0c8d24c7d2ae77259740a196699a28a34acb59387d0e2c1ee0b4bc532ccbd"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/helpers/ur2/ur_decoder.py",
+      "bytes": 5378,
+      "sha256": "489c6a814ba214e090e9271e2e4f21fd00db7b58fdf8f97c93ee4e3ad2bdc173"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/helpers/ur2/ur_encoder.py",
+      "bytes": 2502,
+      "sha256": "c1715c1453f102799d8b26f41240c83379b5855d14c8fe0d1f722b2cfa3df5fa"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/helpers/ur2/utils.py",
+      "bytes": 1692,
+      "sha256": "98f2740cf011521e77a14882706226bd038160a6e4fff027f403ffba2e99057d"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/helpers/ur2/xoshiro256.py",
+      "bytes": 4566,
+      "sha256": "ac181d4d20095daea93d675fd20b2667d927a6af45985e026055836123a494f1"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/helpers/version.py",
+      "bytes": 38856,
+      "sha256": "950fba40b7d5489177bf49555f5e64a14c2ba9d913c5aa1ce3c5c64d28d3b182"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/models/__init__.py",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/models/codex32.py",
+      "bytes": 26006,
+      "sha256": "27aa32a1761b480ad577f0775d79f98a72c35a8d6ea1e98a41f5c1ef891921ef"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/models/codex32_correction.py",
+      "bytes": 19397,
+      "sha256": "c26082d6d7b48fa654637bcd52f4a375a91455f909347ce0c3fedb8671c4f2f8"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/models/codex32_min.py",
+      "bytes": 9373,
+      "sha256": "ae352a5c40ba86158c4fdec402cb2ede800d48936613b08dc306a13a937fa566"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/models/decode_qr.py",
+      "bytes": 46311,
+      "sha256": "c4d7147ebedac75989532709ae8d08582e44d57c6fc957d9c965748f4217f84a"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/models/encode_qr.py",
+      "bytes": 13782,
+      "sha256": "4d56934108dba54d6eb18ea96310d38ae0e9f3641b096c62cddc8b739b66d562"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/models/psbt_parser.py",
+      "bytes": 68326,
+      "sha256": "913484f25a1992b37924cb536ece8bfc812b4592c2728cc5d86174a8e440ed30"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/models/qr_type.py",
+      "bytes": 1001,
+      "sha256": "3e2423f5f743935f6b344e69b07e7834582f3dbb79dff835126efd8a6493a523"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/models/seed.py",
+      "bytes": 13031,
+      "sha256": "0819870ccf9aaa8ff94921f41c84f23126c082ea123ec9ef3d1b946613ffb072"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/models/seed_storage.py",
+      "bytes": 5729,
+      "sha256": "4150dcde766134a2f70c57160d5ff54e0a3eea222e9c0e4829e774a56ea31e34"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/models/settings.py",
+      "bytes": 13712,
+      "sha256": "f2214760fead8deb5748c6a48e9ea7111527883b2cb387a2155d7acefbc90e69"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/models/settings_definition.py",
+      "bytes": 36274,
+      "sha256": "5c3586080c9d35223fffcc40870e3d3f8a7de4c6a45e2868fbca36f0c3f94dfc"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/models/singleton.py",
+      "bytes": 1092,
+      "sha256": "3ff6b828c44741fbc8d22e3e13d0459b1bcf399eb4712438e0ded4b4273ff8d2"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/models/threads.py",
+      "bytes": 1125,
+      "sha256": "bcb890336ef9870339f5089492f4a5389eb11688dc25d92bc642d6ef98279959"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/fonts/Font_Awesome_6_Free-Solid-900.otf",
+      "bytes": 763488,
+      "sha256": "6d553fdfa726bb47fc2ebf01a6b22da7417645e51ad69b17f90ad9a1a5941939"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/fonts/Inconsolata-Regular.ttf",
+      "bytes": 97864,
+      "sha256": "04bce5eef6ecc84bd9d14bc99143dfdb1949177db54dbd52252c7b6284c2f9d9"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/fonts/Inconsolata-SemiBold.ttf",
+      "bytes": 98400,
+      "sha256": "19d2b93178ed639960dff03d45de59707f96a58cde2e067c884544792a3aae32"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/fonts/NotoSansDevanagari-Regular.ttf",
+      "bytes": 221084,
+      "sha256": "084a94d89eb54aafb93a056e15425c34fd859f6342875165d304837b3bcfc2d2"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/fonts/OpenSans-Regular.ttf",
+      "bytes": 96932,
+      "sha256": "037236ed4bf58a85f67074c165d308260fd6be01c86d7df4e79ea16eb273f8c5"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/fonts/OpenSans-SemiBold.ttf",
+      "bytes": 100820,
+      "sha256": "5e8d9e1a89083cd1b0849993fe2f3acc9aa33b7f439f7e8616872f6897f30684"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/fonts/seedsigner-icons.otf",
+      "bytes": 31228,
+      "sha256": "85d6cbacb69633199fdf2b3bd76349f4d274367ac0c170cf5880c337a9ca6e59"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/icons/arrow-down.png",
+      "bytes": 140,
+      "sha256": "edb77dd1cd57493c061e06d11212969a973e60096a9140c37f8dacaf5ef567d4"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/icons/arrow-down_selected.png",
+      "bytes": 221,
+      "sha256": "acccfca04dced1e46079766e99a36cfc73cfe1a5a11ada68ba00a584d0681636"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/icons/arrow-up.png",
+      "bytes": 140,
+      "sha256": "14f5e00cc682f180d1ab05613dcf707352f970161002fa635bdfc21529bb29ba"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/icons/arrow-up_selected.png",
+      "bytes": 229,
+      "sha256": "6a42924887589afe1b9bab223ffcef4049add7dfeefd954a97099ee30f31d800"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/icons/back.png",
+      "bytes": 216,
+      "sha256": "ce068bd6e54ea29ff72f5c730f586a3fc270c7690cb6b32eb334b918be315514"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/icons/back_selected.png",
+      "bytes": 356,
+      "sha256": "0b55a1ddaa1a9c6d1cb2ff14440da16c3246eab8dd6b0c17f935f4a6efabd0d2"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/icons/btc_logo.png",
+      "bytes": 1974,
+      "sha256": "c4bb57e2a4b60b36962760d682235ff8da588288fe4dfbc2b7b2788fde89b3bd"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/icons/btc_logo_30x30.png",
+      "bytes": 2071,
+      "sha256": "f881c52681b10c139473e40b0d0c858f8448aedb3c86ff71c2b39ed9017d106c"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/icons/btc_logo_bw.png",
+      "bytes": 1448,
+      "sha256": "e70a6664fc034c00d01afb2ad052f88544a4cbe1ad27a4c9868d09f55204b250"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/icons/dire_warning.png",
+      "bytes": 893,
+      "sha256": "b7681a7e4da2bcb98cf864392884c0a2c1786c1f514bf4aa81bec406a709aaac"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/icons/warning.png",
+      "bytes": 1053,
+      "sha256": "7765fc141745c445ba4a9673068192442b70bb33e9760c260c711dd53500026d"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/img/btc_logo_60x60.png",
+      "bytes": 1749,
+      "sha256": "17c69eb2863fc85461a0469a08a833c1bad1c43d543b470d358a419bfbc4d399"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/img/logo_black_240.png",
+      "bytes": 8440,
+      "sha256": "d2f1ab420159dc2a79a4f3cca5d1e262dda3b7163c65e2aacd704a0c13e05159"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/img/partners/hrf_logo.png",
+      "bytes": 7234,
+      "sha256": "a7632f39303cc216378ff4ca4ae8dea5a43c9774f4e0c856a88a107b26e5ff4d"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/seedsigner-translations/.git",
+      "bytes": 82,
+      "sha256": "9f5bd486ed08b067a8c83fb736f19df90f234a01b905b7dd3c0214ec1f1482ee"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/seedsigner-translations/.github/diff_report/diff_screenshots.py",
+      "bytes": 6417,
+      "sha256": "80187a3f073d349eb72cfba3dc7e99d31cb4a7e141cf3ecd7ad1b9f59459c699"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/seedsigner-translations/.github/diff_report/index.html",
+      "bytes": 408,
+      "sha256": "2aef2f72fd93f0824452d3d84446842dc7183f5825cea6eaf62e2ff554747caa"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/seedsigner-translations/.github/diff_report/pico.min.css",
+      "bytes": 82197,
+      "sha256": "af45d27a227f22d602d9231c5668c3be534a78a75b305fc61fbabccf5b774f80"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/seedsigner-translations/.github/workflows/tests.yml",
+      "bytes": 3432,
+      "sha256": "2290067f1259d835270ac7c678a97fef857cf20650c425f1ef587c5335e0854e"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/seedsigner-translations/.gitignore",
+      "bytes": 99,
+      "sha256": "2fab3e4c5f3fd90456fcb57ad26bce74e65e02111c4daff559735efe93aeae98"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/seedsigner-translations/.tx/config",
+      "bytes": 410,
+      "sha256": "ea485685d99782228ae603c387914de5d56af8a3a4d4e7801f073e29a6b740c9"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/seedsigner-translations/LICENSE",
+      "bytes": 1088,
+      "sha256": "6b9a4845b11d680bc7dc3bd0ad34e2e11f02b11568d1890c5eb6a9fadb1f221d"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/seedsigner-translations/README.md",
+      "bytes": 1911,
+      "sha256": "4835ba032e5988df89ccda89a02ae4591cc28e76b68ac4aade9f6ae7a51667a8"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/seedsigner-translations/fonts/NotoSansAR-Regular.ttf",
+      "bytes": 194176,
+      "sha256": "7babaf48a110fb38a89339cec00b96df455424a5ff06065d4eea1e40d7efafe1"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/seedsigner-translations/fonts/NotoSansJP-Regular.ttf",
+      "bytes": 5733060,
+      "sha256": "7c8597677e9fac0f54d7848ad18bc6a708dfb5baa4ebf4bd91e66efcca313bf3"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/seedsigner-translations/fonts/NotoSansKR-Regular.ttf",
+      "bytes": 6192764,
+      "sha256": "9db318b65ee9c575a43e7efd273dbdd1afef26e467eea3e1073a50e1a6595f6d"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/seedsigner-translations/fonts/NotoSansSC-Regular.ttf",
+      "bytes": 10560616,
+      "sha256": "5cf8b2a0576d5680284ab03a7a8219499d59bbe981a79bb3dc0031f251c39736"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/seedsigner-translations/fonts/NotoSansTH-Regular.ttf",
+      "bytes": 47484,
+      "sha256": "9acb585d8662ca4ed1b1cf5889dfa1393f8555103b3986e1ea1e3af4faef70bd"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/seedsigner-translations/l10n/ca/LC_MESSAGES/messages.mo",
+      "bytes": 21259,
+      "sha256": "10254600451afd52e85e76a6265b7398268ed6db50d4a9162dff0f49b900cf2c"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/seedsigner-translations/l10n/ca/LC_MESSAGES/messages.po",
+      "bytes": 46989,
+      "sha256": "96f4c801bdb66651690d7d71309ba54ccb00590f225726f4bc7198a7110f86eb"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/seedsigner-translations/l10n/cs/LC_MESSAGES/messages.mo",
+      "bytes": 19821,
+      "sha256": "3544d1a007e9050a0fad555d7afc1c838eaf13ba5b0ff122bb50e091f79bf01e"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/seedsigner-translations/l10n/cs/LC_MESSAGES/messages.po",
+      "bytes": 46081,
+      "sha256": "3fe6aa267dc3a29d36392b17e2395767f5cfdce502a7cc4794fc367642b0e333"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/seedsigner-translations/l10n/de/LC_MESSAGES/messages.mo",
+      "bytes": 20513,
+      "sha256": "a4e3994df135fa8e1fa5e914987562c6f5a679f76964df959375f0fa0b993613"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/seedsigner-translations/l10n/de/LC_MESSAGES/messages.po",
+      "bytes": 46191,
+      "sha256": "353d7293ea90530ccd45f432778b0a91d398e4422e27a004d80afe7abc7e4b3c"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/seedsigner-translations/l10n/el/LC_MESSAGES/messages.mo",
+      "bytes": 21407,
+      "sha256": "26af4e4e8f969e931cd24ceeb607efcdc339f7da809b676f3929698616d0986b"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/seedsigner-translations/l10n/el/LC_MESSAGES/messages.po",
+      "bytes": 49868,
+      "sha256": "36bbdb70958689570de067a05237e4eb4024551cfc1227762aaec1fa292a4a20"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/seedsigner-translations/l10n/es/LC_MESSAGES/messages.mo",
+      "bytes": 20987,
+      "sha256": "2ce8dbc8fff3e5604777fb848f58dcbdf1904c2b051f9bb54a2926533e905ec4"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/seedsigner-translations/l10n/es/LC_MESSAGES/messages.po",
+      "bytes": 46758,
+      "sha256": "8aa5d9db147e44526b7a6bdb2bdb3eed21cca156de802618ea338618fd02c504"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/seedsigner-translations/l10n/fa/LC_MESSAGES/messages.mo",
+      "bytes": 26972,
+      "sha256": "fc7b228da34e1e1a3a74b8726ef1167ea52af3583a71657c258e15a37c94053f"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/seedsigner-translations/l10n/fa/LC_MESSAGES/messages.po",
+      "bytes": 52576,
+      "sha256": "59f49ba7311ee81e2109a0cadfbdf25edfcb094deb6f882e31c8a778782029d3"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/seedsigner-translations/l10n/fr/LC_MESSAGES/messages.mo",
+      "bytes": 21161,
+      "sha256": "49a847d5597372c23ae4bbb99b003fa7650229bfdabfb2177e4d01c68e910203"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/seedsigner-translations/l10n/fr/LC_MESSAGES/messages.po",
+      "bytes": 46860,
+      "sha256": "10b69bb5054d225c51144fa6a04988dd9466502c33cf8c0fe6416352ba2057fe"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/seedsigner-translations/l10n/hi/LC_MESSAGES/messages.mo",
+      "bytes": 29838,
+      "sha256": "812828043976f789bf8a65f339a868a6f565321ce0d37d1a46da543ccec41555"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/seedsigner-translations/l10n/hi/LC_MESSAGES/messages.po",
+      "bytes": 55431,
+      "sha256": "ce15a117393f9ab9b91f4ab026ee4cc245d8aaba78a7d9bf8f55fac279176bc4"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/seedsigner-translations/l10n/id/LC_MESSAGES/messages.mo",
+      "bytes": 19680,
+      "sha256": "de2b27c6c9c5de05420d668f54b9f0c8e78558ac2add63c5323b756668dab098"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/seedsigner-translations/l10n/id/LC_MESSAGES/messages.po",
+      "bytes": 45829,
+      "sha256": "5336c82e30d1a8a43903e2e36ce55f1bfc3f54cf61d0fa100139af9e2dd36662"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/seedsigner-translations/l10n/it/LC_MESSAGES/messages.mo",
+      "bytes": 16363,
+      "sha256": "55ce7611bf7b3324bc8c35af357666afb5e8af7f61981db5f480f8593db1950b"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/seedsigner-translations/l10n/it/LC_MESSAGES/messages.po",
+      "bytes": 44904,
+      "sha256": "45d571703e2a2ffe36cf0d1e5856ab600b84110a18f8a4561e79a14547888ae6"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/seedsigner-translations/l10n/ja/LC_MESSAGES/messages.mo",
+      "bytes": 24039,
+      "sha256": "1bc3ed06274efc3c653d561fae9f1cc4e1a042c2de958c8104ad808cebc7d65b"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/seedsigner-translations/l10n/ja/LC_MESSAGES/messages.po",
+      "bytes": 49551,
+      "sha256": "9bda1f5849d4edbe1616d195506a4af048f57fa704c03f30760835a9ed35e899"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/seedsigner-translations/l10n/ko/LC_MESSAGES/messages.mo",
+      "bytes": 21058,
+      "sha256": "4bd061b0729f98f12a1de0e995480403355585345fbe522b0c06cf48da691d7c"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/seedsigner-translations/l10n/ko/LC_MESSAGES/messages.po",
+      "bytes": 46633,
+      "sha256": "8bee94d09b53bac20d955b1b53f434f4a98ae075a139ea56bfaca7042ef26cc2"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/seedsigner-translations/l10n/nl/LC_MESSAGES/messages.mo",
+      "bytes": 20356,
+      "sha256": "73e2c0a6bc904afb7b5c8a60df571474973ff3315879885b3262620d5310558c"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/seedsigner-translations/l10n/nl/LC_MESSAGES/messages.po",
+      "bytes": 45987,
+      "sha256": "7f4fd84d471432adbe7a6cb28c4c870a4da8bc797ee49c0930536b672e01749d"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/seedsigner-translations/l10n/no/LC_MESSAGES/messages.mo",
+      "bytes": 15682,
+      "sha256": "4bc721fc4cedfe9f400a546c2dcc863f29784efb744f1c2d365237feb330a5aa"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/seedsigner-translations/l10n/no/LC_MESSAGES/messages.po",
+      "bytes": 44142,
+      "sha256": "9c8af915b65ce8ace103c5544c2a8374a0f26f3ca2387a27a280610ee0368065"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/seedsigner-translations/l10n/pl/LC_MESSAGES/messages.mo",
+      "bytes": 19469,
+      "sha256": "dfcf2cf047a1561b3637624bdeac4ac31ac4157d66fd4def3a95cbe0e910628a"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/seedsigner-translations/l10n/pl/LC_MESSAGES/messages.po",
+      "bytes": 45678,
+      "sha256": "ce45de02921065d36d9714711b21261839200103c3ddc02182cbf8dcdeb1f496"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/seedsigner-translations/l10n/pt_BR/LC_MESSAGES/messages.mo",
+      "bytes": 21126,
+      "sha256": "d238e885192930099c9dda980df02bc35a392133cd6c1a5d576339eae197f4ac"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/seedsigner-translations/l10n/pt_BR/LC_MESSAGES/messages.po",
+      "bytes": 46919,
+      "sha256": "871e5d97aefa8e6df63444b149c33b4ee01418b6607ef7bb0a90a0ad0b913553"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/seedsigner-translations/l10n/ru/LC_MESSAGES/messages.mo",
+      "bytes": 20530,
+      "sha256": "26c3a068a983c8190686f16fd46b5ed78f0a29bf8c9697af1ecb24d697d7008b"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/seedsigner-translations/l10n/ru/LC_MESSAGES/messages.po",
+      "bytes": 49040,
+      "sha256": "e35ff2f6e8d100968b39095fc850fa95c5fbf0b117530e0dca25bf768a7bc687"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/seedsigner-translations/l10n/th/LC_MESSAGES/messages.mo",
+      "bytes": 29754,
+      "sha256": "32ae5f760ae064e1960fb5904084c039b3d10fc4d6dc60ec6bf17667751f0e1a"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/seedsigner-translations/l10n/th/LC_MESSAGES/messages.po",
+      "bytes": 55480,
+      "sha256": "f1de697b5f2df8bce4941a48f506eb0d2335380fd3017877a17a2d612caea165"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/seedsigner-translations/l10n/tr/LC_MESSAGES/messages.mo",
+      "bytes": 16157,
+      "sha256": "e2d33d24fd8bf8420d29ea3d9f31d16977150470316ef79fa692632ac213d14e"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/seedsigner-translations/l10n/tr/LC_MESSAGES/messages.po",
+      "bytes": 44609,
+      "sha256": "afb0fd0129a028b6d39edc16eaca3ad5bb4e99018b571712478122f58af5fbbe"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/seedsigner-translations/l10n/vi/LC_MESSAGES/messages.mo",
+      "bytes": 21705,
+      "sha256": "ce31ce616e27d5cbd1b6f9523a67417ca6d023a69814a57e232f267b4b907e64"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/seedsigner-translations/l10n/vi/LC_MESSAGES/messages.po",
+      "bytes": 47867,
+      "sha256": "f579a4153a9879845be914c0d1844d9363901f401de8d002543452aa0de26c85"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/seedsigner-translations/l10n/zh_Hans_CN/LC_MESSAGES/messages.mo",
+      "bytes": 19817,
+      "sha256": "7ef9e634c4285182564e9fd83f4a2c8676d67dd73fe8459dddfa26bee99f2a0b"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/seedsigner-translations/l10n/zh_Hans_CN/LC_MESSAGES/messages.po",
+      "bytes": 45346,
+      "sha256": "7794834cd8e6ff09df23377da28dfa1116e58ef74876d4933cecbf7f85896f87"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/seedsigner-translations/tools/extract_characters_from_babel_mo.py",
+      "bytes": 2774,
+      "sha256": "f907b456d3aaf3e473374a9e944cc33848627c34a8ff69ffae01f44cc61cceba"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/resources/seedsigner-translations/tools/requirements.txt",
+      "bytes": 7,
+      "sha256": "5cf79710faf7287c60cf3602a6f71767a3966a2efad3e4d252a4ab9cb215dbdd"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/version.json",
+      "bytes": 157,
+      "sha256": "23bfc5319763a6578d28e4e4a640f284a2c8f77e7ed972a5fd356a29017e68cd"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/views/__init__.py",
+      "bytes": 51,
+      "sha256": "60725be16687c3b3e34b902b7ec5d6c3a0d1680e25bb7447147b570180be5774"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/views/codex32_views.py",
+      "bytes": 23839,
+      "sha256": "2b36d51d251269888540204b6e4d103def9ba87fbcce01d145ea829dbd3303ec"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/views/psbt_views.py",
+      "bytes": 36512,
+      "sha256": "d7041deb3bc22727f5a4f782faf4158c5d606c43fc774dba49a25140cf554342"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/views/scan_views.py",
+      "bytes": 14501,
+      "sha256": "c6800e54588664f7271b88abd9d6a674e780d15466a85872376c9f9bcd9791ca"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/views/screensaver.py",
+      "bytes": 9987,
+      "sha256": "0a6a5c00aab0ed6aabf72290d16a4d1609b3cc365841de6285224ade946041d8"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/views/seed_views.py",
+      "bytes": 147509,
+      "sha256": "dbb64a182f8faf977118fdf618aac7125ff13fbd3d5439c81fe66fab9c594161"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/views/settings_views.py",
+      "bytes": 16214,
+      "sha256": "1b472dc53545704e5d6a850c39002c499f723cd48ed2b4e60731194dc4e7c9d5"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/views/tools_views.py",
+      "bytes": 35017,
+      "sha256": "48a0b2ab9ff13e110301093bafd808dc998cb1eb3b098f3a1851cd935fe1570e"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/src/seedsigner/views/view.py",
+      "bytes": 16901,
+      "sha256": "ea1146ee7ff4a82a6272ce5f7681f41950ba0bbde4faa73655ae472010cf0b13"
+    },
+    {
+      "path": "opt/rootfs-overlay/opt/tools/benchmark_codex32_correction.py",
+      "bytes": 3701,
+      "sha256": "c53ad6cbe0196a757f2c3717cbcd98ae3ac877b7f3d2084e35274be2456d62ce"
+    }
+  ],
+  "buildroot_working_tree_observation": {
+    "host_family": "Windows with Docker Linux containers",
+    "clean_checkout_claimed": false,
+    "status_type_changes": [
+      " T package/skeleton-init-openrc/skeleton/dev/log",
+      " T package/skeleton-init-openrc/skeleton/etc/runlevels/default/sysv-rcs",
+      " T package/skeleton-init-openrc/skeleton/var/cache",
+      " T package/skeleton-init-openrc/skeleton/var/lib/misc",
+      " T package/skeleton-init-openrc/skeleton/var/lock",
+      " T package/skeleton-init-openrc/skeleton/var/log",
+      " T package/skeleton-init-openrc/skeleton/var/run",
+      " T package/skeleton-init-openrc/skeleton/var/spool",
+      " T package/skeleton-init-openrc/skeleton/var/tmp",
+      " T package/skeleton-init-sysv/skeleton/dev/log",
+      " T package/skeleton-init-sysv/skeleton/var/cache",
+      " T package/skeleton-init-sysv/skeleton/var/lib/misc",
+      " T package/skeleton-init-sysv/skeleton/var/lock",
+      " T package/skeleton-init-sysv/skeleton/var/log",
+      " T package/skeleton-init-sysv/skeleton/var/run",
+      " T package/skeleton-init-sysv/skeleton/var/spool",
+      " T package/skeleton-init-sysv/skeleton/var/tmp",
+      " T system/skeleton/dev/fd",
+      " T system/skeleton/dev/stderr",
+      " T system/skeleton/dev/stdin",
+      " T system/skeleton/dev/stdout",
+      " T system/skeleton/etc/mtab",
+      " T system/skeleton/etc/resolv.conf"
+    ],
+    "scope": "Previously working Windows filesystem/skeleton symlink adaptation retained; status reported as observed, without claiming source reproducibility."
+  },
+  "known_limitations": [
+    "Experimental public-seed and testnet/regtest policy only; mainnet is not disabled.",
+    "CompactSeedQR is a separate BIP39 binary-backup format: Windows scanner testing rejected some payloads; Pi incidence unknown. Codex32-only use does not traverse that binary path. Mixed-session BIP39 users can report a public-data reproduction in the fork; upstream incidence requires testing upstream.",
+    "Other hardware targets and byte-identical independent rebuilds are not established.",
+    "Fingerprint match is a 32-bit accidental-error check, not authentication.",
+    "Thirteen consecutive erasures consume checksum redundancy; another typo can yield a wrong valid completion.",
+    "No real funds, stable release or security authentication claim."
+  ],
+  "documentation": {
+    "hosting": "GitHub repository; no documentation ZIP release asset",
+    "directory": "docs/codex32_qr",
+    "branch": "codex/codex32-error-correction",
+    "scope": "Guides may receive updates independently of the compiled firmware. See exact image/source pins above and frozen independent review snapshots for historical validation."
+  },
+  "release_assets": [
+    "seedsigner_os.codex32-alpha-0.1.pi0.img",
+    "SHA256SUMS"
+  ],
+  "checksum_scope": "SHA256SUMS authenticates the downloadable image only. Build receipt and guides are hosted in the repository, not required downloads; no signature or independent byte-identical rebuild is claimed."
+}

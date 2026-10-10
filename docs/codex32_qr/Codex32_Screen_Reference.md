@@ -4,17 +4,16 @@ This reference shows the Codex32 import, correction, fingerprint, loading and
 backup screens in the experimental fork. Use it to recognize what the device is
 asking you to check. For a step-by-step recovery, see the
 [user flow guide](Codex32_User_Flow_Guide.md); for wallet setup and public share
-QRs, see the [build and test guide](Codex32_Experimental_Build_and_Test.md).
+QRs, see the [recovery and test guide](Codex32_Experimental_Test_Guide.md).
 
 **Public test data only. Never fund these example wallets.** All screenshots use
 the public BIP93 codex32 test vector "NAME" (fingerprint `fab6868a`) or deliberately
 damaged versions of it. The screen behavior applies to other compatible codex32
-shares too. These are native 240x240 renders, with hardware mocked. Source hashes, checkout identity and the delta
-from the historical `22ee79b` baseline identify the captured code in the image
-manifest. See the build guide for the frozen runtime pin and device-test status.
-These images are software renders, not device photos. UX6 physical checks passed
-at 240x240; the later Keep Saved Share navigation change needs its own focused
-physical check. The camera image is a placeholder.
+shares too. These are native 240x240 renders, with hardware mocked. The [image manifest](img/screens/manifest.json) records capture provenance.
+These images are software renders, not device photos. See the
+[release notes](Codex32_Experimental_Release_Notes.md) for the tested image identity
+and hardware.
+The camera image is a placeholder.
 Some menus scroll; screenshots show the initial viewport. Shared SeedSigner
 screens are included where Codex32 changes their content. Button names can differ
 in other languages. A fingerprint match is a 32-bit accidental-error check,
@@ -94,7 +93,7 @@ not authentication; verify the wallet policy and a known address as well.
 | **Secret S: boxes 1-24**<br>![Secret S: boxes 1-24](img/screens/master_boxes_1.png) | The complete S string appears over two numbered pages. Top Back returns without forcing finalization. After the second page, Finalize Seed continues loading; a loaded-seed backup uses Confirm Backup instead. |
 | **Secret S: boxes 25-48**<br>![Secret S: boxes 25-48](img/screens/master_boxes_2.png) | The complete S string appears over two numbered pages. Top Back returns without forcing finalization. After the second page, Finalize Seed continues loading; a loaded-seed backup uses Confirm Backup instead. |
 | **Finalize Seed**<br>![Finalize Seed](img/screens/finalize.png) | Load Seed, or Finalize Seed after display, reaches SeedSigner's standard finalization screen. Confirm the seed to proceed to its normal operations. |
-| **Loaded seed**<br>![Loaded seed](img/screens/seed_options.png) | The loaded seed offers normal SeedSigner operations: export xpubs, address checks, signing and backup. Coordinator setup is explained in the experimental build and test guide. |
+| **Loaded seed**<br>![Loaded seed](img/screens/seed_options.png) | The loaded seed offers normal SeedSigner operations: export xpubs, address checks, signing and backup. Coordinator setup is explained in the recovery and test guide. |
 ## Codex32 backup and QR export
 
 | Screen | When it appears and what it means |

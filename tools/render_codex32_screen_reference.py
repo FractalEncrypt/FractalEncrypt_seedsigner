@@ -135,7 +135,7 @@ add("Recovery options and seed loading", "master_warning", "Master seed warning"
 for page in (0, 1):
     add("Recovery options and seed loading", f"master_boxes_{page+1}", f"Secret S: boxes {page*24+1}-{page*24+24}", "The complete S string appears over two numbered pages. Top Back returns without forcing finalization. After the second page, Finalize Seed continues loading; a loaded-seed backup uses Confirm Backup instead.", sv.Codex32MasterSecretDisplayView, share_data=S, page_index=page)
 add("Recovery options and seed loading", "finalize", "Finalize Seed", "Load Seed, or Finalize Seed after display, reaches SeedSigner's standard finalization screen. Confirm the seed to proceed to its normal operations.", sv.SeedFinalizeView)
-add("Recovery options and seed loading", "seed_options", "Loaded seed", "The loaded seed offers normal SeedSigner operations: export xpubs, address checks, signing and backup. Coordinator setup is explained in the experimental build and test guide.", sv.SeedOptionsView, seed=SEED)
+add("Recovery options and seed loading", "seed_options", "Loaded seed", "The loaded seed offers normal SeedSigner operations: export xpubs, address checks, signing and backup. Coordinator setup is explained in the recovery and test guide.", sv.SeedOptionsView, seed=SEED)
 
 add("Codex32 backup and QR export", "backup_menu", "Backup Seed", "For a Codex32 seed, choose View Codex32 Secret or Export as Codex32QR. These export the retained S/share metadata; they do not create new split shares.", sv.SeedBackupView, seed=SEED)
 add("Codex32 backup and QR export", "backup_select", "Select Share", "Choose the derived secret S or an entered split share. S reveals the complete seed; a split share is not interchangeable with it. This menu is shared by display and QR export.", sv.Codex32BackupShareSelectView, seed=SEED, share_map=SHARES, source_map=SOURCES)
@@ -242,17 +242,16 @@ This reference shows the Codex32 import, correction, fingerprint, loading and
 backup screens in the experimental fork. Use it to recognize what the device is
 asking you to check. For a step-by-step recovery, see the
 [user flow guide](Codex32_User_Flow_Guide.md); for wallet setup and public share
-QRs, see the [build and test guide](Codex32_Experimental_Build_and_Test.md).
+QRs, see the [recovery and test guide](Codex32_Experimental_Test_Guide.md).
 
 **Public test data only. Never fund these example wallets.** All screenshots use
 the public BIP93 codex32 test vector "NAME" (fingerprint `fab6868a`) or deliberately
 damaged versions of it. The screen behavior applies to other compatible codex32
-shares too. These are native 240x240 renders, with hardware mocked. Source hashes, checkout identity and the delta
-from the historical `22ee79b` baseline identify the captured code in the image
-manifest. See the build guide for the frozen runtime pin and device-test status.
-These images are software renders, not device photos. UX6 physical checks passed
-at 240x240; the later Keep Saved Share navigation change needs its own focused
-physical check. The camera image is a placeholder.
+shares too. These are native 240x240 renders, with hardware mocked. The [image manifest](img/screens/manifest.json) records capture provenance.
+These images are software renders, not device photos. See the
+[release notes](Codex32_Experimental_Release_Notes.md) for the tested image identity
+and hardware.
+The camera image is a placeholder.
 Some menus scroll; screenshots show the initial viewport. Shared SeedSigner
 screens are included where Codex32 changes their content. Button names can differ
 in other languages. A fingerprint match is a 32-bit accidental-error check,

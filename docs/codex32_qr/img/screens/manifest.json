@@ -1,6 +1,6 @@
 {
   "base_runtime_commit": "22ee79b2d9aff6ecf6b49572f42361c9363d598f",
-  "checkout_commit": "87a4be4de12e24ce1c7f9e0bfcd6b78a535d3537",
+  "checkout_commit": "323c8efcd2b88c9b9871160cf77449650fa182aa",
   "base_runtime_tree": "d0de2724b5768a1db7160e7fed7d47ed3b93f625",
   "working_tree_runtime_changes": false,
   "runtime_patch_sha256": "38622a0e84d76ac4f72628601ae1dd57d38205ae0daf8da682a9f27fd53e2512",
@@ -25,7 +25,7 @@
     "src/seedsigner/views/view.py": "ea1146ee7ff4a82a6272ce5f7681f41950ba0bbde4faa73655ae472010cf0b13",
     "tests/screenshot_generator/generator.py": "eb1d29b7b10a7cd8dee6c18e66c6ab5eeb270b45cf9e64835eb4bc98b81833f4",
     "tests/screenshot_generator/utils.py": "8ad585161174e36c1c1e54ee236a132084a3c655c0e5a8878ced6ef40c542ec8",
-    "tools/render_codex32_screen_reference.py": "f9da5cf8d7f06fcf8aa7dbb716227d469630a5a54c538193635810ab15aa3817"
+    "tools/render_codex32_screen_reference.py": "ee9a988e24f3b38972cc28959bf4ce755e03fc150305d32c38cddd7225a21725"
   },
   "images": [
     {

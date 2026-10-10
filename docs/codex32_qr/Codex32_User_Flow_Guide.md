@@ -6,7 +6,7 @@ shares; it does not offer a Codex32 share-creation or checksum-appending command
 
 **This is an experimental independent fork. Test with public seeds and
 testnet/regtest only; do not enter real backups or secure funds with this build.**
-Use the [build and test guide](Codex32_Experimental_Build_and_Test.md) for the
+Use the [recovery and test guide](Codex32_Experimental_Test_Guide.md) for the
 public BIP93 A/C and cash share QRs, expected fingerprints, and coordinator
 single-sig/multisig walkthroughs.
 
@@ -16,9 +16,8 @@ The entry header identifies the share; the next line says **Boxes 17-20** (for
 example), followed by the individual numbered boxes.
 
 These are English software renders at 240x240, with hardware mocked, rather than
-device photos. UX6 physical checks passed at 240x240. The later Keep Saved Share
-navigation change needs a focused device check; see the build guide for source
-pins and validation scope.
+device photos. See the [release notes](Codex32_Experimental_Release_Notes.md) for
+the tested image identity and hardware.
 For every Codex32 screen and its meaning, including error and backup paths, see
 the [screen reference](Codex32_Screen_Reference.md). Camera illustrations use a
 placeholder, and some menus scroll beyond the first screenshot.
@@ -30,7 +29,7 @@ the device's 48 boxes. Keep the worksheet as the source when checking a shifted
 entry or uncertain hand calculation. SeedSigner checks the complete string's
 checksum, but a checksum-valid reconstruction does not prove which wallet you
 intended. Printable cards are available in the
-[backup-card PDF](printable_templates/Seedsigner_Codex32_Printable_Page_SeedCards.pdf).
+[backup-card PDF](printable_templates/Seedsigner_Codex32_Printable_SeedCards.pdf).
 
 For an existing wallet, have its previously saved master fingerprint, network,
 script type, account/derivation and a known address or public descriptor ready.
@@ -229,7 +228,7 @@ For a watch-only coordinator, export the correct account xpub and verify its
 fingerprint, full origin path, network and script type. For multisig, assemble
 the complete policy with the other cosigner xpubs and verify a known address.
 A Codex32 share QR is seed input for SeedSigner, not an xpub for the coordinator.
-See the [single-sig and multisig test walkthroughs](Codex32_Experimental_Build_and_Test.md#export-public-keys-and-create-coordinator-test-wallets)
+See the [single-sig and multisig test walkthroughs](Codex32_Experimental_Test_Guide.md#optional-export-public-keys-and-create-coordinator-test-wallets)
 for Sparrow, Nunchuk and other compatible software. Coordinator funds discovery
 alone is not a substitute for checking the intended policy and address.
 
