@@ -10,24 +10,78 @@ application repository is upstream SeedSigner. A fresh checkout of our tested OS
 revision also needs explicit version metadata. The numbered-entry/correction
 feature is documented in [Codex32 Error Correction](Codex32_Error_Correction.md).
 
-## Pinned test revision
+## Current publication status
+
+Independent layout/duplicate review passed with followups. Runtime is frozen at
+`528031b63e4f8805e7f73fb3bb5355f630f53e86` (UX6); local validation passes 614 normal
+and 181 focused optimized tests. The extra test covers the reviewer's defensive
+missing-share guard. All 76 English screen states fit at 240x240 and 240x320;
+22 locale-generation runs passed on the reviewed candidate. Fresh firmware and
+focused physical checks are still pending. No release has been published.
+
+| Current build input | Revision |
+| --- | --- |
+| Runtime application commit | `528031b63e4f8805e7f73fb3bb5355f630f53e86` |
+| Version label | `v0.8.7-Codex32-EC-UX6-test` |
+| Pi Zero output label | `codex32-ec-ux6-test` |
+| OS commit | `d13859392660fe512a753bc14ecd0edc86c35510` |
+| Buildroot commit | `bf2a2858aa675a14b60f1f9142c65b32652609c1` |
+
+The previous UX5 image is superseded for publication. Earlier physical checks
+used a SeedSigner Plus at 240x320; clipping was then reproduced at 240x240.
+Native software renders verify new text fitting, not physical navigation of the
+new duplicate/conflict flows. Current clean-build commands below use UX6; the
+following UX5 results/hash are historical only.
+
+## Historical UX5 test revision (superseded)
 
 | Input | Revision |
 | --- | --- |
 | Application repository | `https://github.com/FractalEncrypt/FractalEncrypt_seedsigner.git` |
 | Application branch for development | `codex/codex32-error-correction` |
-| Application commit for this test | `11270918b794f83be5e9051d391599ff607ff655` |
+| Application commit for this test | `22ee79b2d9aff6ecf6b49572f42361c9363d598f` |
 | OS repository | `https://github.com/SeedSigner/seedsigner-os.git` |
 | OS commit | `d13859392660fe512a753bc14ecd0edc86c35510` (v0.8.7) |
 | Buildroot commit, selected by OS submodule | `bf2a2858aa675a14b60f1f9142c65b32652609c1` |
-| Primary device target | Pi Zero 1.3, `--pi0`, standard 240x240 Waveshare display |
+| Primary device target | Pi Zero 1.3, `--pi0`, SeedSigner Plus, previous physical tests at 240x320 |
 
-The application review passed with nonblocking followups. Desktop tests pass
-(580 normal / 84 optimized). Earlier device sessions and a Pi Zero benchmark
-passed, but the final UX4 refinements still need the maintainer's physical check.
-No public release image is implied by this guide.
+The independent review passed with followups. Validation of this application
+revision passed 586 normal tests, 86 optimized correction/flow/entry tests,
+22 screenshot locales, and GitHub CI on Python 3.10 and 3.12. All seven focused
+UX5 device checks passed on the maintainer's Pi Zero 1.3, including typed/visual
+fingerprint navigation, repair-warning retention and nested-SegWit signing.
+The device's signed synthetic PSBT was decoded and its signature verified;
+its unsigned transaction and other PSBT fields matched the supplied fixture.
+These results describe historical UX5. They do not validate the pending
+layout/duplicate changes or establish stable-release or real-funds readiness.
 
-## Clean build on Linux / WSL2 / macOS
+Use the [illustrated user flow](Codex32_User_Flow_Guide.md) and
+[complete screen reference](Codex32_Screen_Reference.md) alongside these tests.
+No public release is implied until the maintainer publishes one.
+
+### Known limitations and tested image
+
+- A pre-existing CompactSeedQR scanner issue rejects some binary payloads after
+  text-encoding conversion. It was reproduced with the Windows scanner library;
+  incidence on the Pi has not been established. It is unfixed in this image.
+  Codex32's plain-text share QRs use a separate path. For this test release,
+  use the supplied Codex32 text/QR vectors; do not rely on CompactSeedQR recovery.
+- The Pi correction benchmark used separate Raspberry Pi OS / Python 3.13.5,
+  rather than the firmware runtime. Warm correction medians were about 10-21 ms;
+  first-use imports add latency. The maintainer observed no perceptible delay
+  during firmware entry. These are different measurements, not a firmware timing
+  guarantee.
+- Previous physical checks used Pi Zero 1.3 with a SeedSigner Plus 240x320 display.
+  The maintainer subsequently reproduced clipping at 240x240. Other board images
+  and byte-identical independent rebuilds are not established.
+
+The tested maintainer image is `seedsigner_os.codex32-ec-ux5-test.pi0.img`,
+52,428,800 bytes, SHA256
+`4c6104ee33aea1f2e68119fc2184077dcb45147c580af9ebd054f221724803f4`.
+Retain this hash as historical evidence. Do not publish this file as the new
+layout candidate. A fresh build below need not have the same binary hash.
+
+## Current UX6 build on Linux / WSL2 / macOS
 
 Install Git, Python 3, and Docker Engine or Docker Desktop with Compose support.
 Use a fresh directory, not an existing SeedSigner OS build. On Windows, use WSL2
@@ -48,7 +102,7 @@ git -C seedsigner-os submodule update --init --recursive
 
 cd seedsigner-os
 git clone --no-checkout https://github.com/FractalEncrypt/FractalEncrypt_seedsigner.git opt/rootfs-overlay/opt
-git -C opt/rootfs-overlay/opt checkout --detach 11270918b794f83be5e9051d391599ff607ff655
+git -C opt/rootfs-overlay/opt checkout --detach 528031b63e4f8805e7f73fb3bb5355f630f53e86
 git -C opt/rootfs-overlay/opt submodule update --init --recursive src/seedsigner/resources/seedsigner-translations
 ```
 
@@ -64,12 +118,12 @@ app = Path('opt/rootfs-overlay/opt')
 def git(*args):
     return subprocess.check_output(['git', '-C', str(app), *args], text=True).strip()
 commit = git('rev-parse', 'HEAD')
-assert commit == '11270918b794f83be5e9051d391599ff607ff655'
+assert commit == '528031b63e4f8805e7f73fb3bb5355f630f53e86'
 metadata = {
-    'name': 'v0.8.7-Codex32-EC-UX4-test',
+    'name': 'v0.8.7-Codex32-EC-UX6-test',
     'fork': 'FractalEncrypt',
     'short_commit_hash': commit[:7],
-    'timestamp': datetime.fromisoformat(git('show', '-s', '--format=%cI', 'HEAD')).astimezone(timezone.utc).replace(tzinfo=None).isoformat(),
+    'timestamp': datetime.fromisoformat(git('show', '-s', '--format=%cI', 'HEAD')).astimezone(timezone.utc).isoformat(),
 }
 (app / 'src/seedsigner/version.json').write_text(json.dumps(metadata, indent=4) + '\n', encoding='utf-8')
 print(json.dumps(metadata, indent=2))
@@ -104,28 +158,28 @@ label into the filename. Do not pass `codex/codex32-error-correction` as the out
 label. Keep the usual clean build; do not add `--dev` or `--no-clean`.
 
 ```bash
-export SS_ARGS='--pi0 --skip-repo --app-branch=codex32-ec-ux4-test'
+export SS_ARGS='--pi0 --skip-repo --app-branch=codex32-ec-ux6-test'
 docker compose up --force-recreate --build
 ```
 
-Expected image: `images/seedsigner_os.codex32-ec-ux4-test.pi0.img`.
+Expected image: `images/seedsigner_os.codex32-ec-ux6-test.pi0.img`.
 Confirm completion with exit code zero, then hash it before mounting/flashing:
 
 ```bash
-sha256sum images/seedsigner_os.codex32-ec-ux4-test.pi0.img
+sha256sum images/seedsigner_os.codex32-ec-ux6-test.pi0.img
 ```
 
 On macOS, use `shasum -a 256` if `sha256sum` is unavailable. For another board,
 use the upstream board table and replace `--pi0`; those targets are not validated
 by the Pi Zero 1.3 tests. Flash using the existing upstream image-writing steps.
-After boot, check the experimental label and `1127091` in Settings / About.
+After boot, check the experimental label and `22ee79b` in Settings / About.
 
 This procedure has been checked against the pinned builder and its shell syntax;
 a complete fresh image build has not been run for this guide. It builds the same
 application revision, but byte-for-byte reproduction of the maintainer's image
-has not been established. The maintainer's staged image uses a different version
-file timestamp. A published release should supply its exact metadata and build
-receipt; equal application commits alone do not imply equal firmware hashes.
+has not been established. The generated metadata matches the maintainer's UX5
+version fields, but the public receipt must also identify generated build inputs.
+Equal application commits alone do not imply equal firmware hashes.
 
 ## Public BIP93 recovery vectors: text and QR
 

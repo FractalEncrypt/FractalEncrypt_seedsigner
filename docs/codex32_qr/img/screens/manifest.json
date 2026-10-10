@@ -1,0 +1,716 @@
+{
+  "base_runtime_commit": "22ee79b2d9aff6ecf6b49572f42361c9363d598f",
+  "checkout_commit": "528031b63e4f8805e7f73fb3bb5355f630f53e86",
+  "base_runtime_tree": "d0de2724b5768a1db7160e7fed7d47ed3b93f625",
+  "working_tree_runtime_changes": false,
+  "runtime_patch_sha256": "05419e9aa78f81e31712c3ebfdae2813b2d53a66c2a302254eb45c98a0abac1c",
+  "language": "en",
+  "dimensions": [
+    240,
+    240
+  ],
+  "test_data": "Public BIP93 vector 2 NAME only",
+  "hardware": "mocked",
+  "sources": {
+    "src/seedsigner/views/seed_views.py": "3837bb19f6583af45890151b2f9d66fe546f6918022329f2174b19a9d3fdd310",
+    "src/seedsigner/views/codex32_views.py": "2b36d51d251269888540204b6e4d103def9ba87fbcce01d145ea829dbd3303ec",
+    "src/seedsigner/views/scan_views.py": "c6800e54588664f7271b88abd9d6a674e780d15466a85872376c9f9bcd9791ca",
+    "src/seedsigner/gui/screens/seed_screens.py": "2aef18d42b8fc9ba46a941c6ffab04fb205227dab96d81d30f546f9d1cabaedb",
+    "src/seedsigner/gui/screens/scan_screens.py": "6811f8f40640f25a20b56e1e0bdbc8dee42b701f0426f69c2f5d2e408e0b7e9a",
+    "src/seedsigner/models/codex32_correction.py": "c26082d6d7b48fa654637bcd52f4a375a91455f909347ce0c3fedb8671c4f2f8",
+    "src/seedsigner/gui/screens/screen.py": "7d0c28a13aa3a84bfa49d42da0fc47b111b0ca5f908d8f7dd9d24ae58e30d61d",
+    "src/seedsigner/gui/components.py": "a0db94d8409acaaa4c5a79cbaca22c4f27e01570443b15d295a18d38e7d4691f",
+    "src/seedsigner/gui/keyboard.py": "520a76f8716e46bae8509690dfb15cbfd91eb3208db5681ee5ea13b79a93eaef",
+    "src/seedsigner/gui/renderer.py": "fb6abf81cd10473f9c174549e6f9f2f524996e31139fa736d2b5e2a316c39b7e",
+    "src/seedsigner/views/view.py": "ea1146ee7ff4a82a6272ce5f7681f41950ba0bbde4faa73655ae472010cf0b13",
+    "tests/screenshot_generator/generator.py": "eb1d29b7b10a7cd8dee6c18e66c6ab5eeb270b45cf9e64835eb4bc98b81833f4",
+    "tests/screenshot_generator/utils.py": "8ad585161174e36c1c1e54ee236a132084a3c655c0e5a8878ced6ef40c542ec8",
+    "tools/render_codex32_screen_reference.py": "248d31f8fdac0277f44357968e208963fdc86f72230061a1cc661d5e08355c93"
+  },
+  "images": [
+    {
+      "filename": "load_seed.png",
+      "view": "LoadSeedView",
+      "title": "Load a Seed",
+      "section": "Import and share collection",
+      "bytes": 10920,
+      "sha256": "35d9210c4cbd165fd7e12905ae87324b6833db0323d7cc6cc069b4fef8147d30",
+      "layout_issues": []
+    },
+    {
+      "filename": "entry_first.png",
+      "view": "Codex32EntryView",
+      "title": "First share entry",
+      "section": "Import and share collection",
+      "bytes": 13756,
+      "sha256": "40b1c0763081e64a42fb9237df6c18597f29aff59a8139eece97c22ce6620ce7",
+      "layout_issues": []
+    },
+    {
+      "filename": "entry_unknown.png",
+      "view": "Codex32EntryView",
+      "title": "An unreadable box",
+      "section": "Import and share collection",
+      "bytes": 14763,
+      "sha256": "5a2e4d4581ceb88db13b7c1ab8c50eb778ef0e77d86f119c2b21e3477ab6b720",
+      "layout_issues": []
+    },
+    {
+      "filename": "scan_share.png",
+      "view": "ScanCodex32ShareView",
+      "title": "Scan a share",
+      "section": "Import and share collection",
+      "bytes": 5612,
+      "sha256": "660e126ba162664c1e536fbf646174aad3486f3dacfee86c4d29c31a88f23250",
+      "layout_issues": []
+    },
+    {
+      "filename": "share_accepted.png",
+      "view": "Codex32ShareSuccessView",
+      "title": "Share accepted",
+      "section": "Import and share collection",
+      "bytes": 13858,
+      "sha256": "812f21ff81ab651e0f4e652d3619064bf1a11335cc65d6641d9a78a44e3a3a32",
+      "layout_issues": []
+    },
+    {
+      "filename": "entry_next.png",
+      "view": "Codex32EntryView",
+      "title": "Next share entry",
+      "section": "Import and share collection",
+      "bytes": 13433,
+      "sha256": "69e50571835f26074bc147f55a987fe5db48f730c5cb8e7324947d14feb3f909",
+      "layout_issues": []
+    },
+    {
+      "filename": "duplicate_share.png",
+      "view": "Codex32ShareAlreadyAddedView",
+      "title": "Share Already Added",
+      "section": "Import and share collection",
+      "bytes": 11950,
+      "sha256": "b59716ea887d212f66fabd76a6a41981a1b414465879404c369dd79a4eb83fb5",
+      "layout_issues": []
+    },
+    {
+      "filename": "share_conflict.png",
+      "view": "Codex32ShareConflictConfirmView",
+      "title": "Share Conflict",
+      "section": "Import and share collection",
+      "bytes": 15807,
+      "sha256": "fa0a57a66bae7178d18f4ae1e8a502fae73668beb373f3799e52a6ce1c71623e",
+      "layout_issues": []
+    },
+    {
+      "filename": "conflict_compare_1.png",
+      "view": "Codex32ShareConflictReviewView",
+      "title": "Compare Shares: page 1",
+      "section": "Import and share collection",
+      "bytes": 13783,
+      "sha256": "ef3996a7ad359c209dd05b6edaa2ea1987406000bd15ed04f9039a631e466d34",
+      "layout_issues": []
+    },
+    {
+      "filename": "conflict_compare_2.png",
+      "view": "Codex32ShareConflictReviewView",
+      "title": "Compare Shares: page 2",
+      "section": "Import and share collection",
+      "bytes": 13912,
+      "sha256": "73b17fb87611f6f28d2a6756245221634976f24c9b480f4cafa20524a3f4e8f8",
+      "layout_issues": []
+    },
+    {
+      "filename": "conflict_compare_3.png",
+      "view": "Codex32ShareConflictReviewView",
+      "title": "Compare Shares: page 3",
+      "section": "Import and share collection",
+      "bytes": 13921,
+      "sha256": "dd0eda17d065013fe98a9e07f8ac1116051ea067fa97f3e505c9f33b27f1466b",
+      "layout_issues": []
+    },
+    {
+      "filename": "conflict_compare_4.png",
+      "view": "Codex32ShareConflictReviewView",
+      "title": "Compare Shares: page 4",
+      "section": "Import and share collection",
+      "bytes": 11564,
+      "sha256": "7d8265b3d5e6bbb3c545c1b82b6f9816139b3598c8c0d8d0003ff16364c4045c",
+      "layout_issues": []
+    },
+    {
+      "filename": "discard_all.png",
+      "view": "Codex32DiscardAllSharesConfirmView",
+      "title": "Discard all shares",
+      "section": "Import and share collection",
+      "bytes": 11359,
+      "sha256": "f71c7272d51525030061f022a5a593f917cad23f141076a2cebda42a60611efe",
+      "layout_issues": []
+    },
+    {
+      "filename": "next_method.png",
+      "view": "Codex32ShareEntryMethodView",
+      "title": "Next share",
+      "section": "Import and share collection",
+      "bytes": 7183,
+      "sha256": "439b1ac3e739e7a33f6009a8514f110e3b378e681bb7b102637da4ee61c800f4",
+      "layout_issues": []
+    },
+    {
+      "filename": "correction_available.png",
+      "view": "Codex32ShareInvalidView",
+      "title": "Correction available",
+      "section": "Invalid entries",
+      "bytes": 13484,
+      "sha256": "751841750d274514e8bf453bfdcd89f37e0be7ff331c9713e4cadf8afea55b2c",
+      "layout_issues": []
+    },
+    {
+      "filename": "no_correction.png",
+      "view": "Codex32ShareInvalidView",
+      "title": "No Correction Found",
+      "section": "Invalid entries",
+      "bytes": 17038,
+      "sha256": "bf626a765190ed91aef1540020bef132579df87d8f90a6d48f8f4735ad7b8670",
+      "layout_issues": []
+    },
+    {
+      "filename": "invalid_scan.png",
+      "view": "Codex32ShareInvalidView",
+      "title": "Invalid share",
+      "section": "Invalid entries",
+      "bytes": 15097,
+      "sha256": "eab49fcbb828438d365a3187856749de6c12d2d26935736f2b07d23dfbf6d5a6",
+      "layout_issues": []
+    },
+    {
+      "filename": "header_mismatch.png",
+      "view": "Codex32ShareInvalidView",
+      "title": "Share set mismatch",
+      "section": "Invalid entries",
+      "bytes": 15403,
+      "sha256": "900668e7902cee07eae41e4b207c561b99aad4a0f6a4b723d36a2e095740dffa",
+      "layout_issues": []
+    },
+    {
+      "filename": "threshold_zero.png",
+      "view": "Codex32ShareInvalidView",
+      "title": "Invalid Share Header",
+      "section": "Invalid entries",
+      "bytes": 13915,
+      "sha256": "bc1bc01626f68f3bb29975019674ef682591ce64cfcd884c819bd67c60fe5abf",
+      "layout_issues": []
+    },
+    {
+      "filename": "correction_boxes_1.png",
+      "view": "Codex32CorrectionReviewView",
+      "title": "Review Correction: boxes 1-24",
+      "section": "Correction review and backup confirmation",
+      "bytes": 14540,
+      "sha256": "638434c502199ff063c9d44f2388ab396aaece745c3dffc4e79f6d3152d8baf3",
+      "layout_issues": []
+    },
+    {
+      "filename": "correction_boxes_2.png",
+      "view": "Codex32CorrectionReviewView",
+      "title": "Review Correction: boxes 25-48",
+      "section": "Correction review and backup confirmation",
+      "bytes": 15846,
+      "sha256": "af1d4d47c0b1e85faa990631b1e39a5050342bd75fd04ea55956a1e1c13a9dbd",
+      "layout_issues": []
+    },
+    {
+      "filename": "change_pairs.png",
+      "view": "Codex32CorrectionDetailsView",
+      "title": "Review Changes",
+      "section": "Correction review and backup confirmation",
+      "bytes": 13413,
+      "sha256": "01f490862cdee6fa9c556b1719a5871e1e9ece5c6e5905e3ef4dca2789ca8b74",
+      "layout_issues": []
+    },
+    {
+      "filename": "change_pairs_next.png",
+      "view": "Codex32CorrectionDetailsView",
+      "title": "More changes",
+      "section": "Correction review and backup confirmation",
+      "bytes": 12964,
+      "sha256": "a2f27e3e29e5c5267a47e827fddc1aeca09bc0de140c9b38daab34695218d83b",
+      "layout_issues": []
+    },
+    {
+      "filename": "error_cause.png",
+      "view": "Codex32CorrectionCauseView",
+      "title": "Where is the error?",
+      "section": "Correction review and backup confirmation",
+      "bytes": 13453,
+      "sha256": "65267ca0cebc19f591b0d8a64c59ba61292e95ecd8d961bd0f38c59c2e98f4f8",
+      "layout_issues": []
+    },
+    {
+      "filename": "repair_backup.png",
+      "view": "Codex32BackupRepairView",
+      "title": "Repair Backup",
+      "section": "Correction review and backup confirmation",
+      "bytes": 13538,
+      "sha256": "aada39a7f516b4c53edf7f8ce892b0f8604d777e8bd8030e016a6f0abe030691",
+      "layout_issues": []
+    },
+    {
+      "filename": "repair_backup_last.png",
+      "view": "Codex32BackupRepairView",
+      "title": "Backup Ready",
+      "section": "Correction review and backup confirmation",
+      "bytes": 12672,
+      "sha256": "3405311fb6908116cf77690a69e73f7fbc79220cf540632e85a63a4730cb1de7",
+      "layout_issues": []
+    },
+    {
+      "filename": "repair_unreadable.png",
+      "view": "Codex32BackupRepairView",
+      "title": "Characters Unreadable",
+      "section": "Correction review and backup confirmation",
+      "bytes": 15020,
+      "sha256": "1cfcf98793573cc7a9c2fc41226fac3cf8be4c6dee90e3bae7fdc8bf5d5ee3a9",
+      "layout_issues": []
+    },
+    {
+      "filename": "check_backup.png",
+      "view": "Codex32CorrectionProofView",
+      "title": "Check Your Backup",
+      "section": "Correction review and backup confirmation",
+      "bytes": 17401,
+      "sha256": "4548c058f94c1fe9ddf11aa7a9899bd0b000a9cc3e4660859f9b43b5fee14774",
+      "layout_issues": []
+    },
+    {
+      "filename": "reentry.png",
+      "view": "Codex32CorrectionEntryView",
+      "title": "Re-enter changed boxes",
+      "section": "Correction review and backup confirmation",
+      "bytes": 17166,
+      "sha256": "a0b64e04fa88bb27ff965bc2542ac79567093a40e9a49efce33aa532a5d95a00",
+      "layout_issues": []
+    },
+    {
+      "filename": "backup_differs.png",
+      "view": "Codex32CorrectionMismatchView",
+      "title": "Backup Differs",
+      "section": "Correction review and backup confirmation",
+      "bytes": 16802,
+      "sha256": "3c3168b64aa2dbd949263ec41060f130680a876c2bf24cd4a13e8c884150274e",
+      "layout_issues": []
+    },
+    {
+      "filename": "unverified.png",
+      "view": "Codex32ReconstructionAcceptView",
+      "title": "Unverified Characters",
+      "section": "Correction review and backup confirmation",
+      "bytes": 19346,
+      "sha256": "567dabc9ea5e667ba290b5d6702cf24182a73c6c8af849728ea89aa0cceb81df",
+      "layout_issues": []
+    },
+    {
+      "filename": "large_nine.png",
+      "view": "Codex32LargeRecoveryWarningView",
+      "title": "Large Recovery: 9 to 12 unknowns",
+      "section": "Correction review and backup confirmation",
+      "bytes": 19071,
+      "sha256": "e79fce0afb8cd1f4235bf94744153d822cb132e2cf2220f4a47eb1c966c1003f",
+      "layout_issues": []
+    },
+    {
+      "filename": "large_thirteen.png",
+      "view": "Codex32LargeRecoveryWarningView",
+      "title": "Large Recovery: 13 unknowns",
+      "section": "Correction review and backup confirmation",
+      "bytes": 19111,
+      "sha256": "3d876ffb8312ab43209ed9d68f8b9f841efbfc7efcc3f38a1d0bf58e195077a3",
+      "layout_issues": []
+    },
+    {
+      "filename": "recovered_clean.png",
+      "view": "Codex32MasterShareSuccessView",
+      "title": "Recovered Seed",
+      "section": "Recovered seed and fingerprint checks",
+      "bytes": 14135,
+      "sha256": "580b6cbf2ca1e6460f7b6358d7fdffd7e09627f42468781baf3efbaae3f9d25c",
+      "layout_issues": []
+    },
+    {
+      "filename": "recovered_corrected.png",
+      "view": "Codex32MasterShareSuccessView",
+      "title": "Share entry corrected",
+      "section": "Recovered seed and fingerprint checks",
+      "bytes": 15559,
+      "sha256": "c261166fe809c22cafbbe2ef8966c23f755384cd1e5746f8211cccdbe38e0f1d",
+      "layout_issues": []
+    },
+    {
+      "filename": "recovered_unverified.png",
+      "view": "Codex32MasterShareSuccessView",
+      "title": "Share repairs unverified",
+      "section": "Recovered seed and fingerprint checks",
+      "bytes": 16730,
+      "sha256": "2bb4cb719343fe230f66e63a56fe3c021a7b413714c13c6abaae6ff4bfbd5893",
+      "layout_issues": []
+    },
+    {
+      "filename": "check_fingerprint.png",
+      "view": "Codex32FingerprintCheckView",
+      "title": "Check Fingerprint",
+      "section": "Recovered seed and fingerprint checks",
+      "bytes": 17406,
+      "sha256": "5de73723d8ffe54d7d53e3d8bcea20b269489ee58e97a092267c12f6166cc8a1",
+      "layout_issues": []
+    },
+    {
+      "filename": "fingerprint_entry.png",
+      "view": "Codex32FingerprintEntryView",
+      "title": "Enter Fingerprint",
+      "section": "Recovered seed and fingerprint checks",
+      "bytes": 8236,
+      "sha256": "69e790ef1342cc8dec718052c39cee89a6d65bbaea8d97e4bb42e2ddb6ffd06a",
+      "layout_issues": []
+    },
+    {
+      "filename": "fingerprint_visual.png",
+      "view": "Codex32FingerprintVisualView",
+      "title": "Compare visually",
+      "section": "Recovered seed and fingerprint checks",
+      "bytes": 13730,
+      "sha256": "9743e7eb0b10660a0134dbfcd5b92f2aa695e99c3a578ced17641303bdc5fa5c",
+      "layout_issues": []
+    },
+    {
+      "filename": "record_matches.png",
+      "view": "Codex32FingerprintResultView",
+      "title": "Record Matches",
+      "section": "Recovered seed and fingerprint checks",
+      "bytes": 16499,
+      "sha256": "fc85ff1e47e022bb647b6860a4fd0371ee6fd2954e8e3ddffbe90fa10174c39f",
+      "layout_issues": []
+    },
+    {
+      "filename": "record_matches_unverified.png",
+      "view": "Codex32FingerprintResultView",
+      "title": "A match with unverified repairs",
+      "section": "Recovered seed and fingerprint checks",
+      "bytes": 18617,
+      "sha256": "0b2594da2693bc04709865cb832fa0044be51bed9283439f5bf9adf95f043eb1",
+      "layout_issues": []
+    },
+    {
+      "filename": "record_visual_match.png",
+      "view": "Codex32FingerprintResultView",
+      "title": "Visual match result",
+      "section": "Recovered seed and fingerprint checks",
+      "bytes": 16499,
+      "sha256": "fc85ff1e47e022bb647b6860a4fd0371ee6fd2954e8e3ddffbe90fa10174c39f",
+      "layout_issues": []
+    },
+    {
+      "filename": "record_mismatch.png",
+      "view": "Codex32FingerprintResultView",
+      "title": "Record Mismatch",
+      "section": "Recovered seed and fingerprint checks",
+      "bytes": 14914,
+      "sha256": "5c9979adedcd6f78634d4f4e8962e61ab4411c318a7d013f4913cb8dad72d8da",
+      "layout_issues": []
+    },
+    {
+      "filename": "visual_mismatch.png",
+      "view": "Codex32FingerprintResultView",
+      "title": "Visual mismatch result",
+      "section": "Recovered seed and fingerprint checks",
+      "bytes": 15211,
+      "sha256": "793dac9b0f6c14de6b98a2dd3b26cbf3614f2647c0972b02ddc85b93f6a0345b",
+      "layout_issues": []
+    },
+    {
+      "filename": "no_record.png",
+      "view": "Codex32FingerprintNoRecordView",
+      "title": "Without a Record",
+      "section": "Recovered seed and fingerprint checks",
+      "bytes": 20599,
+      "sha256": "7a79c36479a324cab1cb1f0274856d711af95c149d08d285994b3860a7038471",
+      "layout_issues": []
+    },
+    {
+      "filename": "recovered_checked.png",
+      "view": "Codex32MasterShareSuccessView",
+      "title": "Return after a match",
+      "section": "Recovered seed and fingerprint checks",
+      "bytes": 16403,
+      "sha256": "b732ab79e33a5794d540ed84ab7edd924e1f5c659c2ae7b9b9685b22991565ad",
+      "layout_issues": []
+    },
+    {
+      "filename": "recovered_visual_checked.png",
+      "view": "Codex32MasterShareSuccessView",
+      "title": "Return after visual comparison",
+      "section": "Recovered seed and fingerprint checks",
+      "bytes": 15912,
+      "sha256": "547aebb7d6265e35de24b00aa0df633f1911b9c28494d503f74cc9cc6e8be713",
+      "layout_issues": []
+    },
+    {
+      "filename": "recovery_options.png",
+      "view": "Codex32MasterShareSuccessView",
+      "title": "Recovery Options",
+      "section": "Recovery options and seed loading",
+      "bytes": 10743,
+      "sha256": "3b1db19da71af9e4fd8d74b49807fd9099ac0c88b0ccada66ff203bc64956e6c",
+      "layout_issues": []
+    },
+    {
+      "filename": "review_shares.png",
+      "view": "Codex32RecoveryReviewView",
+      "title": "Review Entered Shares",
+      "section": "Recovery options and seed loading",
+      "bytes": 9534,
+      "sha256": "3592a1463a2f7e12ac79d16add6b3bb368709126cf89c35b5e65c47e818802f6",
+      "layout_issues": []
+    },
+    {
+      "filename": "rebuild_unknowns.png",
+      "view": "Codex32EntryView",
+      "title": "Rebuild unreadable entry",
+      "section": "Recovery options and seed loading",
+      "bytes": 14328,
+      "sha256": "3b184ceaecdf8f399bb0cc4caba9d6fb320f760063dd20ea16a4c0abc2f30085",
+      "layout_issues": []
+    },
+    {
+      "filename": "master_warning.png",
+      "view": "Codex32MasterSecretWarningView",
+      "title": "Master seed warning",
+      "section": "Recovery options and seed loading",
+      "bytes": 12781,
+      "sha256": "a80960d29958ca0c4863ceaf7733c93c0ae05724ef1424dbefa5a4994dac2451",
+      "layout_issues": []
+    },
+    {
+      "filename": "master_boxes_1.png",
+      "view": "Codex32MasterSecretDisplayView",
+      "title": "Secret S: boxes 1-24",
+      "section": "Recovery options and seed loading",
+      "bytes": 14059,
+      "sha256": "c2b23a15b531d465bc92bac5402a4853f74ea15058f50c27f05306710b47e12e",
+      "layout_issues": []
+    },
+    {
+      "filename": "master_boxes_2.png",
+      "view": "Codex32MasterSecretDisplayView",
+      "title": "Secret S: boxes 25-48",
+      "section": "Recovery options and seed loading",
+      "bytes": 12520,
+      "sha256": "ed7a3608532c48b86fcf6846d18b5063cff5848c33a12ce2d983319bbe8af917",
+      "layout_issues": []
+    },
+    {
+      "filename": "finalize.png",
+      "view": "SeedFinalizeView",
+      "title": "Finalize Seed",
+      "section": "Recovery options and seed loading",
+      "bytes": 7383,
+      "sha256": "398a0bf734a700d88bd3887c9ce154cc516e5a5946b6c82af40a8d0adfbeaf16",
+      "layout_issues": []
+    },
+    {
+      "filename": "seed_options.png",
+      "view": "SeedOptionsView",
+      "title": "Loaded seed",
+      "section": "Recovery options and seed loading",
+      "bytes": 12052,
+      "sha256": "36f3f27720fd3865a9b7d4105b4960bc48f68bca10dd9689daccfb9395ab8cf4",
+      "layout_issues": []
+    },
+    {
+      "filename": "backup_menu.png",
+      "view": "SeedBackupView",
+      "title": "Backup Seed",
+      "section": "Codex32 backup and QR export",
+      "bytes": 9820,
+      "sha256": "338614ccab1aec874eb330bc2dc53f86597bfb136ad8e7cc811fc3c8fa1f63c2",
+      "layout_issues": []
+    },
+    {
+      "filename": "backup_select.png",
+      "view": "Codex32BackupShareSelectView",
+      "title": "Select Share",
+      "section": "Codex32 backup and QR export",
+      "bytes": 7109,
+      "sha256": "ec45b20b25e5e5be060f6dbba390b5ede0fc757b0b5e3d6edae49a632efafe54",
+      "layout_issues": []
+    },
+    {
+      "filename": "backup_unavailable.png",
+      "view": "Codex32BackupUnavailableView",
+      "title": "Backup unavailable",
+      "section": "Codex32 backup and QR export",
+      "bytes": 14081,
+      "sha256": "80be12f235360ae6c2fcc3a7f255a01459a9020cf26c15b6c53eecca347ebebd",
+      "layout_issues": []
+    },
+    {
+      "filename": "metadata_warning.png",
+      "view": "Codex32BackupMetadataWarningView",
+      "title": "Backup metadata warning",
+      "section": "Codex32 backup and QR export",
+      "bytes": 12680,
+      "sha256": "a4bcc55e22fb4a2ce951630740db0b8c7be04c0bccd6c4f58fd2873fb46b5501",
+      "layout_issues": []
+    },
+    {
+      "filename": "backup_display_last.png",
+      "view": "Codex32MasterSecretDisplayView",
+      "title": "Confirm Backup after display",
+      "section": "Codex32 backup and QR export",
+      "bytes": 13287,
+      "sha256": "9d7cc370b3dd2d81d2ba2243c4e13e915e67bdfd11b6cddf09a9fb8f84769526",
+      "layout_issues": []
+    },
+    {
+      "filename": "backup_confirm_prompt.png",
+      "view": "Codex32BackupConfirmPromptView",
+      "title": "Confirm codex32 backup",
+      "section": "Codex32 backup and QR export",
+      "bytes": 12247,
+      "sha256": "6292a403ea58702816b1cec2a626c5ddba9bb975c347323555070c2c3803a9cc",
+      "layout_issues": []
+    },
+    {
+      "filename": "backup_confirm_entry.png",
+      "view": "Codex32BackupConfirmEntryView",
+      "title": "Backup re-entry",
+      "section": "Codex32 backup and QR export",
+      "bytes": 13756,
+      "sha256": "40b1c0763081e64a42fb9237df6c18597f29aff59a8139eece97c22ce6620ce7",
+      "layout_issues": []
+    },
+    {
+      "filename": "backup_confirm_invalid.png",
+      "view": "Codex32BackupConfirmInvalidView",
+      "title": "Backup confirmation failed",
+      "section": "Codex32 backup and QR export",
+      "bytes": 13210,
+      "sha256": "3d7d92b8df515228b0269ff8ddb9d38c38b2c9d1b1279c55557c436fe621c174",
+      "layout_issues": []
+    },
+    {
+      "filename": "backup_confirm_success.png",
+      "view": "Codex32BackupConfirmSuccessView",
+      "title": "Backup confirmation succeeded",
+      "section": "Codex32 backup and QR export",
+      "bytes": 10576,
+      "sha256": "c2f643a02b55770e781ecdc0be01789790b5ff9b7298923e354d9585f6c5d491",
+      "layout_issues": []
+    },
+    {
+      "filename": "qr_warning.png",
+      "view": "SeedTranscribeSeedQRWarningView",
+      "title": "Codex32QR warning",
+      "section": "Codex32 backup and QR export",
+      "bytes": 13351,
+      "sha256": "303a29ec3e28277746ac04419e18711d8b17d41ccd5aa5bec401aa7281494ab4",
+      "layout_issues": []
+    },
+    {
+      "filename": "qr_whole.png",
+      "view": "SeedTranscribeSeedQRWholeQRView",
+      "title": "Whole Codex32QR",
+      "section": "Codex32 backup and QR export",
+      "bytes": 25007,
+      "sha256": "963501caff922860a3686cc97a099624ba62384e089b92d8f14e1ed4f9ad359c",
+      "layout_issues": []
+    },
+    {
+      "filename": "qr_zoom.png",
+      "view": "SeedTranscribeSeedQRZoomedInView",
+      "title": "Zoomed QR transcription",
+      "section": "Codex32 backup and QR export",
+      "bytes": 4011,
+      "sha256": "a251e3854c962ed0358acfdb57d0d3c4417d563f59a0d4ec70bb2fe64e2f9ab0",
+      "layout_issues": []
+    },
+    {
+      "filename": "qr_confirm_prompt.png",
+      "view": "SeedTranscribeSeedQRConfirmQRPromptView",
+      "title": "Confirm Codex32QR",
+      "section": "Codex32 backup and QR export",
+      "bytes": 13084,
+      "sha256": "9017b60181e203d15010fddf588a5a0e43f4adb749e4f7f0644bf8daf32a01e6",
+      "layout_issues": []
+    },
+    {
+      "filename": "qr_confirm_scan.png",
+      "view": "SeedTranscribeSeedQRConfirmScanView",
+      "title": "Scan the copied QR",
+      "section": "Codex32 backup and QR export",
+      "bytes": 6067,
+      "sha256": "cb7a22f5b9d6c5ed85b0bdf71cfcf48af8610cca6fa82da267c8857329c6bca8",
+      "layout_issues": []
+    },
+    {
+      "filename": "split_warning.png",
+      "view": "Codex32MasterSecretWarningView",
+      "title": "Split-share display warning",
+      "section": "Codex32 backup and QR export",
+      "bytes": 13075,
+      "sha256": "ba51e78d0a74a12652df47081b78d4fbafdc407c989235d78551b063859d766c",
+      "layout_issues": []
+    },
+    {
+      "filename": "split_display.png",
+      "view": "Codex32MasterSecretDisplayView",
+      "title": "Numbered split-share display",
+      "section": "Codex32 backup and QR export",
+      "bytes": 15000,
+      "sha256": "6f6f3c1cee95f6593f0996304cd478b136e2419fb31cd3ba24eebed450b4871e",
+      "layout_issues": []
+    },
+    {
+      "filename": "split_confirm_success.png",
+      "view": "Codex32BackupConfirmSuccessView",
+      "title": "Split-share backup confirmed",
+      "section": "Codex32 backup and QR export",
+      "bytes": 10583,
+      "sha256": "7cb5cee5e1c6eb3b40cab8953b735a7562e0eb048e4d871e3493aaf543edefbc",
+      "layout_issues": []
+    },
+    {
+      "filename": "split_qr_warning.png",
+      "view": "SeedTranscribeSeedQRWarningView",
+      "title": "Split-share QR warning",
+      "section": "Codex32 backup and QR export",
+      "bytes": 13537,
+      "sha256": "5a45b3dea9a6b2e3ab9dd826f21e2bcab7e13fff2b244be98d5b819c6a4b328e",
+      "layout_issues": []
+    },
+    {
+      "filename": "qr_wrong_share.png",
+      "view": "SeedTranscribeSeedQRConfirmWrongSeedView",
+      "title": "Wrong QR content",
+      "section": "Codex32 backup and QR export",
+      "bytes": 10648,
+      "sha256": "872aa959df145cd024e141ee9f63fa8d328f9cf1342682e27470a1a004d9b614",
+      "layout_issues": []
+    },
+    {
+      "filename": "qr_invalid.png",
+      "view": "SeedTranscribeSeedQRConfirmInvalidQRView",
+      "title": "Invalid confirmation QR",
+      "section": "Codex32 backup and QR export",
+      "bytes": 10479,
+      "sha256": "2607d8cbb4d17d211565c1cef1916938c1086e163a3b5aa189d506c4e0efdd8d",
+      "layout_issues": []
+    },
+    {
+      "filename": "qr_success.png",
+      "view": "SeedTranscribeSeedQRConfirmSuccessView",
+      "title": "QR confirmation succeeded",
+      "section": "Codex32 backup and QR export",
+      "bytes": 10174,
+      "sha256": "044e26ca0f08055a81dc7fc015b944e7a5900b6ddc2c44931537f3311ed71129",
+      "layout_issues": []
+    }
+  ]
+}

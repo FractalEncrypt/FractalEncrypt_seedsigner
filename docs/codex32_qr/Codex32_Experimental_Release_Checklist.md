@@ -3,14 +3,19 @@
 **Experimental / public test seeds and testnet or regtest only. No real backups
 or funds. This is an independent fork, not an official SeedSigner release.**
 The software itself still supports mainnet; wording must not imply an enforced
-network restriction. Do not publish until the final physical UX4 checks pass.
+network restriction. All seven focused physical UX5 checks passed on 2026-10-10
+using a SeedSigner Plus at 240x320. Later 240x240 clipping reopened runtime work.
+The prepared UX5 release assets are historical and must not be published as the
+new layout/duplicate-share candidate. Independent review passed; runtime is pinned
+at `528031b63e4f8805e7f73fb3bb5355f630f53e86`. CI, a fresh build, focused device
+checks and new receipt/assets/checksums must be completed before publication.
 
 ## Freeze and identify the tested image
 
 - Retain the exact image that passed physical testing. Record SHA256, byte count,
   target board, app commit, OS commit, Buildroot commit, build arguments, Docker
   image identity and the exact included version.json. Hash before mounting it.
-- Current candidate is app `11270918b794f83be5e9051d391599ff607ff655`, OS
+- Historical UX5 was app `22ee79b2d9aff6ecf6b49572f42361c9363d598f`, OS
   `d13859392660fe512a753bc14ecd0edc86c35510`, Buildroot
   `bf2a2858aa675a14b60f1f9142c65b32652609c1`, Pi Zero 1.3 target `--pi0`.
   Use the tested candidate commit, not an assumed branch-tip commit.
@@ -20,6 +25,13 @@ network restriction. Do not publish until the final physical UX4 checks pass.
   commit. This is a suggested tag, not an already created release.
 - Documentation-only commits added later do not change this image. Link the
   relevant documentation revision explicitly, or attach the guide as an asset.
+
+The tested image is 52,428,800 bytes with SHA256
+`4c6104ee33aea1f2e68119fc2184077dcb45147c580af9ebd054f221724803f4`.
+This image is superseded for publication by the pending runtime changes. Do not
+reuse its image hash or receipt for the new candidate. Pin the accepted runtime
+commit after independent review; later documentation commits must not silently
+change the image tag's source pin.
 
 ## Prepare all draft assets
 
@@ -56,6 +68,10 @@ Opening paragraph to use in the release notes:
 > only. Do not enter real backups or mainnet seeds, and do not use this image to
 > secure funds. Mainnet is not disabled by this build. This is not an official
 > SeedSigner release. Please report results with public test data only.
+
+Disclose the unfixed CompactSeedQR scanner issue: certain binary payloads fail
+after text conversion on the tested Windows scanner library; Pi incidence is
+unknown. Recommend the public plain-text Codex32 QR path for these tests.
 
 Summarize the bounded correction modes, numbered review/re-entry, unverified
 reconstruction warnings, optional fingerprint checks, tested board, known limits,
