@@ -251,7 +251,8 @@ class TestSeedFlows(FlowTest):
         assert "a" not in collection.corrections
         assert len(collection.shares) == 1
 
-    def test_codex32_conflict_choice_updates_only_explicitly_chosen_share_and_record(self):
+    @pytest.mark.parametrize("entry_method", ["manual", "scan"])
+    def test_codex32_conflict_choice_updates_only_explicitly_chosen_share_and_record(self, entry_method):
         share_a, _, _ = _build_codex32_split_fixture()
         conflicting = _build_conflicting_share_same_index(share_a)
         for selected in (1, 2, RET_CODE__BACK_BUTTON):
@@ -260,7 +261,7 @@ class TestSeedFlows(FlowTest):
             collection.corrections["a"] = old_record
             view = seed_views.Codex32ShareConflictConfirmView(
                 share_num=2, prefill=collection.prefix(), share_data=conflicting.s,
-                share_collection=collection, correction_record=new_record)
+                share_collection=collection, correction_record=new_record, entry_method=entry_method)
             with patch.object(view, "run_screen", return_value=selected):
                 destination = view.run()
             replaced = selected == 2
@@ -268,7 +269,19 @@ class TestSeedFlows(FlowTest):
             assert collection.corrections["a"] is (new_record if replaced else old_record)
             assert len(collection.shares) == 1
             assert destination.View_cls == (seed_views.Codex32ShareSuccessView if replaced else
-                                            seed_views.Codex32EntryView)
+                                            seed_views.Codex32ShareEntryMethodView)
+            if not replaced:
+                assert destination.view_args["share_num"] == 2
+                assert destination.view_args["prefill"] == collection.prefix()
+                assert destination.view_args["share_collection"] is collection
+                assert destination.skip_current_view is True
+                assert destination.view_args["entry_method"] == entry_method
+                method_view = destination.View_cls(**destination.view_args)
+                with patch.object(method_view, "run_screen", return_value=RET_CODE__BACK_BUTTON) as menu:
+                    back = method_view.run()
+                assert menu.call_args.kwargs["selected_button"] == (1 if entry_method == "scan" else 0)
+                assert back.View_cls == BackStackView
+                assert collection.corrections["a"] is old_record
             assert view.share_data is None
             assert view.correction_record is None
 
@@ -295,14 +308,21 @@ class TestSeedFlows(FlowTest):
         ])
 
 
-    def test_codex32_collection_conflict_confirm_keep_existing_preserves_original_share(self):
+    @pytest.mark.parametrize("next_method", ["manual", "scan"])
+    def test_codex32_collection_conflict_confirm_keep_existing_preserves_original_share(self, next_method):
         share_a, _, _ = _build_codex32_split_fixture()
         conflicting_share = _build_conflicting_share_same_index(share_a)
 
-        def assert_original_share_preserved(view: seed_views.Codex32EntryView):
-            assert view.share_collection is not None
-            assert view.share_collection.get_share("a").s == share_a.s
-            assert view.share_num == 2
+        def assert_original_share_preserved(view):
+            if isinstance(view, scan_views.ScanCodex32ShareView):
+                collection = view.codex32_share_collection
+                ordinal = view.codex32_share_num
+            else:
+                collection = view.share_collection
+                ordinal = view.share_num
+            assert collection is not None
+            assert collection.get_share("a").s == share_a.s
+            assert ordinal == 2
 
         self.run_sequence([
             FlowStep(MainMenuView, button_data_selection=MainMenuView.SEEDS),
@@ -312,7 +332,16 @@ class TestSeedFlows(FlowTest):
             FlowStep(seed_views.Codex32ShareSuccessView, button_data_selection=seed_views.Codex32ShareSuccessView.NEXT),
             FlowStep(seed_views.Codex32EntryView, screen_return_value=conflicting_share.s),
             FlowStep(seed_views.Codex32ShareConflictConfirmView, button_data_selection=seed_views.Codex32ShareConflictConfirmView.KEEP_EXISTING),
-            FlowStep(seed_views.Codex32EntryView, before_run=assert_original_share_preserved),
+            FlowStep(seed_views.Codex32ShareEntryMethodView, before_run=assert_original_share_preserved,
+                     screen_return_value=RET_CODE__BACK_BUTTON),
+            FlowStep(seed_views.Codex32ShareSuccessView, button_data_selection=seed_views.Codex32ShareSuccessView.NEXT),
+            FlowStep(seed_views.Codex32EntryView, screen_return_value=conflicting_share.s),
+            FlowStep(seed_views.Codex32ShareConflictConfirmView, button_data_selection=seed_views.Codex32ShareConflictConfirmView.KEEP_EXISTING),
+            FlowStep(seed_views.Codex32ShareEntryMethodView, before_run=assert_original_share_preserved,
+                     button_data_selection=(seed_views.Codex32ShareEntryMethodView.ENTER if next_method == "manual"
+                                            else seed_views.Codex32ShareEntryMethodView.SCAN)),
+            FlowStep(seed_views.Codex32EntryView if next_method == "manual" else scan_views.ScanCodex32ShareView,
+                     before_run=assert_original_share_preserved),
         ])
 
 

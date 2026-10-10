@@ -568,11 +568,10 @@ class Codex32ShareConflictConfirmView(View):
             self.share_data = None
             self.correction_record = None
             return Destination(
-                Codex32EntryView,
+                Codex32ShareEntryMethodView,
                 view_args={
                     "share_num": len(self.share_collection.shares) + 1,
-                    "prefill": self.prefill,
-                    "start_page": 0,
+                    "prefill": self.share_collection.prefix(),
                     "share_collection": self.share_collection,
                     "entry_method": self.entry_method,
                 },
