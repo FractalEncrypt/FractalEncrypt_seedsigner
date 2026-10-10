@@ -10,13 +10,15 @@ Use the [build and test guide](Codex32_Experimental_Build_and_Test.md) for the
 public BIP93 A/C and cash share QRs, expected fingerprints, and coordinator
 single-sig/multisig walkthroughs.
 
-The illustrations below use public NAME data with fingerprint `fab6868a`.
+The illustrations use the public BIP93 codex32 test vector "NAME", with fingerprint
+`fab6868a`. The flow also applies to other compatible split codex32 shares.
 The entry header identifies the share; the next line says **Boxes 17-20** (for
 example), followed by the individual numbered boxes.
 
-They render the reviewed English layout/duplicate-share candidate at 240x240,
-with hardware mocked. See the build guide for its frozen runtime pin and current
-device-test status. The images are not device photos of the earlier UX5 firmware.
+These are English software renders at 240x240, with hardware mocked, rather than
+device photos. UX6 physical checks passed at 240x240. The later Keep Saved Share
+navigation change needs a focused device check; see the build guide for source
+pins and validation scope.
 For every Codex32 screen and its meaning, including error and backup paths, see
 the [screen reference](Codex32_Screen_Reference.md). Camera illustrations use a
 placeholder, and some menus scroll beyond the first screenshot.
@@ -71,7 +73,8 @@ Different checksum-valid content under an already saved index produces
 **Share Conflict**. Choose **Compare Shares** to see the differing numbered boxes
 as `Saved -> New`, then check your original backup or another independent trusted
 record. **Choose Share** returns to the choices; viewing the comparison does not
-accept either copy. **Keep Saved Share** discards the new entry and continues;
+accept either copy. **Keep Saved Share** discards the new entry and asks whether
+to enter or scan the next share;
 **Use New Share** explicitly replaces the saved copy. The checksum cannot identify
 which of two valid strings belongs to your backup. If you cannot establish which
 is correct, keep the saved entry unchanged and investigate rather than guess.
@@ -156,7 +159,7 @@ Once `k` compatible shares are accepted, SeedSigner recovers S and shows
 means combining the shares; correction means repairing their entry. The status
 line distinguishes a corrected transcription from unverified share repairs.
 
-![Recovered Seed with public NAME fingerprint](img/screens/recovered_clean.png)
+![Recovered Seed with the public BIP93 codex32 test vector NAME fingerprint](img/screens/recovered_clean.png)
 
 Choose **Check Fingerprint** and compare with a fingerprint saved **before this
 recovery**, on a backup or in your wallet setup records. **Enter Fingerprint**
@@ -220,7 +223,7 @@ Choose **Load Seed**, or **Finalize Seed** after displaying S. At the standard
 **Finalize Seed** screen, choose **Done**. The loaded seed offers normal
 SeedSigner operations.
 
-![Loaded public NAME seed options](img/screens/seed_options.png)
+![Loaded seed options using the public BIP93 codex32 test vector NAME](img/screens/seed_options.png)
 
 For a watch-only coordinator, export the correct account xpub and verify its
 fingerprint, full origin path, network and script type. For multisig, assemble

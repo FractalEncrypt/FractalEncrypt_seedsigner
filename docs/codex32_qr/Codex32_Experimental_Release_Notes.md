@@ -1,79 +1,69 @@
-# Codex32 EC Test 1 — experimental Pi Zero image
+# Codex32 experimental image: UX6 validation notes
 
-**EXPERIMENTAL INDEPENDENT FORK. For testing with public seeds and testnet/regtest
-only. Do not enter real backups or mainnet seeds, and do not use this image to
-secure funds. Mainnet is not disabled by this build. This is not an official
-SeedSigner release. Report results with public test data only.**
+**EXPERIMENTAL INDEPENDENT FORK. Test with public seeds and testnet/regtest only.
+Do not enter real backups or mainnet seeds, or use this image to secure funds.
+Mainnet is not disabled. This is not an official SeedSigner release.**
 
-**Draft superseded: not ready to publish.** These notes describe historical UX5.
-Physical tests used a SeedSigner Plus at 240x320. Clipping found at 240x240 led to
-reviewed layout and duplicate-share navigation changes. Runtime is now pinned at
-`528031b63e4f8805e7f73fb3bb5355f630f53e86` (UX6). Build and physically check that
-candidate, then replace the historical validation/asset sections below with its
-actual results and hashes before publishing.
+These notes identify the maintainer's tested UX6 image. No downloadable GitHub
+release is published. For building and testing, use the
+[build and test guide](Codex32_Experimental_Build_and_Test.md). Packaging steps
+belong in the [maintainer publication checklist](Codex32_Experimental_Release_Checklist.md).
 
-## What the feature adds
+## Feature behavior
 
-Manual 48-character Codex32 entry can propose up to four substitutions, eight
-scattered erasures (`?`), or mixtures within `2S+E <= 8`. A separate warned path
-supports a single consecutive erasure run of 9-13. Review the numbered changes
-and entered-to-proposed pairs, then re-enter readable characters from the backup.
-Unreadable reconstructions and annotated repairs keep an unverified warning.
+Manual 48-character codex32 entry can propose up to four substitutions, eight
+scattered erasures (`?`), or mixtures within `2S+E <= 8`. A separately warned path
+supports one consecutive erasure run of 9-13. Review numbered changes and
+entered-to-proposed pairs, then re-enter readable characters from the backup.
+Unreadable reconstructions retain an unverified repair warning.
 
-Recovery displays a lowercase fingerprint as soon as enough compatible shares
-are present. Optional entry of a previously recorded fingerprint and visual
-comparison help catch transcription mistakes. After a match, Load Seed is
-available immediately, with recovery tools under More Options. A 32-bit match
+The recovered seed's lowercase fingerprint is available once enough compatible
+split codex32 shares are entered. Optional entry of a previously recorded
+fingerprint and visual comparison help catch accidental mistakes. Load Seed is
+available after a match, with recovery tools under More Options. A 32-bit match
 is an accidental-error check, not authentication; verify the wallet policy and
-a known address. Thirteen consecutive unknowns use all checksum redundancy;
-another typo outside that run can give a wrong but checksum-valid completion.
+a known address. Thirteen consecutive unknowns use all checksum redundancy:
+another typo outside the run can yield a wrong checksum-valid completion.
 
-## Tested hardware and validation
+## Tested image identity
 
-- Historical device testing: Pi Zero 1.3, SeedSigner Plus at 240x320, pi0 target.
-- Application `22ee79b2d9aff6ecf6b49572f42361c9363d598f`, including the separately
-  reviewed upstream nested-SegWit change-verification merge.
-- 586 normal tests, 86 optimized correction/flow/entry tests, 22 screenshot locales,
-  and GitHub CI on Python 3.10 and 3.12 passed for this runtime revision.
-- All seven focused device checks passed. The signed synthetic nested-SegWit PSBT
-  was decoded from device video and its ECDSA signature verified; other PSBT data
-  matched the unsigned fixture. No transaction was broadcast.
-- A separate Raspberry Pi OS / Python 3.13.5 benchmark measured warm supported
-  correction medians around 10-21 ms. It excludes firmware GUI work and is not an
-  exact timing guarantee for the firmware.
+| Item | Value |
+| --- | --- |
+| Image | `seedsigner_os.codex32-ec-ux6-test.pi0.img` |
+| Bytes | `52428800` |
+| SHA256 | `48870161174ec734b3e37bdd2353b611377ef5254594c9ba38e0066a82d3ed3c` |
+| Application | `528031b63e4f8805e7f73fb3bb5355f630f53e86` |
+| Version | `v0.8.7-Codex32-EC-UX6-test` |
+| OS | `d13859392660fe512a753bc14ecd0edc86c35510` |
+| Buildroot | `bf2a2858aa675a14b60f1f9142c65b32652609c1` |
+| Target | Pi Zero 1.3, `--pi0` |
+| Physical display | SeedSigner Plus set to 240x240 |
 
-## Known limitations
+All four focused physical checks passed per operator on 2026-10-10. The device's
+signed synthetic nested-SegWit PSBT was independently decoded from video; its
+ECDSA signature verifies, with unsigned transaction and non-signature metadata
+unchanged. No transaction was broadcast. The build exited zero and its image
+size/hash were independently checked. Local tests passed 614 normal and 181
+focused optimized cases; GitHub CI passed on Python 3.10 and 3.12.
+
+The reviewed UX7 navigation change returns **Keep Saved Share** to the existing
+scan-or-enter choice. It is committed at `87a4be4de12e24ce1c7f9e0bfcd6b78a535d3537`,
+with 616 normal and 183 focused optimized tests passing. It is absent from the
+UX6 image above; a fresh UX7 image and one focused device check remain pending.
+Branch HEAD must not be substituted for an image's source pin. Historical UX5
+hashes and packages are not assets for UX6 or UX7.
+
+## Limits
 
 A pre-existing CompactSeedQR scanner problem rejects some binary payloads after
-text-encoding conversion. It was reproduced using the Windows scanner library;
-incidence on the Pi has not been established. It remains unfixed. Use the supplied
-plain-text Codex32 share QRs for these tests; do not rely on CompactSeedQR recovery.
+text conversion in the Windows scanner library; Pi incidence is unknown. It is
+unfixed. Use the supplied plain-text codex32 share QRs for these tests.
 
-Only the pi0 target on the hardware above was device-tested. Other boards,
-byte-identical independent rebuilds, stable-release readiness and real-funds use
-are not established. Correction does not search for inserted/deleted characters
-or misplaced box groups, and cannot determine the true number of mistakes.
+Other board images, independent byte-identical rebuilds, stable-release readiness
+and real-funds use are not established. Correction does not search for inserted
+or deleted characters or misplaced box groups, and cannot determine the true
+number of mistakes. Separate Raspberry Pi OS / Python 3.13.5 warm correction
+benchmarks measured about 10-21 ms; they do not establish firmware GUI timing.
 
-## Historical asset preparation (superseded)
-
-The following describes the earlier local package, not a published download.
-Do not distribute it as the pending layout candidate.
-
-1. The earlier package named `seedsigner_os.codex32-ec-test.1.pi0.img` and `SHA256SUMS`.
-2. Verify its SHA256 before flashing. The image is 52,428,800 bytes; SHA256:
-   `4c6104ee33aea1f2e68119fc2184077dcb45147c580af9ebd054f221724803f4`.
-3. Flash to an SD card for the tested pi0 target using your usual image writer.
-   About should identify `v0.8.7-Codex32-EC-UX5-test`, fork FractalEncrypt,
-   and commit `22ee79b`.
-4. Unzip `Codex32_EC_Test_1_Docs.zip`. Start with the experimental build/test guide
-   for public BIP93 A/C and cash text/QR vectors and expected fingerprints, then
-   follow the illustrated user-flow guide. The screen reference explains all
-   Codex32-specific screens and related shared screens.
-5. Follow the coordinator test-wallet instructions to export account xpubs to
-   Sparrow, Nunchuk or compatible software, assemble single-sig/multisig policy,
-   check a known address and test signing with public data only.
-
-The public build receipt records immutable source inputs, version metadata,
-builder image identity and staged-input hashes. It does not assert a reproducible
-firmware build. The checksum file identifies these assets; without a separately
-verifiable maintainer signature, it is not an independent authentication channel.
+Checksums identify bytes but are not an independent authentication channel without
+a separately verifiable signature. No reproducible firmware build is claimed.

@@ -7,13 +7,14 @@ asking you to check. For a step-by-step recovery, see the
 QRs, see the [build and test guide](Codex32_Experimental_Build_and_Test.md).
 
 **Public test data only. Never fund these example wallets.** All screenshots use
-public BIP93 NAME data (fingerprint `fab6868a`) or deliberately damaged versions
-of it. They are native 240x240 renders of the reviewed layout/duplicate-share
-candidate, with hardware mocked. Source hashes, checkout identity and the delta
+the public BIP93 codex32 test vector "NAME" (fingerprint `fab6868a`) or deliberately
+damaged versions of it. The screen behavior applies to other compatible codex32
+shares too. These are native 240x240 renders, with hardware mocked. Source hashes, checkout identity and the delta
 from the historical `22ee79b` baseline identify the captured code in the image
 manifest. See the build guide for the frozen runtime pin and device-test status.
-These images are software renders, not photos of the previously tested UX5
-firmware. The camera image is a placeholder.
+These images are software renders, not device photos. UX6 physical checks passed
+at 240x240; the later Keep Saved Share navigation change needs its own focused
+physical check. The camera image is a placeholder.
 Some menus scroll; screenshots show the initial viewport. Shared SeedSigner
 screens are included where Codex32 changes their content. Button names can differ
 in other languages. A fingerprint match is a 32-bit accidental-error check,
@@ -27,16 +28,16 @@ not authentication; verify the wallet policy and a known address as well.
 | **First share entry**<br>![First share entry](img/screens/entry_first.png) | Enter exactly 48 characters in numbered four-box groups. MS1 is locked; ? marks an unreadable character. Any of the three side buttons selects a keyboard character. |
 | **An unreadable box**<br>![An unreadable box](img/screens/entry_unknown.png) | Use ? only when a backup character cannot be read. It fills the box for entry, but cannot pass normal validation. A supported completion still needs review. |
 | **Scan a share**<br>![Scan a share](img/screens/scan_share.png) | Scan one Codex32 share QR. This illustration uses the generator's camera placeholder. Invalid scans use strict validation; correction proposals are a manual-entry feature. |
-| **Share accepted**<br>![Share accepted](img/screens/share_accepted.png) | One compatible NAME share has been accepted. Recovery needs two. Enter or scan the next share; Discard opens the discard confirmation. |
+| **Share accepted**<br>![Share accepted](img/screens/share_accepted.png) | A compatible split codex32 share has been accepted. Recovery requires the threshold number of distinct shares; this example shows one of two. Enter or scan the next share; Discard opens the discard confirmation. |
 | **Next share entry**<br>![Next share entry](img/screens/entry_next.png) | MS1 plus the established threshold and identifier are locked for subsequent shares. The share index is the next editable position; enter a different index from the same set. |
 | **Share Already Added**<br>![Share Already Added](img/screens/duplicate_share.png) | This exact share is already saved. It adds no share toward recovery. Scan New Share opens the camera; Discard This Entry keeps the saved shares and lets you choose how to enter a different share. |
-| **Share Conflict**<br>![Share Conflict](img/screens/share_conflict.png) | Two checksum-valid strings use the same index but differ. Neither checksum identifies the correct backup. Compare Shares shows numbered differences. Check the original backup or an independent trusted record before choosing Keep Saved Share or Use New Share. If unsure, leave the saved share in place and investigate; do not guess. |
+| **Share Conflict**<br>![Share Conflict](img/screens/share_conflict.png) | Two checksum-valid strings use the same index but differ. Neither checksum identifies the correct backup. Compare Shares shows numbered differences. Check the original backup or an independent trusted record before choosing Keep Saved Share or Use New Share. Keep Saved Share returns to the scan-or-enter choice. If unsure, leave the saved share in place and investigate; do not guess. |
 | **Compare Shares: page 1**<br>![Compare Shares: page 1](img/screens/conflict_compare_1.png) | Saved → New lists differing box values. Next Differences advances; Back returns one page or to the choice screen. Choose Share returns to the choices without accepting either copy. |
 | **Compare Shares: page 2**<br>![Compare Shares: page 2](img/screens/conflict_compare_2.png) | Saved → New lists differing box values. Next Differences advances; Back returns one page or to the choice screen. Choose Share returns to the choices without accepting either copy. |
 | **Compare Shares: page 3**<br>![Compare Shares: page 3](img/screens/conflict_compare_3.png) | Saved → New lists differing box values. Next Differences advances; Back returns one page or to the choice screen. Choose Share returns to the choices without accepting either copy. |
 | **Compare Shares: page 4**<br>![Compare Shares: page 4](img/screens/conflict_compare_4.png) | Saved → New lists differing box values. Next Differences advances; Back returns one page or to the choice screen. Choose Share returns to the choices without accepting either copy. |
 | **Discard all shares**<br>![Discard all shares](img/screens/discard_all.png) | Continue discards the collected shares. Cancel keeps the collection. This confirmation also appears when backing out of an accepted-share screen. |
-| **Next share**<br>![Next share](img/screens/next_method.png) | After discarding an invalid entry, choose manual entry or scanning while keeping any valid shares still in the collection. |
+| **Next share**<br>![Next share](img/screens/next_method.png) | After discarding an invalid entry or choosing Keep Saved Share, choose manual entry or scanning. Your accepted shares and their correction history remain saved. |
 ## Invalid entries
 
 | Screen | When it appears and what it means |
@@ -93,7 +94,7 @@ not authentication; verify the wallet policy and a known address as well.
 | **Secret S: boxes 1-24**<br>![Secret S: boxes 1-24](img/screens/master_boxes_1.png) | The complete S string appears over two numbered pages. Top Back returns without forcing finalization. After the second page, Finalize Seed continues loading; a loaded-seed backup uses Confirm Backup instead. |
 | **Secret S: boxes 25-48**<br>![Secret S: boxes 25-48](img/screens/master_boxes_2.png) | The complete S string appears over two numbered pages. Top Back returns without forcing finalization. After the second page, Finalize Seed continues loading; a loaded-seed backup uses Confirm Backup instead. |
 | **Finalize Seed**<br>![Finalize Seed](img/screens/finalize.png) | Load Seed, or Finalize Seed after display, reaches SeedSigner's standard finalization screen. Confirm the seed to proceed to its normal operations. |
-| **Loaded seed**<br>![Loaded seed](img/screens/seed_options.png) | The loaded public NAME seed offers normal SeedSigner operations: export xpubs, address checks, signing and backup. Coordinator setup is explained in the experimental build and test guide. |
+| **Loaded seed**<br>![Loaded seed](img/screens/seed_options.png) | The loaded seed offers normal SeedSigner operations: export xpubs, address checks, signing and backup. Coordinator setup is explained in the experimental build and test guide. |
 ## Codex32 backup and QR export
 
 | Screen | When it appears and what it means |

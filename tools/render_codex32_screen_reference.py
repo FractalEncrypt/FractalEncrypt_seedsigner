@@ -84,14 +84,14 @@ add("Import and share collection", "load_seed", "Load a Seed", "Choose Enter cod
 add("Import and share collection", "entry_first", "First share entry", "Enter exactly 48 characters in numbered four-box groups. MS1 is locked; ? marks an unreadable character. Any of the three side buttons selects a keyboard character.", sv.Codex32EntryView)
 add("Import and share collection", "entry_unknown", "An unreadable box", "Use ? only when a backup character cannot be read. It fills the box for entry, but cannot pass normal validation. A supported completion still needs review.", sv.Codex32EntryView, share_data=UNKNOWN.proposal.original, start_page=4)
 add("Import and share collection", "scan_share", "Scan a share", "Scan one Codex32 share QR. This illustration uses the generator's camera placeholder. Invalid scans use strict validation; correction proposals are a manual-entry feature.", scan_views.ScanCodex32ShareView, share_num=1)
-add("Import and share collection", "share_accepted", "Share accepted", "One compatible NAME share has been accepted. Recovery needs two. Enter or scan the next share; Discard opens the discard confirmation.", sv.Codex32ShareSuccessView, entered_shares=1, total_shares=2, share_collection=COLLECTION, prefill="MS12NAME")
+add("Import and share collection", "share_accepted", "Share accepted", "A compatible split codex32 share has been accepted. Recovery requires the threshold number of distinct shares; this example shows one of two. Enter or scan the next share; Discard opens the discard confirmation.", sv.Codex32ShareSuccessView, entered_shares=1, total_shares=2, share_collection=COLLECTION, prefill="MS12NAME")
 add("Import and share collection", "entry_next", "Next share entry", "MS1 plus the established threshold and identifier are locked for subsequent shares. The share index is the next editable position; enter a different index from the same set.", sv.Codex32EntryView, share_num=2, prefill="MS12NAME", share_collection=COLLECTION)
 add("Import and share collection", "duplicate_share", "Share Already Added", "This exact share is already saved. It adds no share toward recovery. Scan New Share opens the camera; Discard This Entry keeps the saved shares and lets you choose how to enter a different share.", sv.Codex32ShareAlreadyAddedView, share_collection=COLLECTION, share_idx="a")
-add("Import and share collection", "share_conflict", "Share Conflict", "Two checksum-valid strings use the same index but differ. Neither checksum identifies the correct backup. Compare Shares shows numbered differences. Check the original backup or an independent trusted record before choosing Keep Saved Share or Use New Share. If unsure, leave the saved share in place and investigate; do not guess.", sv.Codex32ShareConflictConfirmView, **CONFLICT_ARGS)
+add("Import and share collection", "share_conflict", "Share Conflict", "Two checksum-valid strings use the same index but differ. Neither checksum identifies the correct backup. Compare Shares shows numbered differences. Check the original backup or an independent trusted record before choosing Keep Saved Share or Use New Share. Keep Saved Share returns to the scan-or-enter choice. If unsure, leave the saved share in place and investigate; do not guess.", sv.Codex32ShareConflictConfirmView, **CONFLICT_ARGS)
 for page in range(4):
     add("Import and share collection", f"conflict_compare_{page+1}", f"Compare Shares: page {page+1}", "Saved → New lists differing box values. Next Differences advances; Back returns one page or to the choice screen. Choose Share returns to the choices without accepting either copy.", sv.Codex32ShareConflictReviewView, page_index=page, **CONFLICT_ARGS)
 add("Import and share collection", "discard_all", "Discard all shares", "Continue discards the collected shares. Cancel keeps the collection. This confirmation also appears when backing out of an accepted-share screen.", sv.Codex32DiscardAllSharesConfirmView, share_collection=COLLECTION)
-add("Import and share collection", "next_method", "Next share", "After discarding an invalid entry, choose manual entry or scanning while keeping any valid shares still in the collection.", sv.Codex32ShareEntryMethodView, share_num=2, prefill="MS12NAME", share_collection=COLLECTION)
+add("Import and share collection", "next_method", "Next share", "After discarding an invalid entry or choosing Keep Saved Share, choose manual entry or scanning. Your accepted shares and their correction history remain saved.", sv.Codex32ShareEntryMethodView, share_num=2, prefill="MS12NAME", share_collection=COLLECTION)
 
 add("Invalid entries", "correction_available", "Correction available", "A manual entry failed validation and a bounded proposal is available. View Correction starts review; Review & Edit keeps your original entry. The proposal has not been accepted.", sv.Codex32ShareInvalidView, share_data=TYPOS.proposal.original, correction_flow=TYPOS)
 add("Invalid entries", "no_correction", "No Correction Found", "No supported proposal was found. Errors or damage may exceed this device's limits; the true error count is unknown. Review numbered backup boxes, discard this entry, or discard the collection.", sv.Codex32ShareInvalidView, correction_attempted=True, share_data=A[:12]+"?"*16+A[28:])
@@ -135,7 +135,7 @@ add("Recovery options and seed loading", "master_warning", "Master seed warning"
 for page in (0, 1):
     add("Recovery options and seed loading", f"master_boxes_{page+1}", f"Secret S: boxes {page*24+1}-{page*24+24}", "The complete S string appears over two numbered pages. Top Back returns without forcing finalization. After the second page, Finalize Seed continues loading; a loaded-seed backup uses Confirm Backup instead.", sv.Codex32MasterSecretDisplayView, share_data=S, page_index=page)
 add("Recovery options and seed loading", "finalize", "Finalize Seed", "Load Seed, or Finalize Seed after display, reaches SeedSigner's standard finalization screen. Confirm the seed to proceed to its normal operations.", sv.SeedFinalizeView)
-add("Recovery options and seed loading", "seed_options", "Loaded seed", "The loaded public NAME seed offers normal SeedSigner operations: export xpubs, address checks, signing and backup. Coordinator setup is explained in the experimental build and test guide.", sv.SeedOptionsView, seed=SEED)
+add("Recovery options and seed loading", "seed_options", "Loaded seed", "The loaded seed offers normal SeedSigner operations: export xpubs, address checks, signing and backup. Coordinator setup is explained in the experimental build and test guide.", sv.SeedOptionsView, seed=SEED)
 
 add("Codex32 backup and QR export", "backup_menu", "Backup Seed", "For a Codex32 seed, choose View Codex32 Secret or Export as Codex32QR. These export the retained S/share metadata; they do not create new split shares.", sv.SeedBackupView, seed=SEED)
 add("Codex32 backup and QR export", "backup_select", "Select Share", "Choose the derived secret S or an entered split share. S reveals the complete seed; a split share is not interchangeable with it. This menu is shared by display and QR export.", sv.Codex32BackupShareSelectView, seed=SEED, share_map=SHARES, source_map=SOURCES)
@@ -245,13 +245,14 @@ asking you to check. For a step-by-step recovery, see the
 QRs, see the [build and test guide](Codex32_Experimental_Build_and_Test.md).
 
 **Public test data only. Never fund these example wallets.** All screenshots use
-public BIP93 NAME data (fingerprint `fab6868a`) or deliberately damaged versions
-of it. They are native 240x240 renders of the reviewed layout/duplicate-share
-candidate, with hardware mocked. Source hashes, checkout identity and the delta
+the public BIP93 codex32 test vector "NAME" (fingerprint `fab6868a`) or deliberately
+damaged versions of it. The screen behavior applies to other compatible codex32
+shares too. These are native 240x240 renders, with hardware mocked. Source hashes, checkout identity and the delta
 from the historical `22ee79b` baseline identify the captured code in the image
 manifest. See the build guide for the frozen runtime pin and device-test status.
-These images are software renders, not photos of the previously tested UX5
-firmware. The camera image is a placeholder.
+These images are software renders, not device photos. UX6 physical checks passed
+at 240x240; the later Keep Saved Share navigation change needs its own focused
+physical check. The camera image is a placeholder.
 Some menus scroll; screenshots show the initial viewport. Shared SeedSigner
 screens are included where Codex32 changes their content. Button names can differ
 in other languages. A fingerprint match is a 32-bit accidental-error check,

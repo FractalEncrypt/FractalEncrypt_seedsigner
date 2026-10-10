@@ -1,24 +1,20 @@
-# Codex32 experimental release checklist
+# Codex32 publication checklist for maintainers
+
+This document describes how maintainers package and publish an experimental
+image. Testers should use the [build and test guide](Codex32_Experimental_Build_and_Test.md)
+and [image validation notes](Codex32_Experimental_Release_Notes.md). A checklist
+in the source repository does not announce or approve a published release.
 
 **Experimental / public test seeds and testnet or regtest only. No real backups
 or funds. This is an independent fork, not an official SeedSigner release.**
-The software itself still supports mainnet; wording must not imply an enforced
-network restriction. All seven focused physical UX5 checks passed on 2026-10-10
-using a SeedSigner Plus at 240x320. Later 240x240 clipping reopened runtime work.
-The prepared UX5 release assets are historical and must not be published as the
-new layout/duplicate-share candidate. Independent review passed; runtime is pinned
-at `528031b63e4f8805e7f73fb3bb5355f630f53e86`. CI, a fresh build, focused device
-checks and new receipt/assets/checksums must be completed before publication.
+The software still supports mainnet; do not imply an enforced network restriction.
+Retain the exact tested candidate and distinguish it from later branch changes.
 
 ## Freeze and identify the tested image
 
 - Retain the exact image that passed physical testing. Record SHA256, byte count,
   target board, app commit, OS commit, Buildroot commit, build arguments, Docker
   image identity and the exact included version.json. Hash before mounting it.
-- Historical UX5 was app `22ee79b2d9aff6ecf6b49572f42361c9363d598f`, OS
-  `d13859392660fe512a753bc14ecd0edc86c35510`, Buildroot
-  `bf2a2858aa675a14b60f1f9142c65b32652609c1`, Pi Zero 1.3 target `--pi0`.
-  Use the tested candidate commit, not an assumed branch-tip commit.
 - Publish only the board image tested. A pi0 build covers the pi0 target; it does
   not establish tests for pi02w, pi2 or pi4. Clearly list tested hardware.
 - Choose a unique tag such as `v0.8.7-codex32-ec-test.1`, pinned to the candidate
@@ -26,12 +22,10 @@ checks and new receipt/assets/checksums must be completed before publication.
 - Documentation-only commits added later do not change this image. Link the
   relevant documentation revision explicitly, or attach the guide as an asset.
 
-The tested image is 52,428,800 bytes with SHA256
-`4c6104ee33aea1f2e68119fc2184077dcb45147c580af9ebd054f221724803f4`.
-This image is superseded for publication by the pending runtime changes. Do not
-reuse its image hash or receipt for the new candidate. Pin the accepted runtime
-commit after independent review; later documentation commits must not silently
-change the image tag's source pin.
+For the tested UX6 image's identity and validation scope, see the
+[image validation notes](Codex32_Experimental_Release_Notes.md). A later runtime
+change requires a new image and scoped physical check. Never copy an earlier
+image hash or receipt into a package for a different candidate.
 
 ## Prepare all draft assets
 

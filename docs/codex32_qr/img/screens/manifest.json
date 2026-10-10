@@ -1,9 +1,9 @@
 {
   "base_runtime_commit": "22ee79b2d9aff6ecf6b49572f42361c9363d598f",
-  "checkout_commit": "528031b63e4f8805e7f73fb3bb5355f630f53e86",
+  "checkout_commit": "87a4be4de12e24ce1c7f9e0bfcd6b78a535d3537",
   "base_runtime_tree": "d0de2724b5768a1db7160e7fed7d47ed3b93f625",
   "working_tree_runtime_changes": false,
-  "runtime_patch_sha256": "05419e9aa78f81e31712c3ebfdae2813b2d53a66c2a302254eb45c98a0abac1c",
+  "runtime_patch_sha256": "38622a0e84d76ac4f72628601ae1dd57d38205ae0daf8da682a9f27fd53e2512",
   "language": "en",
   "dimensions": [
     240,
@@ -12,7 +12,7 @@
   "test_data": "Public BIP93 vector 2 NAME only",
   "hardware": "mocked",
   "sources": {
-    "src/seedsigner/views/seed_views.py": "3837bb19f6583af45890151b2f9d66fe546f6918022329f2174b19a9d3fdd310",
+    "src/seedsigner/views/seed_views.py": "dbb64a182f8faf977118fdf618aac7125ff13fbd3d5439c81fe66fab9c594161",
     "src/seedsigner/views/codex32_views.py": "2b36d51d251269888540204b6e4d103def9ba87fbcce01d145ea829dbd3303ec",
     "src/seedsigner/views/scan_views.py": "c6800e54588664f7271b88abd9d6a674e780d15466a85872376c9f9bcd9791ca",
     "src/seedsigner/gui/screens/seed_screens.py": "2aef18d42b8fc9ba46a941c6ffab04fb205227dab96d81d30f546f9d1cabaedb",
@@ -25,7 +25,7 @@
     "src/seedsigner/views/view.py": "ea1146ee7ff4a82a6272ce5f7681f41950ba0bbde4faa73655ae472010cf0b13",
     "tests/screenshot_generator/generator.py": "eb1d29b7b10a7cd8dee6c18e66c6ab5eeb270b45cf9e64835eb4bc98b81833f4",
     "tests/screenshot_generator/utils.py": "8ad585161174e36c1c1e54ee236a132084a3c655c0e5a8878ced6ef40c542ec8",
-    "tools/render_codex32_screen_reference.py": "248d31f8fdac0277f44357968e208963fdc86f72230061a1cc661d5e08355c93"
+    "tools/render_codex32_screen_reference.py": "f9da5cf8d7f06fcf8aa7dbb716227d469630a5a54c538193635810ab15aa3817"
   },
   "images": [
     {

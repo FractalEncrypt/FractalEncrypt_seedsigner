@@ -204,8 +204,8 @@ timings/device metadata. A UVC camera connection alone does not expose a shell;
 running this requires an existing shell/console or a test firmware session. No Pi
 timing guarantee is inferred from desktop measurements.
 
-From `C:\Users\FractalEncrypt\Documents\Repos\SeedSigner` in Windows
-PowerShell, use the existing virtual environment (activation and WSL are unnecessary):
+From the repository root in Windows PowerShell, use the existing virtual
+environment (activation and WSL are unnecessary):
 
 ```powershell
 .\.venv\Scripts\python.exe tools/benchmark_codex32_correction.py --iterations 1000
