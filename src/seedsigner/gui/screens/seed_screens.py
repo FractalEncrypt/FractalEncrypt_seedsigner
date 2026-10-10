@@ -429,7 +429,7 @@ class Codex32ShareSuccessScreen(LargeIconStatusScreen):
     def __post_init__(self):
         self.title = _("Success!")
         self.status_headline = _("Share Accepted")
-        self.text = _("{} of {} shares have been entered").format(self.entered_shares, self.total_shares)
+        self.text = _("{} of {} shares").format(self.entered_shares, self.total_shares)
         self.is_bottom_list = True
         super().__post_init__()
 
@@ -454,18 +454,21 @@ class Codex32CorrectionDetailsScreen(ButtonListScreen):
     changes: tuple[tuple[int, str, str], ...] = ()
     changes_label: str = ""
     repair_mode: bool = False
+    display_title: str | None = None
+    comparison_label: str | None = None
+    guidance_text: str | None = None
 
     def __post_init__(self):
-        self.title = _("Repair Your Backup") if self.repair_mode else _("Review Changes")
+        self.title = self.display_title or (_("Repair Backup") if self.repair_mode else _("Review Changes"))
         self.is_bottom_list = True
         super().__post_init__()
         y = self.top_nav.height + GUIConstants.COMPONENT_PADDING
         label_size = 12 if self.repair_mode else 14
         for text, font_size, color in (
             (self.changes_label, label_size, GUIConstants.BODY_FONT_COLOR),
-            (_("Entered → Proposed"), label_size, GUIConstants.LABEL_FONT_COLOR),
-            (_("Keep original; mark repairs.\nVerify wallet after recovery.") if self.repair_mode else
-             _("Compare with your backup."), 12, GUIConstants.BODY_FONT_COLOR),
+            (self.comparison_label or _("Entered → Proposed"), label_size, GUIConstants.LABEL_FONT_COLOR),
+            (self.guidance_text or (_("Keep original; mark repairs.\nVerify wallet after recovery.") if self.repair_mode else
+             _("Compare with your backup.")), 12, GUIConstants.BODY_FONT_COLOR),
         ):
             line = TextArea(text=text, screen_y=y, font_size=font_size,
                             # OpenSans lacks this arrow; Inconsolata supplies it.
@@ -593,9 +596,9 @@ class Codex32MasterSecretDisplayScreen(ButtonListScreen):
         if self.display_title:
             self.title = self.display_title
         elif self.share_idx.lower() == "s":
-            self.title = _("Codex32 master seed")
+            self.title = _("Secret S")
         else:
-            self.title = _("Codex32 Share {}").format(self.share_idx.upper())
+            self.title = _("Share {}").format(self.share_idx.upper())
         self.show_back_button = self.display_back_button
         self.is_bottom_list = True
         super().__post_init__()
@@ -762,7 +765,11 @@ class Codex32EntryScreen(BaseTopNavScreen):
 
         num_height = self._get_font_height(self.box_num_font)
 
-        self.numbers_y = self.top_nav.height + GUIConstants.COMPONENT_PADDING
+        self.page_label_y = self.top_nav.height + 4
+        self.page_label_font_size = 14
+        label_font = Fonts.get_font(GUIConstants.get_body_font_name(), self.page_label_font_size)
+        label_left, label_top, label_right, label_bottom = label_font.getbbox("Boxes 17-20", anchor="ls")
+        self.numbers_y = self.page_label_y + label_bottom - label_top + GUIConstants.COMPONENT_PADDING
         self.boxes_y = self.numbers_y + num_height + 2
 
         self.box_height = GUIConstants.get_button_font_size() + 14
@@ -826,7 +833,7 @@ class Codex32EntryScreen(BaseTopNavScreen):
         if self.reentry_indices:
             self.warning_message = self.warning_message_default
         self.unknown_hint_shown = False
-        self.warning_y = self.boxes_y + self.box_height + int(GUIConstants.COMPONENT_PADDING / 2)
+        self.warning_y = self.boxes_y + self.box_height + 1
 
         self.focus_area = "boxes" if self.review_mode else "keyboard"
         self.top_nav_return_target = None
@@ -847,10 +854,8 @@ class Codex32EntryScreen(BaseTopNavScreen):
 
     def _get_top_nav_title(self) -> str:
         if self.reentry_indices:
-            start = self.active_page * self.window_size + 1
-            return _("Re-enter {}-{}").format(start, min(start + self.window_size - 1, self.total_len))
-        share_label = _("Share {}").format(self.share_num)
-        return f"{share_label}: {self._get_page_label()}"
+            return _("Re-enter Share {}").format(self.share_num)
+        return _("Share {}").format(self.share_num)
 
 
     def _update_top_nav_title(self) -> None:
@@ -920,11 +925,17 @@ class Codex32EntryScreen(BaseTopNavScreen):
             fill=GUIConstants.BACKGROUND_COLOR,
         )
 
+        self.page_label = TextArea(
+            text=self._get_page_label(), screen_y=self.page_label_y,
+            font_size=self.page_label_font_size, is_text_centered=True,
+        )
+        self.page_label.render()
+
         if self.warning_flash_count > 0:
             TextArea(
                 text=self.warning_message,
                 font_name=GUIConstants.get_body_font_name(),
-                font_size=GUIConstants.BODY_FONT_MIN_SIZE,
+                font_size=12,
                 font_color=GUIConstants.WARNING_COLOR,
                 screen_y=self.warning_y,
                 is_text_centered=True,

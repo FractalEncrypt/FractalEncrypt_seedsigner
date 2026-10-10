@@ -164,17 +164,113 @@ class TestSeedFlows(FlowTest):
             auto_submit_share_data=True,
         )
 
-        success_destination = view.run()
-        assert success_destination.View_cls == seed_views.Codex32ShareSuccessView
-        assert success_destination.view_args["share_num"] == 1
+        record = (object(), True)
+        collection.corrections["a"] = record
+        duplicate_destination = view.run()
+        assert duplicate_destination.View_cls == seed_views.Codex32ShareAlreadyAddedView
+        duplicate_view = duplicate_destination.View_cls(**duplicate_destination.view_args)
+        for selected, expected in ((0, scan_views.ScanCodex32ShareView),
+                                   (1, seed_views.Codex32ShareEntryMethodView),
+                                   (RET_CODE__BACK_BUTTON, seed_views.Codex32ShareEntryMethodView)):
+            with patch.object(duplicate_view, "run_screen", return_value=selected):
+                destination = duplicate_view.run()
+            assert destination.View_cls == expected
+            assert destination.view_args["share_num"] == 2
+            assert destination.view_args["share_collection"] is collection
+            assert len(collection.shares) == 1
+            assert collection.corrections["a"] is record
+        assert view.correction_record is None
+        assert view.share_data is None
 
-        success_view = seed_views.Codex32ShareSuccessView(**success_destination.view_args)
-        with patch.object(success_view, "run_screen", return_value=0):
-            next_destination = success_view.run()
+    def test_codex32_conflict_comparison_pages_do_not_accept_or_change_provenance(self):
+        share_a, _, _ = _build_codex32_split_fixture()
+        conflicting = _build_conflicting_share_same_index(share_a)
+        collection = codex32_model.Codex32ShareCollection.from_first_share(share_a)
+        record = (object(), True)
+        collection.corrections["a"] = record
+        args = dict(share_num=2, prefill=collection.prefix(), share_data=conflicting.s,
+                    share_collection=collection, correction_record=(object(), False))
+        choices = seed_views.Codex32ShareConflictConfirmView(**args)
+        with patch.object(choices, "run_screen", return_value=0):
+            destination = choices.run()
+        assert destination.View_cls == seed_views.Codex32ShareConflictReviewView
+        differences = tuple((i+1, a.upper(), b.upper()) for i,(a,b) in
+                            enumerate(zip(share_a.s, conflicting.s)) if a.upper() != b.upper())
+        page = 0
+        while destination.View_cls == seed_views.Codex32ShareConflictReviewView:
+            view = destination.View_cls(**destination.view_args)
+            with patch.object(view, "run_screen", return_value=0) as screen:
+                destination = view.run()
+            assert screen.call_args.kwargs["changes"] == differences[page*4:page*4+4]
+            assert screen.call_args.kwargs["comparison_label"] == "Saved → New"
+            assert collection.get_share("a").s == share_a.s
+            assert collection.corrections["a"] is record
+            assert len(collection.shares) == 1
+            page += 1
+        assert destination.View_cls == seed_views.Codex32ShareConflictConfirmView
+        assert page > 1
+        assert destination.view_args["correction_record"] is args["correction_record"]
+        for page in (0, 1):
+            review = seed_views.Codex32ShareConflictReviewView(page_index=page, **args)
+            with patch.object(review, "run_screen", return_value=RET_CODE__BACK_BUTTON):
+                back = review.run()
+            assert back.View_cls == (seed_views.Codex32ShareConflictReviewView if page else
+                                     seed_views.Codex32ShareConflictConfirmView)
+            assert collection.get_share("a").s == share_a.s
+            assert collection.corrections["a"] is record
 
-        assert next_destination.View_cls == seed_views.Codex32EntryView
-        assert next_destination.view_args["share_num"] == 2
 
+    def test_codex32_conflict_review_missing_saved_share_returns_to_choices_without_mutation(self):
+        share_a, _, _ = _build_codex32_split_fixture()
+        conflicting = _build_conflicting_share_same_index(share_a)
+        collection = codex32_model.Codex32ShareCollection.from_first_share(share_a)
+        record = (object(), True)
+        collection.corrections["a"] = record
+        args = dict(share_num=2, prefill=collection.prefix(), share_data=conflicting.s,
+                    share_collection=collection, correction_record=(object(), False))
+        review = seed_views.Codex32ShareConflictReviewView(**args)
+        with patch.object(collection, "get_share", return_value=None), patch.object(review, "run_screen") as screen:
+            destination = review.run()
+        screen.assert_not_called()
+        assert destination.View_cls == seed_views.Codex32ShareConflictConfirmView
+        assert destination.view_args == {**args, "entry_method": "manual"}
+        assert destination.skip_current_view is True
+        assert collection.get_share("a").s == share_a.s
+        assert collection.corrections["a"] is record
+        assert len(collection.shares) == 1
+
+    def test_codex32_explicit_clean_reentry_can_clear_prior_repair_record(self):
+        share_a, _, _ = _build_codex32_split_fixture()
+        collection = codex32_model.Codex32ShareCollection.from_first_share(share_a)
+        collection.corrections["a"] = (object(), True)
+        view = seed_views.Codex32EntryView(share_num=2, share_data=share_a.s.lower(),
+                                         share_collection=collection, auto_submit_share_data=True,
+                                         replace_existing=True)
+        destination = view.run()
+        assert destination.View_cls == seed_views.Codex32ShareSuccessView
+        assert "a" not in collection.corrections
+        assert len(collection.shares) == 1
+
+    def test_codex32_conflict_choice_updates_only_explicitly_chosen_share_and_record(self):
+        share_a, _, _ = _build_codex32_split_fixture()
+        conflicting = _build_conflicting_share_same_index(share_a)
+        for selected in (1, 2, RET_CODE__BACK_BUTTON):
+            collection = codex32_model.Codex32ShareCollection.from_first_share(share_a)
+            old_record, new_record = (object(), True), (object(), False)
+            collection.corrections["a"] = old_record
+            view = seed_views.Codex32ShareConflictConfirmView(
+                share_num=2, prefill=collection.prefix(), share_data=conflicting.s,
+                share_collection=collection, correction_record=new_record)
+            with patch.object(view, "run_screen", return_value=selected):
+                destination = view.run()
+            replaced = selected == 2
+            assert collection.get_share("a").s == (conflicting.s if replaced else share_a.s)
+            assert collection.corrections["a"] is (new_record if replaced else old_record)
+            assert len(collection.shares) == 1
+            assert destination.View_cls == (seed_views.Codex32ShareSuccessView if replaced else
+                                            seed_views.Codex32EntryView)
+            assert view.share_data is None
+            assert view.correction_record is None
 
     def test_codex32_collection_conflict_confirm_replace_updates_share(self):
         share_a, _, _ = _build_codex32_split_fixture()

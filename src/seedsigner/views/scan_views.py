@@ -296,7 +296,7 @@ class ScanSeedQRView(ScanView):
 
 
 class ScanCodex32ShareView(ScanView):
-    instructions_text = _mft("Scan codex32 share")
+    instructions_text = _mft("Scan Share QR")
     invalid_qr_type_message = _mft("Expected a codex32 share")
 
     def __init__(self, share_num: int = 1, share_collection=None):

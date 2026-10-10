@@ -298,7 +298,7 @@ class Codex32RecoveryReviewView(View):
         sources = seed.codex32_share_sources or {}
         indices = [i for i in codex32_model.Codex32ShareCollection.ordered_share_indices(shares) if sources.get(i) == "entered"]
         buttons = [ButtonOption(_("Review Share {}").format(i.upper())) for i in indices] + [self.DONE]
-        selected = self.run_screen(ButtonListScreen, title=_("Review Entered Shares"), button_data=buttons)
+        selected = self.run_screen(ButtonListScreen, title=_("Review Shares"), button_data=buttons)
         if selected == RET_CODE__BACK_BUTTON or buttons[selected] == self.DONE:
             return Destination(Codex32MasterShareSuccessView, {"corrections": self.corrections}, skip_current_view=True)
         index = indices[selected]

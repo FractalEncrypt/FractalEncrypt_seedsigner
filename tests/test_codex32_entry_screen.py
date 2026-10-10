@@ -18,10 +18,11 @@ SHARE = "MS12NAMEA320ZYXWVUTSRQPNMLKJHGFEDCAXRPP870HKKQRM"
 
 
 class TestCorrectionEntryScreen(BaseTest):
-    def build_screen(self, screen_cls=Codex32EntryScreen, **kwargs):
+    def build_screen(self, screen_cls=Codex32EntryScreen, canvas_height=240, **kwargs):
         renderer = MagicMock()
-        renderer.canvas_width = renderer.canvas_height = 240
-        renderer.canvas = Image.new("RGB", (240, 240))
+        renderer.canvas_width = 240
+        renderer.canvas_height = canvas_height
+        renderer.canvas = Image.new("RGB", (240, canvas_height))
         renderer.draw = ImageDraw.Draw(renderer.canvas)
         renderer.lock = RLock()
         self.renderer_patch = patch.object(Renderer, "get_instance", return_value=renderer)
@@ -30,6 +31,24 @@ class TestCorrectionEntryScreen(BaseTest):
         screen.is_input_in_top_nav = False
         screen.focus_area = "keyboard"
         return screen
+
+    @pytest.mark.parametrize("page", range(12))
+    @pytest.mark.parametrize("canvas_height", (240, 320))
+    def test_every_numbered_entry_page_keeps_box_label_above_keyboard(self, page, canvas_height):
+        screen = self.build_screen(share_data=SHARE, start_page=page, canvas_height=canvas_height)
+        screen._render_boxes()
+        assert screen.top_nav.title.needs_scroll is False
+        assert screen.top_nav.text == "Share 1"
+        assert screen.page_label.text == f"Boxes {page*4+1}-{page*4+4}"
+        assert screen.page_label.text_width <= screen.page_label.visible_width
+        assert screen.page_label.screen_y + screen.page_label.height <= screen.numbers_y
+        assert screen.boxes_y + screen.box_height < screen.keyboard_top
+        # The added range line must leave each keyboard key enough room for its glyph.
+        for row in screen.keyboard.keys:
+            for key in row:
+                if key.letter:
+                    _, top, _, bottom = screen.keyboard.font.getbbox(key.letter)
+                    assert bottom - top <= screen.keyboard.key_height
 
     def test_adjacent_starred_two_digit_labels_fit_their_grid_cells(self):
         screen = self.build_screen(Codex32MasterSecretDisplayScreen, share_data=SHARE,

@@ -428,7 +428,10 @@ class TestFingerprintComparison(BaseTest):
                                                   error_type=model.ERROR_HEADER)
         invalid.run_screen = Mock(return_value=0)
         invalid.run()
-        assert "current share set" in invalid.run_screen.call_args.kwargs["text"]
+        assert invalid.run_screen.call_args.kwargs["title"] == "Wrong Share Set"
+        assert "Threshold or ID differs" in invalid.run_screen.call_args.kwargs["text"]
+        assert "same set" in invalid.run_screen.call_args.kwargs["text"]
+        assert invalid.run_screen.call_args.kwargs["matched"] is False
 
     def test_canceling_check_menu_or_entry_preserves_prior_marker_and_correction_history(self):
         seed, corrections = self.recover()

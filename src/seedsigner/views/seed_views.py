@@ -443,7 +443,17 @@ class Codex32EntryView(View):
             if self.share_collection is None:
                 self.share_collection = codex32_model.Codex32ShareCollection.from_first_share(codex)
             else:
-                self.share_collection.add_share(codex, replace_existing=self.replace_existing)
+                result = self.share_collection.add_share(codex, replace_existing=self.replace_existing)
+                if result == "unchanged" and not self.replace_existing:
+                    # A repeated entry is not evidence that earlier repairs were
+                    # independently verified. Preserve the saved provenance.
+                    self.share_data = None
+                    self.correction_record = None
+                    return Destination(
+                        Codex32ShareAlreadyAddedView,
+                        {"share_collection": self.share_collection, "share_idx": codex.share_idx},
+                        skip_current_view=True,
+                    )
         except codex32_model.Codex32InputError as exc:
             if "Conflicting share index entered" in str(exc) and self.share_collection is not None:
                 return Destination(
@@ -490,9 +500,35 @@ class Codex32EntryView(View):
         )
 
 
+class Codex32ShareAlreadyAddedView(View):
+    SCAN = ButtonOption("Scan New Share")
+    DISCARD = ButtonOption("Discard This Entry")
+
+    def __init__(self, share_collection: codex32_model.Codex32ShareCollection, share_idx: str):
+        super().__init__()
+        self.share_collection = share_collection
+        self.share_idx = share_idx
+
+    def run(self):
+        from .scan_views import ScanCodex32ShareView
+        buttons = [self.SCAN, self.DISCARD]
+        selected = self.run_screen(
+            seed_screens.Codex32MessageScreen, title=_("Share Already Added"),
+            text=_("Share {} is already added. Use a different share to recover your seed.").format(self.share_idx.upper()),
+            show_back_button=False, button_data=buttons,
+        )
+        args = {"share_num": len(self.share_collection.shares) + 1,
+                "share_collection": self.share_collection}
+        if selected == 0:
+            return Destination(ScanCodex32ShareView, args, skip_current_view=True)
+        args["prefill"] = self.share_collection.prefix()
+        return Destination(Codex32ShareEntryMethodView, args, skip_current_view=True)
+
+
 class Codex32ShareConflictConfirmView(View):
-    REPLACE = ButtonOption("Replace Existing Share")
-    KEEP_EXISTING = ButtonOption("Keep Existing Share")
+    REPLACE = ButtonOption("Use New Share")
+    KEEP_EXISTING = ButtonOption("Keep Saved Share")
+    COMPARE = ButtonOption("Compare Shares")
 
     def __init__(
         self,
@@ -511,19 +547,26 @@ class Codex32ShareConflictConfirmView(View):
         self.entry_method = entry_method
         self.correction_record = correction_record
 
+    def _review_args(self):
+        return {"share_num": self.share_num, "prefill": self.prefill,
+                "share_data": self.share_data, "share_collection": self.share_collection,
+                "entry_method": self.entry_method, "correction_record": self.correction_record}
+
     def run(self):
-        button_data = [self.REPLACE, self.KEEP_EXISTING]
+        button_data = [self.COMPARE, self.KEEP_EXISTING, self.REPLACE]
         selected_menu_num = self.run_screen(
-            WarningScreen,
-            title=_("Duplicate share index"),
-            status_headline=None,
-            text=_("This share index is already entered. Replace the existing share with this one?"),
+            seed_screens.Codex32MessageScreen,
+            title=_("Share Conflict"),
+            text=_("This index is already used, but the new share differs. Check your backup before choosing."),
             show_back_button=False,
             button_data=button_data,
         )
 
-        if button_data[selected_menu_num] == self.KEEP_EXISTING:
+        if selected_menu_num != RET_CODE__BACK_BUTTON and button_data[selected_menu_num] == self.COMPARE:
+            return Destination(Codex32ShareConflictReviewView, self._review_args(), skip_current_view=True)
+        if selected_menu_num == RET_CODE__BACK_BUTTON or button_data[selected_menu_num] == self.KEEP_EXISTING:
             self.share_data = None
+            self.correction_record = None
             return Destination(
                 Codex32EntryView,
                 view_args={
@@ -568,6 +611,44 @@ class Codex32ShareConflictConfirmView(View):
         )
         destination.skip_current_view = True
         return destination
+
+
+class Codex32ShareConflictReviewView(Codex32ShareConflictConfirmView):
+    NEXT = ButtonOption("Next Differences")
+    CHOOSE = ButtonOption("Choose Share")
+    DIFFERENCES_PER_PAGE = 4
+
+    def __init__(self, page_index: int = 0, **kwargs):
+        super().__init__(**kwargs)
+        self.page_index = page_index
+
+    def run(self):
+        new = codex32_model.parse_codex32_share(self.share_data)
+        saved_share = self.share_collection.get_share(new.share_idx)
+        if saved_share is None:
+            return Destination(Codex32ShareConflictConfirmView, self._review_args(), skip_current_view=True)
+        saved = saved_share.s.upper()
+        incoming = new.s.upper()
+        differences = tuple((i + 1, old, updated) for i, (old, updated)
+                            in enumerate(zip(saved, incoming)) if old != updated)
+        start = self.page_index * self.DIFFERENCES_PER_PAGE
+        changes = differences[start:start + self.DIFFERENCES_PER_PAGE]
+        last = start + len(changes) >= len(differences)
+        selected = self.run_screen(
+            seed_screens.Codex32CorrectionDetailsScreen,
+            display_title=_("Compare Shares"), comparison_label=_("Saved → New"),
+            guidance_text=_("Check your original backup."),
+            changes_label=_("Differences {}-{} of {}").format(start + 1, start + len(changes), len(differences)),
+            changes=changes, button_data=[self.CHOOSE if last else self.NEXT],
+        )
+        args = self._review_args()
+        if selected == RET_CODE__BACK_BUTTON and self.page_index:
+            args["page_index"] = self.page_index - 1
+            return Destination(Codex32ShareConflictReviewView, args, skip_current_view=True)
+        if selected == RET_CODE__BACK_BUTTON or last:
+            return Destination(Codex32ShareConflictConfirmView, args, skip_current_view=True)
+        args["page_index"] = self.page_index + 1
+        return Destination(Codex32ShareConflictReviewView, args, skip_current_view=True)
 
 
 class Codex32ShareInvalidView(View):
@@ -635,6 +716,12 @@ class Codex32ShareInvalidView(View):
                 matched=False, body_padding=2,
                 show_back_button=False, button_data=button_data,
             )
+        elif self.share_collection and self.error_detail and "Share header mismatch" in self.error_detail:
+            selected_menu_num = self.run_screen(
+                seed_screens.Codex32StatusScreen, title=_("Wrong Share Set"),
+                text=_("Threshold or ID differs. Use shares from the same set."),
+                matched=False, show_back_button=False, button_data=button_data,
+            )
         elif self.error_detail == "Codex32 share index must be 's' when threshold is 0":
             selected_menu_num = self.run_screen(
                 seed_screens.Codex32MessageScreen,
@@ -644,7 +731,7 @@ class Codex32ShareInvalidView(View):
         else:
             selected_menu_num = self.run_screen(
                 DireWarningScreen,
-                title=_("Invalid codex32 share"),
+                title=_("Invalid Share"),
                 status_icon_name=SeedSignerIconConstants.ERROR,
                 status_headline=None,
                 text=_("Invalid entry. Correction available.") if self.correction_flow else self._get_error_text(),
@@ -975,9 +1062,9 @@ class Codex32MasterSecretWarningView(View):
             skip_current_view=True,
         )
 
-        status_headline = _("This will display your master seed!")
+        status_headline = _("Full secret S")
         if self.share_idx != "s":
-            status_headline = _("This will display codex32 Share {}!").format(self.share_idx.upper())
+            status_headline = _("Split share {}").format(self.share_idx.upper())
 
         selected_menu_num = self.run_screen(
             DireWarningScreen,
@@ -1050,7 +1137,7 @@ class Codex32MasterSecretDisplayView(View):
 
 
 class Codex32BackupConfirmPromptView(View):
-    CONFIRM = ButtonOption("Confirm codex32 Backup")
+    CONFIRM = ButtonOption("Re-enter Backup")
     DONE = ButtonOption("Done")
 
     def __init__(self, seed: Seed, expected_share: str, share_idx: str = "s"):
@@ -1063,9 +1150,9 @@ class Codex32BackupConfirmPromptView(View):
         button_data = [self.CONFIRM, self.DONE]
         selected_menu_num = self.run_screen(
             seed_screens.SeedTranscribeSeedQRConfirmQRPromptScreen,
-            title=_("Confirm codex32 backup?"),
+            title=_("Check Backup?"),
             prompt_text=_(
-                "Optionally re-enter your codex32 backup to confirm that it reads back correctly."
+                "Re-enter your copied string to check it matches the original."
             ),
             button_data=button_data,
         )
@@ -1150,9 +1237,9 @@ class Codex32BackupConfirmInvalidView(View):
     def run(self):
         self.run_screen(
             DireWarningScreen,
-            title=_("Confirm codex32 backup"),
+            title=_("Check Backup"),
             status_headline=_("Error!"),
-            text=_("Your transcribed codex32 backup could not be validated."),
+            text=_("Your copy is invalid or differs from the original. Check the numbered boxes."),
             show_back_button=False,
             button_data=[self.REVIEW],
         )
@@ -1180,12 +1267,12 @@ class Codex32BackupConfirmSuccessView(View):
 
         self.run_screen(
             LargeIconStatusScreen,
-            title=_("Confirm codex32 backup"),
+            title=_("Check Backup"),
             status_headline=_("Success!"),
             text=(
-                _("Your transcribed codex32 backup matched the original master seed.")
+                _("Your copied secret S matches the original.")
                 if self.share_idx == "s"
-                else _("Your transcribed codex32 backup matched Share {}.").format(self.share_idx.upper())
+                else _("Your copied Share {} matches the original.").format(self.share_idx.upper())
             ),
             show_back_button=False,
             button_data=[ButtonOption("OK")],
@@ -1200,10 +1287,10 @@ class Codex32BackupUnavailableView(View):
             DireWarningScreen,
             title=_("Backup unavailable"),
             status_icon_name=SeedSignerIconConstants.ERROR,
-            status_headline=_("Codex32 secret unavailable"),
+            status_headline=None,
             text=_(
-                "This codex32 seed is missing, invalid, or inconsistent backup metadata. "
-                "Re-import the codex32 secret to restore backup metadata before backing it up."
+                "Secret S backup metadata is missing or invalid. "
+                "Re-import the Codex32 secret before backing it up."
             ),
             button_data=[ButtonOption("Back")],
             show_back_button=False,
@@ -1226,12 +1313,11 @@ class Codex32BackupMetadataWarningView(View):
     def run(self):
         self.run_screen(
             WarningScreen,
-            title=_("Backup metadata warning"),
+            title=_("Backup Warning"),
             status_headline=None,
             text=_(
-                "Some split-share backup metadata was invalid, inconsistent, "
-                "or could not be verified and was omitted. "
-                "Continuing with secret seed S only."
+                "Unverified split-share records were omitted. "
+                "Continuing with secret S only."
             ),
             show_back_button=False,
             button_data=[self.CONTINUE],
@@ -1800,7 +1886,7 @@ class Codex32BackupShareSelectView(View):
 
         selected_menu_num = self.run_screen(
             ButtonListScreen,
-            title=_("Export codex32 string"),
+            title=_("Select Share"),
             button_data=button_data,
             is_bottom_list=True,
         )
@@ -2659,9 +2745,9 @@ class SeedTranscribeSeedQRWarningView(View):
     def run(self):
         is_codex32 = self.seedqr_format == QRType.SEED__CODEX32
         if is_codex32 and self.codex32_share_idx != "s":
-            status_headline = _("Codex32 QR contains Share {}.").format(self.codex32_share_idx.upper())
+            status_headline = _("Split share {} QR").format(self.codex32_share_idx.upper())
         elif is_codex32:
-            status_headline = _("Codex32 QR is your master seed!")
+            status_headline = _("Full secret S QR")
         else:
             status_headline = _("SeedQR is your private key!")
         destination = Destination(
@@ -2717,7 +2803,7 @@ class SeedTranscribeSeedQRWholeQRView(View):
 
         title = _("Transcribe SeedQR")
         if self.seedqr_format == QRType.SEED__CODEX32:
-            title = _("Transcribe codex32 QR")
+            title = _("Codex32 QR")
 
         ret = self.run_screen(
             seed_screens.SeedTranscribeSeedQRWholeQRScreen,
@@ -2804,7 +2890,7 @@ class SeedTranscribeSeedQRZoomedInView(View):
 
 class SeedTranscribeSeedQRConfirmQRPromptView(View):
     SCAN = ButtonOption("Confirm SeedQR", SeedSignerIconConstants.QRCODE)
-    SCAN_CODEX32QR = ButtonOption("Confirm codex32 QR", SeedSignerIconConstants.QRCODE)
+    SCAN_CODEX32QR = ButtonOption("Scan Copied QR", SeedSignerIconConstants.QRCODE)
     DONE = ButtonOption("Done")
 
     def __init__(self, seed: Seed, seedqr_format: str = QRType.SEED__SEEDQR, expected_qr_data: str | None = None):
@@ -2820,8 +2906,8 @@ class SeedTranscribeSeedQRConfirmQRPromptView(View):
         prompt_text = _("Optionally scan your transcribed SeedQR to confirm that it reads back correctly.")
         if self.seedqr_format == QRType.SEED__CODEX32:
             scan_button = self.SCAN_CODEX32QR
-            title = _("Confirm codex32 QR?")
-            prompt_text = _("Optionally scan your transcribed codex32 QR to confirm that it reads back correctly.")
+            title = _("Check QR?")
+            prompt_text = _("Scan your copied QR to check it matches the original string.")
         button_data = [scan_button, self.DONE]
 
         selected_menu_option = self.run_screen(
@@ -2867,7 +2953,7 @@ class SeedTranscribeSeedQRConfirmScanView(View):
         scanning_done=self.run_screen(
             ScanScreen,
             decoder=self.decoder,
-            instructions_text=_("Scan your codex32 QR") if self.seedqr_format == QRType.SEED__CODEX32 else _("Scan your SeedQR")
+            instructions_text=_("Scan Copied QR") if self.seedqr_format == QRType.SEED__CODEX32 else _("Scan your SeedQR")
         )
 
         # If the scanning was canceled because the back button was pressed, return to BackStackView (SeedTranscribeSeedQRConfirmQRPromptView).
@@ -2924,13 +3010,13 @@ class SeedTranscribeSeedQRConfirmWrongSeedView(View):
 
     def run(self):
         is_codex32 = self.seedqr_format == QRType.SEED__CODEX32
-        title = _("Confirm codex32 QR") if is_codex32 else _("Confirm SeedQR")
+        title = _("Check QR") if is_codex32 else _("Confirm SeedQR")
         text = (
-            _("Your transcribed codex32 QR does not match the original share.")
+            _("The copied QR does not match the selected string.")
             if is_codex32
             else _("Your transcribed SeedQR does not match your original seed!")
         )
-        review_label = _("Review codex32 QR") if is_codex32 else _("Review SeedQR")
+        review_label = _("Review QR") if is_codex32 else _("Review SeedQR")
         self.run_screen(
             DireWarningScreen,
             title=title,
@@ -2957,13 +3043,13 @@ class SeedTranscribeSeedQRConfirmInvalidQRView(View):
 
     def run(self):
         is_codex32 = self.seedqr_format == QRType.SEED__CODEX32
-        title = _("Confirm codex32 QR") if is_codex32 else _("Confirm SeedQR")
+        title = _("Check QR") if is_codex32 else _("Confirm SeedQR")
         text = (
             _("Your transcribed codex32 QR could not be read!")
             if is_codex32
             else _("Your transcribed SeedQR could not be read!")
         )
-        review_label = _("Review codex32 QR") if is_codex32 else _("Review SeedQR")
+        review_label = _("Review QR") if is_codex32 else _("Review SeedQR")
         # TODO: A better error message would be something like: "The QR code you scanned does not contain a valid SeedQR."
         self.run_screen(
             DireWarningScreen,
@@ -2992,9 +3078,9 @@ class SeedTranscribeSeedQRConfirmSuccessView(View):
     def run(self):
         from seedsigner.gui.screens.screen import LargeIconStatusScreen
         is_codex32 = self.seedqr_format == QRType.SEED__CODEX32
-        title = _("Confirm codex32 QR") if is_codex32 else _("Confirm SeedQR")
+        title = _("Check QR") if is_codex32 else _("Confirm SeedQR")
         text = (
-            _("Your transcribed codex32 QR successfully scanned and matched the original share.")
+            _("The copied QR matches the selected string.")
             if is_codex32
             else _("Your transcribed SeedQR successfully scanned and yielded the same seed.")
         )
